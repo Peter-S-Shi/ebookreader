@@ -30,6 +30,16 @@ vi.mock("./PdfReader", () => ({
     </div>
   ),
 }));
+vi.mock("./TxtReader", () => ({
+  TxtReader: ({ bookId, title, onBack }: { bookId: string; title: string; onBack: () => void }) => (
+    <div>
+      <p>Reading TXT: {title} ({bookId})</p>
+      <button type="button" onClick={onBack}>
+        Back to Library
+      </button>
+    </div>
+  ),
+}));
 
 beforeEach(() => {
   invokeMock.mockReset();
@@ -153,14 +163,26 @@ describe("Opening a book", () => {
     expect(await screen.findByText(/Reading PDF: A PDF Book \(pdf-1\)/)).toBeInTheDocument();
   });
 
-  it("does not offer to open a TXT (format not yet supported by any Reader)", async () => {
+  it("opens the TxtReader for an available TXT when its title is clicked", async () => {
+    const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([
       { book_id: "txt-1", title: "A TXT Book", path: "C:/books/a.txt", format: "txt", ownership_mode: "reference", available: true },
     ]);
     render(<App />);
 
-    await screen.findByText("A TXT Book");
-    expect(screen.queryByRole("button", { name: "A TXT Book" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "A TXT Book" }));
+
+    expect(await screen.findByText(/Reading TXT: A TXT Book \(txt-1\)/)).toBeInTheDocument();
+  });
+
+  it("does not offer to open a format with no renderer at all", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "mystery-1", title: "A Mystery Format", path: "C:/books/a.xyz", format: "xyz", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+
+    await screen.findByText("A Mystery Format");
+    expect(screen.queryByRole("button", { name: "A Mystery Format" })).not.toBeInTheDocument();
   });
 
   it("does not offer to open a book that Needs Relink", async () => {
