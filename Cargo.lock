@@ -903,6 +903,7 @@ version = "0.1.0"
 dependencies = [
  "rusqlite",
  "serde",
+ "serde_json",
  "sha2",
 ]
 

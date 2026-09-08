@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::io::{self, Read};
 use std::path::Path;
 
+pub mod document_location;
 pub mod store;
 
 /// A minimal view of a Library entry sufficient for duplicate-import detection.

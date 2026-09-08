@@ -3,9 +3,10 @@
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
 use crate::db::{managed_books_dir, DbState};
+use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::store::{
-    import_book, import_book_managed, list_books, relink_book_file, remove_book, BookSummary,
-    OwnershipMode, RelinkOutcome,
+    get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
+    BookSummary, OwnershipMode, RelinkOutcome,
 };
 use std::path::Path;
 use tauri::{AppHandle, State};
@@ -90,4 +91,37 @@ pub fn relink_book_command(
 pub fn remove_book_command(state: State<DbState>, book_id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     remove_book(&conn, &book_id).map_err(|e| format!("remove failed: {e}"))
+}
+
+/// Read a Book's file bytes off disk so the Reader can hand them to the
+/// format-specific renderer (`foliate-js` for EPUB, `pdf.js` for PDF) in
+/// the webview, which cannot read local paths directly.
+#[tauri::command]
+pub fn read_book_file_command(state: State<DbState>, book_id: String) -> Result<Vec<u8>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let book = get_book(&conn, &book_id)
+        .map_err(|e| format!("could not look up book: {e}"))?
+        .ok_or_else(|| format!("no such book: {book_id}"))?;
+    std::fs::read(&book.path).map_err(|e| format!("could not read {}: {e}", book.path))
+}
+
+/// Save the current reading position for a Book (`ARCHITECTURE.md` SS5
+/// DocumentLocation).
+#[tauri::command]
+pub fn save_reading_location_command(
+    state: State<DbState>,
+    location: DocumentLocation,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    save_location(&conn, &location).map_err(|e| format!("could not save reading location: {e}"))
+}
+
+/// Load the saved reading position for a Book, if any.
+#[tauri::command]
+pub fn load_reading_location_command(
+    state: State<DbState>,
+    book_id: String,
+) -> Result<Option<DocumentLocation>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    load_location(&conn, &book_id).map_err(|e| format!("could not load reading location: {e}"))
 }

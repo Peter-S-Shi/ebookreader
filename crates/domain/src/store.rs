@@ -7,7 +7,7 @@
 //! fingerprint already exists in the Library must not create a second Book.
 
 use crate::{compute_fingerprint, find_duplicate, LibraryEntry};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use std::path::Path;
 
@@ -52,6 +52,22 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             );
             CREATE INDEX idx_book_file_fingerprint ON book_file(fingerprint);
             PRAGMA user_version = 1;
+            ",
+        )?;
+    }
+
+    if current < 2 {
+        conn.execute_batch(
+            "
+            CREATE TABLE document_location (
+                book_id TEXT PRIMARY KEY REFERENCES book(id),
+                format TEXT NOT NULL,
+                progression_hint REAL NOT NULL,
+                primary_anchor TEXT NOT NULL,
+                fallback_anchors TEXT NOT NULL,
+                context_selector TEXT
+            );
+            PRAGMA user_version = 2;
             ",
         )?;
     }
@@ -261,6 +277,29 @@ pub fn remove_book(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Look up a single Book by id, if it exists.
+pub fn get_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<BookSummary>> {
+    conn.query_row(
+        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
+         FROM book JOIN book_file ON book_file.book_id = book.id
+         WHERE book.id = ?1",
+        [book_id],
+        |row| {
+            let path: String = row.get(2)?;
+            let available = Path::new(&path).exists();
+            Ok(BookSummary {
+                book_id: row.get(0)?,
+                title: row.get(1)?,
+                path,
+                format: row.get(3)?,
+                ownership_mode: row.get(4)?,
+                available,
+            })
+        },
+    )
+    .optional()
+}
+
 fn existing_entries(conn: &Connection) -> rusqlite::Result<Vec<LibraryEntry>> {
     let mut stmt = conn.prepare(
         "SELECT book.id, book.title, book_file.fingerprint FROM book JOIN book_file ON book_file.book_id = book.id",
@@ -295,7 +334,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
     }
 
     #[test]
@@ -441,6 +480,19 @@ mod tests {
         let books = list_books(&conn).unwrap();
         let titles: Vec<&str> = books.iter().map(|b| b.title.as_str()).collect();
         assert_eq!(titles, vec!["Second Book", "First Book"]);
+    }
+
+    #[test]
+    fn get_book_finds_an_imported_book_by_id_and_none_for_an_unknown_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("lookup.epub", b"a book to look up");
+        let book_id = import_book(&conn, &path, "Lookup Book", "epub", OwnershipMode::Reference).unwrap();
+
+        let found = get_book(&conn, &book_id).unwrap();
+        assert_eq!(found.map(|b| b.title), Some("Lookup Book".to_string()));
+
+        assert_eq!(get_book(&conn, "no-such-book").unwrap(), None);
     }
 
     #[test]

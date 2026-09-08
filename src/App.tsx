@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Reader } from "./Reader";
 import "./App.css";
 
 interface BookSummary {
@@ -12,8 +13,15 @@ interface BookSummary {
   available: boolean;
 }
 
+// Per FORMAT_CAPABILITY_MATRIX.md / ROADMAP.md M2 Exit Gate ("no active
+// format exposes controls it cannot truthfully honor"): only offer to open
+// a format the Reader can actually render. PDF/TXT renderers are later M2
+// checkpoints.
+const READABLE_FORMATS = new Set(["epub"]);
+
 function App() {
   const [books, setBooks] = useState<BookSummary[] | null>(null);
+  const [openBook, setOpenBook] = useState<BookSummary | null>(null);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
@@ -41,6 +49,10 @@ function App() {
     await refreshLibrary();
   }
 
+  if (openBook) {
+    return <Reader bookId={openBook.book_id} title={openBook.title} onBack={() => setOpenBook(null)} />;
+  }
+
   return (
     <main className="container">
       <h1>EbookReader</h1>
@@ -54,15 +66,24 @@ function App() {
           <p>Library is empty. Import a book to get started.</p>
         ) : (
           <ul>
-            {books.map((book) => (
-              <li key={book.book_id}>
-                {book.title}
-                {!book.available && <span> — Needs Relink</span>}
-                <button type="button" onClick={() => removeBook(book.book_id)}>
-                  Remove
-                </button>
-              </li>
-            ))}
+            {books.map((book) => {
+              const canOpen = book.available && READABLE_FORMATS.has(book.format);
+              return (
+                <li key={book.book_id}>
+                  {canOpen ? (
+                    <button type="button" onClick={() => setOpenBook(book)}>
+                      {book.title}
+                    </button>
+                  ) : (
+                    book.title
+                  )}
+                  {!book.available && <span> — Needs Relink</span>}
+                  <button type="button" onClick={() => removeBook(book.book_id)}>
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
