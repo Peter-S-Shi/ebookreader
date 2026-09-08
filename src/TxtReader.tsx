@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { TypographyPanel } from "./TypographyPanel";
+import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -26,6 +28,8 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [text, setText] = useState<string | null>(null);
   const restoredRef = useRef(false);
+  const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
+  const [typographyOpen, setTypographyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +74,13 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
     invoke("save_reading_location_command", { location }).catch(() => {});
   }
 
+  const textStyle: React.CSSProperties = {
+    fontFamily: typography.fontFamily ?? undefined,
+    fontSize: `${typography.fontSizePercent}%`,
+    lineHeight: typography.lineHeight,
+    maxWidth: `${typography.pageWidthCh}ch`,
+  };
+
   return (
     <div className="reader">
       <div className="reader-toolbar">
@@ -77,9 +88,19 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
           Back to Library
         </button>
         <span>{title}</span>
+        <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
+          Aa
+        </button>
+        {typographyOpen && (
+          <TypographyPanel
+            settings={typography}
+            onChange={setTypography}
+            onClose={() => setTypographyOpen(false)}
+          />
+        )}
       </div>
       <div ref={containerRef} className="reader-surface txt-surface" onScroll={handleScroll}>
-        <pre>{text ?? "Loading…"}</pre>
+        <pre style={textStyle}>{text ?? "Loading…"}</pre>
       </div>
     </div>
   );

@@ -72,6 +72,7 @@ button {
    Surface that fills the remaining window height. Contents/Notebook side
    panels are a later checkpoint. */
 .reader {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -92,6 +93,45 @@ button {
   overflow: auto;
   display: flex;
   justify-content: center;
+}
+
+/* Typography panel (DESIGN.md SS8 "Aa"): a small overlay panel anchored
+   under the reader toolbar. */
+.typography-panel {
+  position: absolute;
+  top: 3em;
+  right: 1em;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 1em;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: #f6f6f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+}
+
+.typography-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+}
+
+.typography-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  font-size: 0.9em;
+  text-align: left;
+}
+
+@media (prefers-color-scheme: dark) {
+  .typography-panel {
+    background-color: #2f2f2f;
+  }
 }
 
 .txt-surface {

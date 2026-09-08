@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { TypographyPanel } from "./TypographyPanel";
+import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -19,20 +21,32 @@ interface ReaderProps {
 // The <foliate-view> custom element foliate-js registers; it ships no
 // published type declarations, so this is a minimal local shape covering
 // only the API this component actually calls.
+interface FoliateRenderer {
+  setStyles(css: string): void;
+}
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
   goTo(target: string): Promise<void>;
   lastLocation?: { cfi?: string };
+  isFixedLayout?: boolean;
+  renderer?: FoliateRenderer;
 }
 
 // Minimal EPUB reading surface: opens the Book via foliate-js and keeps
 // its DocumentLocation (ARCHITECTURE.md SS5) durable across reopens by
 // saving/loading through the Tauri command layer on every relocate.
-// PDF/TXT renderers and DESIGN.md's full Reader chrome (Contents/Notebook
-// panels, Focus Reading) are later M2 checkpoints, not this one.
+// DESIGN.md SS7/SS8: reflowable EPUB gets typography controls (`Aa`);
+// fixed-layout does not (foliate-js's own `isFixedLayout` flag gates it,
+// since "do not expose reflow typography that cannot work").
+// DESIGN.md's full Reader chrome (Contents/Notebook panels, Focus
+// Reading) is a later M2 checkpoint, not this one.
 export function Reader({ bookId, title, onBack }: ReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<FoliateView | null>(null);
   const [status, setStatus] = useState("Loading…");
+  const [isFixedLayout, setIsFixedLayout] = useState(false);
+  const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
+  const [typographyOpen, setTypographyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,10 +63,15 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
       const view = document.createElement("foliate-view") as FoliateView;
       view.style.cssText = "width:100%;height:100%;display:block";
       hostRef.current?.replaceChildren(view);
+      viewRef.current = view;
 
       await view.open(file);
       if (cancelled) return;
       setStatus("Ready");
+      setIsFixedLayout(Boolean(view.isFixedLayout));
+      if (!view.isFixedLayout) {
+        view.renderer?.setStyles(toEpubCss(DEFAULT_TYPOGRAPHY));
+      }
 
       const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
       if (!cancelled && saved?.primary_anchor) {
@@ -80,6 +99,11 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     };
   }, [bookId, title]);
 
+  function handleTypographyChange(next: TypographySettings) {
+    setTypography(next);
+    viewRef.current?.renderer?.setStyles(toEpubCss(next));
+  }
+
   return (
     <div className="reader">
       <div className="reader-toolbar">
@@ -87,8 +111,20 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
           Back to Library
         </button>
         <span>{title}</span>
+        {!isFixedLayout && (
+          <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
+            Aa
+          </button>
+        )}
         <span>{status}</span>
       </div>
+      {typographyOpen && !isFixedLayout && (
+        <TypographyPanel
+          settings={typography}
+          onChange={handleTypographyChange}
+          onClose={() => setTypographyOpen(false)}
+        />
+      )}
       <div ref={hostRef} className="reader-surface" />
     </div>
   );
