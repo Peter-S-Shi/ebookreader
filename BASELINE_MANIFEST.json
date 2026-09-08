@@ -1,0 +1,26 @@
+{
+  "baseline_date": "2026-09-08",
+  "version": "V2 Loop Engineering Refactor",
+  "status": "V1 product/domain/UI frozen; P0 loop-control refactor applied; M0 planned",
+  "authority_model": {
+    "product": "PRODUCT_SPEC.md",
+    "ui": "DESIGN.md",
+    "architecture": "ARCHITECTURE.md",
+    "formats": "FORMAT_CAPABILITY_MATRIX.md",
+    "roadmap_loop_control": "ROADMAP.md",
+    "manual_qa": "MANUAL_QA.md",
+    "current_state": "PROJECT_STATUS.md",
+    "entry_point": "README.md"
+  },
+  "files": [
+    "ARCHITECTURE.md",
+    "DESIGN.md",
+    "FORMAT_CAPABILITY_MATRIX.md",
+    "MANUAL_QA.md",
+    "PRODUCT_SPEC.md",
+    "PROJECT_STATUS.md",
+    "README.md",
+    "ROADMAP.md",
+    "docs/design/EbookReader_UI_Prototype_v0_5.html"
+  ]
+}

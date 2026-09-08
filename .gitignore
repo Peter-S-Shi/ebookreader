@@ -1,0 +1,100 @@
+# --- Local-only planning / private material (never publish) ---
+/random thoughts.pdf
+/prompt-drafts/
+*.local.md
+/private/
+/local/
+
+# --- Archives / downloaded assets staged for extraction ---
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
+# --- Credentials / secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+secrets.*
+credentials.*
+*.token
+
+# --- Node / TypeScript / React ---
+node_modules/
+dist/
+dist-ssr/
+build/
+.vite/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Rust / Cargo / Tauri ---
+target/
+Cargo.lock.bak
+src-tauri/target/
+src-tauri/gen/
+*.rs.bk
+
+# --- Python (spike/tooling scripts) ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Local databases / generated app data / exports ---
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+/app-data/
+/exports/
+/backups/
+*.bak
+
+# --- OCR / model assets (large, re-downloadable, not redistributable) ---
+/models/
+/ocr-assets/
+*.onnx
+*.pt
+*.bin.model
+
+# --- Test/spike corpora that may not be redistributable ---
+/test-fixtures/private/
+/spikes/**/fixtures/private/
+
+# --- Logs / temp / caches ---
+*.log
+.cache/
+.tmp/
+tmp/
+temp/
+
+# --- OS / editor metadata ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# --- Machine-specific paths / local config ---
+*.local.json
+.env.local
