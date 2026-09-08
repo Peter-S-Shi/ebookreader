@@ -4,8 +4,10 @@
 
 use crate::db::{managed_books_dir, DbState};
 use crate::ReadingSessionState;
+use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
+use ebookreader_domain::progress_store::{load_progress, save_progress};
 use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::store::{
     get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
@@ -173,4 +175,63 @@ pub fn reading_session_status_command(state: State<ReadingSessionState>) -> Resu
         state: state_str.to_string(),
         total_excluded_ms: session.total_excluded().as_millis(),
     })
+}
+
+/// Load a Book's reading progress (`PRODUCT_SPEC.md` SS8). A never-opened
+/// Book reads as a fresh, 0%-progress `ReadingProgress` -- not an error.
+#[tauri::command]
+pub fn get_reading_progress_command(state: State<DbState>, book_id: String) -> Result<ReadingProgress, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    load_progress(&conn, &book_id).map_err(|e| format!("could not load reading progress: {e}"))
+}
+
+/// SS8.2: forward progress within the active read only (backtracking
+/// cannot move this backwards -- enforced in `ReadingProgress` itself).
+#[tauri::command]
+pub fn advance_reading_progress_command(
+    state: State<DbState>,
+    book_id: String,
+    progress_percent: f64,
+) -> Result<ReadingProgress, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let mut progress = load_progress(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    progress.advance_active_progress(progress_percent);
+    save_progress(&conn, &book_id, &progress).map_err(|e| format!("could not save reading progress: {e}"))?;
+    Ok(progress)
+}
+
+/// SS8.1: reaching the final page. Increments completed_read_count and
+/// closes the active read.
+#[tauri::command]
+pub fn complete_current_read_command(state: State<DbState>, book_id: String) -> Result<ReadingProgress, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let mut progress = load_progress(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    progress.complete_current_read();
+    save_progress(&conn, &book_id, &progress).map_err(|e| format!("could not save reading progress: {e}"))?;
+    Ok(progress)
+}
+
+/// SS8.1 "If Yes": start the next read.
+#[tauri::command]
+pub fn start_next_read_command(state: State<DbState>, book_id: String) -> Result<ReadingProgress, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let mut progress = load_progress(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    progress.start_next_read();
+    save_progress(&conn, &book_id, &progress).map_err(|e| format!("could not save reading progress: {e}"))?;
+    Ok(progress)
+}
+
+/// SS8.4: manual completed-read override from Data -> Book Data. Never
+/// touches ReadingSession or Actual Reading Time history.
+#[tauri::command]
+pub fn override_completed_reads_command(
+    state: State<DbState>,
+    book_id: String,
+    completed_read_count: u32,
+) -> Result<ReadingProgress, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let mut progress = load_progress(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    progress.manual_override(completed_read_count);
+    save_progress(&conn, &book_id, &progress).map_err(|e| format!("could not save reading progress: {e}"))?;
+    Ok(progress)
 }

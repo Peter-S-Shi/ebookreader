@@ -8,8 +8,10 @@ use sha2::{Digest, Sha256};
 use std::io::{self, Read};
 use std::path::Path;
 
+pub mod completion;
 pub mod document_location;
 pub mod fonts;
+pub mod progress_store;
 pub mod reading_session;
 pub mod store;
 
