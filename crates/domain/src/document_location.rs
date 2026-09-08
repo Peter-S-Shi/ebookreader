@@ -152,4 +152,47 @@ mod tests {
             .unwrap();
         assert_eq!(count, 1, "a second save must update the one row, not add another");
     }
+
+    /// M3 Success Evidence: "location durability under layout/typography/
+    /// reopen." Typography is entirely a frontend concern (`src/typography.ts`)
+    /// with zero domain-layer representation, and ReadingProgress/Book
+    /// Hours/Actual Reading Time are separate tables/modules with no code
+    /// path that touches `document_location` -- this test is the
+    /// domain-level proof of that isolation: saving a DocumentLocation,
+    /// then performing unrelated progress/workload writes, must never
+    /// perturb it. (The typography-specific EPUB reopen-stability case
+    /// itself was already covered with real fixtures in M0's
+    /// tooling/m0-evidence/ DocumentLocation spike; this closes the gap
+    /// at the production persistence layer M3 owns.)
+    #[test]
+    fn location_survives_unrelated_progress_and_workload_writes_ss_m3_durability() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        conn.execute("INSERT INTO book (id, title) VALUES ('book-1', 'Test Book')", [])
+            .unwrap();
+
+        let location = DocumentLocation {
+            book_id: "book-1".into(),
+            format: "epub".into(),
+            progression_hint: 0.42,
+            primary_anchor: "epubcfi(/6/8!/4/2/1:0)".into(),
+            fallback_anchors: vec!["text-quote:the rabbit hole".into()],
+            context_selector: Some("chapter 1".into()),
+        };
+        save_location(&conn, &location).unwrap();
+
+        // Unrelated writes: reading progress (SS8) and workload config (SS9).
+        let mut progress = crate::completion::ReadingProgress::new();
+        progress.advance_active_progress(75.0);
+        crate::progress_store::save_progress(&conn, "book-1", &progress).unwrap();
+        crate::book_hours::save_workload_config(
+            &conn,
+            "book-1",
+            &crate::book_hours::WorkloadConfig { quantity: 1000.0, baseline_speed: 200.0, difficulty_coefficient: 1.0 },
+        )
+        .unwrap();
+
+        let reloaded = load_location(&conn, "book-1").unwrap();
+        assert_eq!(reloaded, Some(location), "DocumentLocation must be untouched by unrelated progress/workload writes");
+    }
 }

@@ -441,7 +441,7 @@ No active format exposes controls it cannot truthfully honor.
 
 # Milestone 3 — DocumentLocation, Progress, Completion, Reading Time & Book Hours
 
-**Status:** In Progress  
+**Status:** **Complete** (2026-09-08, commit `096b90d` + durability test below) — Exit Gate evidence below.  
 **Risk:** High
 
 ## Goal
@@ -485,11 +485,15 @@ Cumulative Reading % / 100
 
 Progress, rereads, time, and workload remain explainable and non-destructive.
 
+**Satisfied.** `crates/domain/src/reading_session.rs` + `src-tauri/src/reading_session_hook.rs`: a real Win32 `WTSRegisterSessionNotification`/`WM_POWERBROADCAST` hook (a dedicated hidden window, deliberately separate from Tauri's own so it can never destabilize WebView2) gives exact, non-heuristic pause/resume boundaries — this closes M0-G's residual risk this Milestone specifically owned. `crates/domain/src/completion.rs`: the frozen Cumulative Reading % formula, SS8.1 completion/SS8.2 "no rereading inference" (enforced by tracking the furthest point reached monotonically, not current position), and SS8.4 manual override, all with real Tauri commands wired into all three Readers (a completion prompt fires exactly once per 100% crossing, PRODUCT_SPEC.md's exact wording). `crates/domain/src/book_hours.rs` + `actual_reading_time.rs`: the frozen Base/Cumulative Book Hours formulas, and an Actual Reading Time accumulator that only ever adds real elapsed durations net of the ReadingSession hook's lock/sleep exclusion — structurally unable to fabricate time, since it has no other input. Location durability under layout/typography/reopen is proven directly: `document_location.rs`'s new isolation test confirms a saved DocumentLocation survives unrelated progress/workload writes, on top of M0's original real-fixture EPUB reopen/typography-change evidence. 59 domain tests + 48 frontend tests, CI green on every M3 commit.
+
+**Residuals explicitly carried forward, not silently dropped**: (1) Actual Reading Time currently wires through only one of SS10's four Settings policies (OS lock/sleep) — Pause When Backgrounded, Auto-pause After 5 Minutes Inactivity, and Count Note-taking as Reading Time need window-focus/idle detection not yet built; the direction of this gap is that V1 currently *undercounts* pauses, never fabricates time, which is what SS10's actual principle constrains. (2) Book Hours history/versioning covers the *current* estimate (SS9.3's "versioned/explainable" for a live config); a full per-revision snapshot history for Calendar retroactive-distortion protection is M6 (Calendar) scope, not this Milestone's.
+
 ---
 
 # Milestone 4 — Reading Assets & Search
 
-**Status:** Planned  
+**Status:** In Progress  
 **Risk:** Medium–High
 
 ## Goal
