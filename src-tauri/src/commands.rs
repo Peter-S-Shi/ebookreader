@@ -4,8 +4,8 @@
 
 use crate::db::{managed_books_dir, DbState};
 use ebookreader_domain::store::{
-    import_book, import_book_managed, list_books, relink_book_file, BookSummary, OwnershipMode,
-    RelinkOutcome,
+    import_book, import_book_managed, list_books, relink_book_file, remove_book, BookSummary,
+    OwnershipMode, RelinkOutcome,
 };
 use std::path::Path;
 use tauri::{AppHandle, State};
@@ -81,4 +81,13 @@ pub fn relink_book_command(
         RelinkOutcome::FingerprintMismatch => "fingerprint_mismatch",
     }
     .to_string())
+}
+
+/// Remove `book_id` from the Library. A Managed-Copy file's app-managed
+/// copy is deleted; a Reference file's source is never touched
+/// (`PRODUCT_SPEC.md`).
+#[tauri::command]
+pub fn remove_book_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    remove_book(&conn, &book_id).map_err(|e| format!("remove failed: {e}"))
 }

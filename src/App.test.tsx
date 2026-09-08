@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -34,7 +34,7 @@ describe("Library", () => {
 
   it("lists books returned by list_library_command", async () => {
     invokeMock.mockResolvedValueOnce([
-      { book_id: "abc", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference" },
+      { book_id: "abc", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
     render(<App />);
     expect(await screen.findByText("Alice's Adventures in Wonderland")).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("Library", () => {
     openMock.mockResolvedValueOnce("C:/books/new-book.epub");
     invokeMock.mockResolvedValueOnce("new-book-id"); // import_book_command
     invokeMock.mockResolvedValueOnce([
-      { book_id: "new-book-id", title: "new-book", path: "C:/books/new-book.epub", format: "epub", ownership_mode: "reference" },
+      { book_id: "new-book-id", title: "new-book", path: "C:/books/new-book.epub", format: "epub", ownership_mode: "reference", available: true },
     ]); // refreshed list
 
     render(<App />);
@@ -59,5 +59,36 @@ describe("Library", () => {
       path: "C:/books/new-book.epub",
       ownershipMode: "reference",
     });
+  });
+
+  it("shows Needs Relink for a book whose file is missing, not for one that's present", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "missing", title: "Missing Book", path: "C:/books/gone.epub", format: "epub", ownership_mode: "reference", available: false },
+      { book_id: "present", title: "Present Book", path: "C:/books/here.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+
+    const missingItem = (await screen.findByText("Missing Book")).closest("li")!;
+    expect(within(missingItem).getByText(/needs relink/i)).toBeInTheDocument();
+
+    const presentItem = screen.getByText("Present Book").closest("li")!;
+    expect(within(presentItem).queryByText(/needs relink/i)).not.toBeInTheDocument();
+  });
+
+  it("removes a book via Remove and refreshes the list", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "to-remove", title: "Removable Book", path: "C:/books/removable.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]); // initial list
+    invokeMock.mockResolvedValueOnce(undefined); // remove_book_command
+    invokeMock.mockResolvedValueOnce([]); // refreshed list
+
+    render(<App />);
+    await screen.findByText("Removable Book");
+
+    await user.click(screen.getByRole("button", { name: /remove/i }));
+
+    expect(await screen.findByText(/library is empty/i)).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "to-remove" });
   });
 });

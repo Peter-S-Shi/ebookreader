@@ -208,6 +208,11 @@ pub struct BookSummary {
     pub path: String,
     pub format: String,
     pub ownership_mode: String,
+    /// `false` when the stored path no longer exists on disk. Per
+    /// `PRODUCT_SPEC.md` "Reference": "missing path enters Needs Relink" --
+    /// this is that signal, surfaced to callers/UI rather than silently
+    /// treated as available.
+    pub available: bool,
 }
 
 /// List every Book currently in the Library, most recently imported first.
@@ -218,15 +223,42 @@ pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
          ORDER BY book.rowid DESC",
     )?;
     let rows = stmt.query_map([], |row| {
+        let path: String = row.get(2)?;
+        let available = Path::new(&path).exists();
         Ok(BookSummary {
             book_id: row.get(0)?,
             title: row.get(1)?,
-            path: row.get(2)?,
+            path,
             format: row.get(3)?,
             ownership_mode: row.get(4)?,
+            available,
         })
     })?;
     rows.collect()
+}
+
+/// Remove a Book from the Library.
+///
+/// Per `PRODUCT_SPEC.md`: a Managed-Copy BookFile's app-managed copy is
+/// deleted (it exists only because EbookReader made it); a Reference
+/// BookFile's source is the user's own file and is never touched.
+pub fn remove_book(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
+    let (path, ownership_mode): (String, String) = conn.query_row(
+        "SELECT path, ownership_mode FROM book_file WHERE book_id = ?1",
+        [book_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    if ownership_mode == OwnershipMode::ManagedCopy.as_str() {
+        // Best-effort: an already-missing managed copy is not an error --
+        // the Book row is still removed either way.
+        std::fs::remove_file(&path).ok();
+    }
+
+    conn.execute("DELETE FROM book_file WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM book WHERE id = ?1", [book_id])?;
+
+    Ok(())
 }
 
 fn existing_entries(conn: &Connection) -> rusqlite::Result<Vec<LibraryEntry>> {
@@ -409,5 +441,84 @@ mod tests {
         let books = list_books(&conn).unwrap();
         let titles: Vec<&str> = books.iter().map(|b| b.title.as_str()).collect();
         assert_eq!(titles, vec!["Second Book", "First Book"]);
+    }
+
+    #[test]
+    fn list_books_reports_needs_relink_when_the_reference_path_no_longer_exists() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("will-move.epub", b"a reference book");
+        import_book(&conn, &path, "Will Move", "epub", OwnershipMode::Reference).unwrap();
+
+        // Simulate the user's file moving/disappearing out from under the Reference.
+        std::fs::remove_file(&path).unwrap();
+
+        let books = list_books(&conn).unwrap();
+        assert_eq!(books.len(), 1);
+        assert!(
+            !books[0].available,
+            "PRODUCT_SPEC.md: a missing Reference path must enter Needs Relink, not read as available"
+        );
+    }
+
+    #[test]
+    fn list_books_reports_available_when_the_path_exists() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("still-there.epub", b"a present book");
+        import_book(&conn, &path, "Still There", "epub", OwnershipMode::Reference).unwrap();
+
+        let books = list_books(&conn).unwrap();
+        assert!(books[0].available);
+    }
+
+    #[test]
+    fn remove_book_deletes_the_managed_copy_but_never_touches_a_reference_source() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Managed Copy: removing the Book must delete the app-managed copy.
+        let managed_source = temp_file("to-remove-managed.epub", b"managed book contents");
+        let managed_dir = std::env::temp_dir().join(format!("ebookreader-remove-test-{}", std::process::id()));
+        std::fs::create_dir_all(&managed_dir).unwrap();
+        let managed_book_id = import_book_managed(
+            &conn,
+            &managed_source,
+            "Managed To Remove",
+            "epub",
+            OwnershipMode::ManagedCopy,
+            &managed_dir,
+        )
+        .unwrap();
+        let managed_stored_path: String = conn
+            .query_row("SELECT path FROM book_file WHERE book_id = ?1", [&managed_book_id], |r| r.get(0))
+            .unwrap();
+
+        remove_book(&conn, &managed_book_id).unwrap();
+
+        assert!(
+            !std::path::Path::new(&managed_stored_path).exists(),
+            "removing a Managed-Copy Book must delete its app-managed copy"
+        );
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM book WHERE id = ?1", [&managed_book_id], |r| r.get(0)).unwrap();
+        assert_eq!(count, 0);
+
+        // Reference: removing the Book must NOT touch the user's source file.
+        let reference_source = temp_file("to-remove-reference.epub", b"reference book contents");
+        let reference_book_id =
+            import_book(&conn, &reference_source, "Reference To Remove", "epub", OwnershipMode::Reference).unwrap();
+
+        remove_book(&conn, &reference_book_id).unwrap();
+
+        assert!(
+            reference_source.exists(),
+            "removing a Reference Book must never delete the user's own source file"
+        );
+        assert_eq!(
+            std::fs::read(&reference_source).unwrap(),
+            b"reference book contents"
+        );
+
+        std::fs::remove_dir_all(&managed_dir).ok();
     }
 }

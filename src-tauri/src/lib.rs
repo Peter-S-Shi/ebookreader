@@ -1,7 +1,9 @@
 mod commands;
 mod db;
 
-use commands::{import_book_command, list_library_command, relink_book_command};
+use commands::{
+    import_book_command, list_library_command, relink_book_command, remove_book_command,
+};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -17,7 +19,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             import_book_command,
             list_library_command,
-            relink_book_command
+            relink_book_command,
+            remove_book_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
