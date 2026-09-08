@@ -37,8 +37,18 @@ jobs:
       # already gives fast, GUI-free unit-test coverage of Library/
       # persistence logic (ARCHITECTURE.md's Rust domain/application layer).
       - run: cargo test -p ebookreader-domain --locked
-      # Native Windows build of the Tauri shell crate. A full bundle/
-      # installer build is deferred to M10 (Release Candidate, Packaging);
-      # this verifies the desktop-shell crate compiles and links on the
-      # platform it actually ships on.
-      - run: cargo check -p ebookreader --locked
+      # Native Windows *build* (not just check) of the Tauri shell crate,
+      # on the MSVC toolchain windows-latest uses by default. A full
+      # bundle/installer build is deferred to M10 (Release Candidate,
+      # Packaging); this verifies the desktop-shell crate actually
+      # compiles AND links on the platform/toolchain it ships on.
+      #
+      # Note: this sandbox's local dev toolchain is GNU-hosted
+      # (x86_64-pc-windows-gnu) and cannot fully link this crate --
+      # `ld: export ordinal too large`, a known mingw-ld limitation with
+      # Tauri's large symbol table (COM/WebView2 interop is MSVC-oriented;
+      # see also crates/domain's split for the related `cargo test`
+      # GNU-target instability). This CI job on MSVC is therefore the
+      # authoritative native Windows build verification, not local `cargo
+      # build` in this sandbox.
+      - run: cargo build -p ebookreader --locked
