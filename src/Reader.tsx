@@ -4,6 +4,7 @@ import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { TocPanel, type TocItem } from "./TocPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
+import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -25,6 +26,8 @@ interface ReaderProps {
 // only the API this component actually calls.
 interface FoliateRenderer {
   setStyles(css: string): void;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
 }
 interface FoliateBook {
   toc?: TocItem[];
@@ -56,6 +59,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("paginated-double");
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +85,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
       setToc(view.book?.toc ?? []);
       if (!view.isFixedLayout) {
         view.renderer?.setStyles(toEpubCss(DEFAULT_TYPOGRAPHY));
+        if (view.renderer) applyViewMode(view.renderer, viewMode);
       }
 
       const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
@@ -119,6 +124,12 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     setOpenPanel(null);
   }
 
+  function handleViewModeChange(next: ViewMode) {
+    setViewMode(next);
+    const renderer = viewRef.current?.renderer;
+    if (renderer) applyViewMode(renderer, next);
+  }
+
   return (
     <ReaderShell
       title={title}
@@ -132,9 +143,22 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
             </button>
           )}
           {!isFixedLayout && (
-            <button type="button" onClick={() => setOpenPanel((p) => (p === "typography" ? null : "typography"))}>
-              Aa
-            </button>
+            <>
+              <select
+                aria-label="View mode"
+                value={viewMode}
+                onChange={(e) => handleViewModeChange(e.target.value as ViewMode)}
+              >
+                {(Object.keys(VIEW_MODE_LABELS) as ViewMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {VIEW_MODE_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setOpenPanel((p) => (p === "typography" ? null : "typography"))}>
+                Aa
+              </button>
+            </>
           )}
         </>
       }
