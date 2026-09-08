@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
+import { useReadingProgress } from "./useReadingProgress";
+import { CompletionPrompt } from "./CompletionPrompt";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -31,6 +33,7 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   const restoredRef = useRef(false);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [typographyOpen, setTypographyOpen] = useState(false);
+  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +76,7 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
       context_selector: text.slice(charOffset, charOffset + 40) || null,
     };
     invoke("save_reading_location_command", { location }).catch(() => {});
+    advance(fraction);
   }
 
   const textStyle: React.CSSProperties = {
@@ -101,6 +105,9 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
         )
       }
     >
+      {showCompletionPrompt && (
+        <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
       <div ref={containerRef} className="reader-surface txt-surface" onScroll={handleScroll}>
         <pre style={textStyle}>{text ?? "Loading…"}</pre>
       </div>

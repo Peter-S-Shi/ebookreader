@@ -5,6 +5,8 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
 import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
+import { useReadingProgress } from "./useReadingProgress";
+import { CompletionPrompt } from "./CompletionPrompt";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -48,6 +50,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
+  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,15 +73,17 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   }, [bookId]);
 
   function saveLocation(page: number, count: number) {
+    const fraction = count > 0 ? page / count : 0;
     const location: DocumentLocationDTO = {
       book_id: bookId,
       format: "pdf",
-      progression_hint: count > 0 ? page / count : 0,
+      progression_hint: fraction,
       primary_anchor: String(page),
       fallback_anchors: [],
       context_selector: null,
     };
     invoke("save_reading_location_command", { location }).catch(() => {});
+    advance(fraction);
   }
 
   // Single-page mode: render only the current page.
@@ -209,6 +214,9 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
         </>
       }
     >
+      {showCompletionPrompt && (
+        <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
       {viewMode === "single" ? (
         <div className="reader-surface">
           <canvas ref={canvasRef} />

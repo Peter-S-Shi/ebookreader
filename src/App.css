@@ -224,9 +224,36 @@ button {
   width: 100%;
 }
 
+/* Completion prompt (PRODUCT_SPEC.md SS8.1): centered, above the reading
+   surface -- deliberately not hidden by Focus mode, since finishing a
+   Book is a real event the user needs to see regardless of chrome state. */
+.completion-prompt {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1em;
+  padding: 1.5em 2em;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: #f6f6f6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.completion-prompt-actions {
+  display: flex;
+  gap: 0.75em;
+}
+
 @media (prefers-color-scheme: dark) {
   .typography-panel,
-  .toc-panel {
+  .toc-panel,
+  .completion-prompt {
     background-color: #2f2f2f;
   }
 }

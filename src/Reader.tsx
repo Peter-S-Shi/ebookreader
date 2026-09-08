@@ -6,6 +6,8 @@ import { TocPanel, type TocItem } from "./TocPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 import { useSoundToggle } from "./useSoundToggle";
+import { useReadingProgress } from "./useReadingProgress";
+import { CompletionPrompt } from "./CompletionPrompt";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -66,6 +68,11 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   useEffect(() => {
     playPageTurnRef.current = playPageTurn;
   }, [playPageTurn]);
+  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const advanceRef = useRef(advance);
+  useEffect(() => {
+    advanceRef.current = advance;
+  }, [advance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,15 +111,17 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
         if (!cfi) return;
         playPageTurnRef.current();
+        const fraction = typeof detail.fraction === "number" ? detail.fraction : 0;
         const location: DocumentLocationDTO = {
           book_id: bookId,
           format: "epub",
-          progression_hint: typeof detail.fraction === "number" ? detail.fraction : 0,
+          progression_hint: fraction,
           primary_anchor: cfi,
           fallback_anchors: [],
           context_selector: null,
         };
         invoke("save_reading_location_command", { location }).catch(() => {});
+        advanceRef.current(fraction);
       });
     })();
 
@@ -187,6 +196,9 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
         </>
       }
     >
+      {showCompletionPrompt && (
+        <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
       <div ref={hostRef} className="reader-surface" />
     </ReaderShell>
   );
