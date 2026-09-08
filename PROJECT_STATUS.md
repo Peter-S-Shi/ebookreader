@@ -4,17 +4,17 @@ Last Updated: 2026-09-08
 
 Current Phase: M1 — Foundation, Persistence & Library (autonomous feature loop, M1→M8 envelope)
 Current Milestone: M1 — Foundation, Persistence & Library — **In Progress**
-Current Checkpoint / Promotion Unit: M1 checkpoint 1 — minimal CI Promotion Gate + project scaffold (in progress)
-Current Branch / PR: `main` (direct commits pre-implementation; no PR yet)
-Last Accepted Commit: canonical baseline + M0 evidence + M0 corrective evidence pass + governance reconciliation (Architecture Lock approval) on `main`
-Last Accepted Evidence: V1 product/domain scope freeze + V1 UI baseline freeze + P0 loop-control refactor + M0 technical spikes across all 9 evidence tracks, strengthened by a corrective pass with a reproducible evidence harness (`tooling/m0-evidence/`); Architecture Lock approved at the second Human Architecture Gate — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`
+Current Checkpoint / Promotion Unit: M1 checkpoint 1 — CI Promotion Gate + project scaffold + persistence core (in progress)
+Current Branch / PR: `main` (direct commits; no PR yet — single long-lived checkpoint per `ROADMAP.md` §1.1/§1.6)
+Last Accepted Commit: `84817f5` (Tauri 2 + React/TS shell, domain crate, CI Promotion Gate — CI green) on `main`; persistence-core commit in progress on top of it
+Last Accepted Evidence: V1 product/domain scope freeze + V1 UI baseline freeze + P0 loop-control refactor + M0 technical spikes across all 9 evidence tracks, strengthened by a corrective pass with a reproducible evidence harness (`tooling/m0-evidence/`); Architecture Lock approved at the second Human Architecture Gate — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`. M1: Cargo workspace scaffolded (`crates/domain` pure-Rust + `src-tauri` shell); CI Promotion Gate live and green (`.github/workflows/ci.yml`); `crates/domain` has real TDD-built coverage for cryptographic fingerprinting, fingerprint-based duplicate-import detection, SQLite schema migration (idempotent, `user_version`-tracked), and book import persistence (7 passing tests).
 Current Blockers: None. One Architecture Amendment carried forward as accepted baseline (CJK search needs a segmentation adapter in front of SQLite FTS5 — working reference implementation exists, production integration is M4 scope).
 Open Escalations: None
-Architecture State: **Accepted Architecture Baseline** — see `M0_ARCHITECTURE_DECISION.md`. Amendments still require reconciliation under the Architecture Promotion Rule; Product-Contract Conflicts still require a Human Gate.
+Architecture State: **Accepted Architecture Baseline** — see `M0_ARCHITECTURE_DECISION.md`. Amendments still require reconciliation under the Architecture Promotion Rule; Product-Contract Conflicts still require a Human Gate. One new dev-environment finding (not an architecture change): `cargo test` on this dev sandbox's GNU-hosted Rust toolchain is unstable once Tauri's COM/WebView2 dependency graph is linked into a test binary (`STATUS_ENTRYPOINT_NOT_FOUND`) — worked around by keeping domain logic in a Tauri-free workspace member (`crates/domain`), which is also better architecture on its own terms and is unaffected on CI's MSVC-toolchain Windows runner (confirmed green).
 Feature Complete: No
 Feature Freeze: No
 RC / Release State: Not started
-Next Action: Establish the minimal CI Promotion Gate (`ROADMAP.md` §1.9) at M1's first checkpoint, then proceed with M1 implementation (persistence, Library, import, Reference/Managed-Copy, fingerprint identity, relink) per its Success Evidence. No further per-Milestone human approval is required inside the M1→M8 envelope unless a stop/escalation trigger fires (`ROADMAP.md` §1.8); the next Human Gate is the Human Feature Freeze Gate after M8.
+Next Action: Continue M1 implementation (Reference vs Managed-Copy import commands, relink workflow, Library-facing Tauri commands wired to `crates/domain`, native visual acceptance of a minimal Library view) per its Success Evidence, still inside M1 checkpoint 1 unless scope/risk grows enough to warrant a second checkpoint. No further per-Milestone human approval is required inside the M1→M8 envelope unless a stop/escalation trigger fires (`ROADMAP.md` §1.8); the next Human Gate is the Human Feature Freeze Gate after M8.
 
 ## History of this Milestone
 
