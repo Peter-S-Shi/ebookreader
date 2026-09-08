@@ -8,6 +8,7 @@
 
 use crate::{compute_fingerprint, find_duplicate, LibraryEntry};
 use rusqlite::Connection;
+use serde::Serialize;
 use std::path::Path;
 
 /// Ownership mode for an imported BookFile.
@@ -151,6 +152,83 @@ fn import_book_internal(
     Ok(book_id)
 }
 
+/// Outcome of attempting to relink a BookFile to a candidate path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelinkOutcome {
+    /// The candidate's fingerprint matched the stored one; the BookFile's
+    /// path has been updated. Book identity, progress, and reading assets
+    /// are unaffected (`ARCHITECTURE.md` "Same fingerprint").
+    Relinked,
+    /// The candidate's fingerprint did not match the stored one. The path
+    /// was *not* updated -- relink must not silently inherit a different
+    /// file's identity (`ARCHITECTURE.md` "Changed fingerprint: Do not
+    /// silently inherit"). Caller must route this to an explicit
+    /// replacement/migration workflow instead.
+    FingerprintMismatch,
+}
+
+/// Attempt to relink `book_id`'s BookFile to `candidate_path` (e.g. after
+/// the user points EbookReader at a Reference file that moved).
+///
+/// Per `ARCHITECTURE.md` "Same fingerprint": a moved/renamed file with an
+/// unchanged fingerprint relinks in place, preserving Book identity. A
+/// changed fingerprint is reported, not silently applied.
+pub fn relink_book_file(
+    conn: &Connection,
+    book_id: &str,
+    candidate_path: &Path,
+) -> rusqlite::Result<RelinkOutcome> {
+    let stored_fingerprint: String = conn.query_row(
+        "SELECT fingerprint FROM book_file WHERE book_id = ?1",
+        [book_id],
+        |row| row.get(0),
+    )?;
+
+    let candidate_fingerprint = compute_fingerprint(candidate_path)
+        .map_err(|e| rusqlite::Error::InvalidPath(format!("{e}").into()))?;
+
+    if candidate_fingerprint != stored_fingerprint {
+        return Ok(RelinkOutcome::FingerprintMismatch);
+    }
+
+    conn.execute(
+        "UPDATE book_file SET path = ?1 WHERE book_id = ?2",
+        (candidate_path.to_string_lossy().to_string(), book_id),
+    )?;
+
+    Ok(RelinkOutcome::Relinked)
+}
+
+/// A Library entry as surfaced to callers (Tauri commands, UI) -- richer
+/// than the internal [`LibraryEntry`] used for duplicate-import matching.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct BookSummary {
+    pub book_id: String,
+    pub title: String,
+    pub path: String,
+    pub format: String,
+    pub ownership_mode: String,
+}
+
+/// List every Book currently in the Library, most recently imported first.
+pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
+         FROM book JOIN book_file ON book_file.book_id = book.id
+         ORDER BY book.rowid DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(BookSummary {
+            book_id: row.get(0)?,
+            title: row.get(1)?,
+            path: row.get(2)?,
+            format: row.get(3)?,
+            ownership_mode: row.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
 fn existing_entries(conn: &Connection) -> rusqlite::Result<Vec<LibraryEntry>> {
     let mut stmt = conn.prepare(
         "SELECT book.id, book.title, book_file.fingerprint FROM book JOIN book_file ON book_file.book_id = book.id",
@@ -274,5 +352,62 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&managed_dir).ok();
+    }
+
+    #[test]
+    fn relink_updates_path_when_the_moved_files_fingerprint_still_matches() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let original = temp_file("moved.epub", b"a book that gets moved");
+        let book_id = import_book(&conn, &original, "Moved Book", "epub", OwnershipMode::Reference).unwrap();
+
+        // Simulate the user moving the file: same bytes, new location.
+        let new_location = temp_file("moved-elsewhere.epub", b"a book that gets moved");
+
+        let outcome = relink_book_file(&conn, &book_id, &new_location).unwrap();
+        assert_eq!(outcome, RelinkOutcome::Relinked);
+
+        let stored_path: String = conn
+            .query_row("SELECT path FROM book_file WHERE book_id = ?1", [&book_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stored_path, new_location.to_string_lossy());
+    }
+
+    #[test]
+    fn relink_refuses_and_does_not_update_path_when_fingerprint_differs() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let original = temp_file("orig.epub", b"the original book contents");
+        let book_id = import_book(&conn, &original, "Original Book", "epub", OwnershipMode::Reference).unwrap();
+
+        // A different file happens to occupy the path the user pointed at.
+        let different_file = temp_file("different.epub", b"completely different contents");
+
+        let outcome = relink_book_file(&conn, &book_id, &different_file).unwrap();
+        assert_eq!(outcome, RelinkOutcome::FingerprintMismatch);
+
+        let stored_path: String = conn
+            .query_row("SELECT path FROM book_file WHERE book_id = ?1", [&book_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            stored_path,
+            original.to_string_lossy(),
+            "a fingerprint mismatch must not silently overwrite the stored path"
+        );
+    }
+
+    #[test]
+    fn list_books_returns_imported_books_most_recent_first() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let first = temp_file("first.epub", b"first book contents");
+        let second = temp_file("second.epub", b"second book contents");
+
+        import_book(&conn, &first, "First Book", "epub", OwnershipMode::Reference).unwrap();
+        import_book(&conn, &second, "Second Book", "epub", OwnershipMode::Reference).unwrap();
+
+        let books = list_books(&conn).unwrap();
+        let titles: Vec<&str> = books.iter().map(|b| b.title.as_str()).collect();
+        assert_eq!(titles, vec!["Second Book", "First Book"]);
     }
 }

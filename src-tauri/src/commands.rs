@@ -3,7 +3,10 @@
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
 use crate::db::{managed_books_dir, DbState};
-use ebookreader_domain::store::{import_book, import_book_managed, OwnershipMode};
+use ebookreader_domain::store::{
+    import_book, import_book_managed, list_books, relink_book_file, BookSummary, OwnershipMode,
+    RelinkOutcome,
+};
 use std::path::Path;
 use tauri::{AppHandle, State};
 
@@ -49,4 +52,33 @@ pub fn import_book_command(
         }
     }
     .map_err(|e| format!("import failed: {e}"))
+}
+
+/// List every Book currently in the Library, most recently imported first.
+#[tauri::command]
+pub fn list_library_command(state: State<DbState>) -> Result<Vec<BookSummary>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    list_books(&conn).map_err(|e| format!("could not list Library: {e}"))
+}
+
+/// Attempt to relink `book_id`'s BookFile to `candidate_path`.
+///
+/// Returns `"relinked"` if the candidate's fingerprint matched and the
+/// path was updated, or `"fingerprint_mismatch"` if not (the stored path
+/// is left unchanged in that case -- `ARCHITECTURE.md` "Changed
+/// fingerprint: Do not silently inherit").
+#[tauri::command]
+pub fn relink_book_command(
+    state: State<DbState>,
+    book_id: String,
+    candidate_path: String,
+) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let outcome = relink_book_file(&conn, &book_id, Path::new(&candidate_path))
+        .map_err(|e| format!("relink failed: {e}"))?;
+    Ok(match outcome {
+        RelinkOutcome::Relinked => "relinked",
+        RelinkOutcome::FingerprintMismatch => "fingerprint_mismatch",
+    }
+    .to_string())
 }
