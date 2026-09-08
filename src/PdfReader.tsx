@@ -7,6 +7,7 @@ import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
+import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -51,6 +52,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {
     let cancelled = false;

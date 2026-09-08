@@ -86,6 +86,24 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 4 {
+        conn.execute_batch(
+            "
+            CREATE TABLE workload_config (
+                book_id TEXT PRIMARY KEY REFERENCES book(id),
+                quantity REAL NOT NULL,
+                baseline_speed REAL NOT NULL,
+                difficulty_coefficient REAL NOT NULL
+            );
+            CREATE TABLE actual_reading_time (
+                book_id TEXT PRIMARY KEY REFERENCES book(id),
+                total_seconds REAL NOT NULL DEFAULT 0
+            );
+            PRAGMA user_version = 4;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -348,7 +366,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
 
     #[test]

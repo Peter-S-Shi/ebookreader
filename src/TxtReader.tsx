@@ -5,6 +5,7 @@ import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
+import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -34,6 +35,7 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [typographyOpen, setTypographyOpen] = useState(false);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {
     let cancelled = false;

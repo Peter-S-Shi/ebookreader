@@ -8,6 +8,7 @@ import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
+import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -69,6 +70,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     playPageTurnRef.current = playPageTurn;
   }, [playPageTurn]);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  useActualReadingTimeHeartbeat(bookId);
   const advanceRef = useRef(advance);
   useEffect(() => {
     advanceRef.current = advance;

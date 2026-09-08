@@ -4,11 +4,12 @@ mod db;
 mod reading_session_hook;
 
 use commands::{
-    advance_reading_progress_command, complete_current_read_command, get_reading_progress_command,
-    import_book_command, list_library_command, list_system_fonts_command,
-    load_reading_location_command, override_completed_reads_command, read_book_file_command,
-    reading_session_status_command, relink_book_command, remove_book_command,
-    save_reading_location_command, start_next_read_command,
+    advance_reading_progress_command, complete_current_read_command, get_actual_reading_time_command,
+    get_book_hours_command, get_reading_progress_command, import_book_command, list_library_command,
+    list_system_fonts_command, load_reading_location_command, override_completed_reads_command,
+    read_book_file_command, reading_session_status_command, record_active_reading_time_command,
+    relink_book_command, remove_book_command, save_reading_location_command,
+    save_workload_config_command, start_next_read_command,
 };
 use ebookreader_domain::reading_session::ReadingSession;
 use std::sync::{Arc, Mutex};
@@ -47,7 +48,11 @@ pub fn run() {
             advance_reading_progress_command,
             complete_current_read_command,
             start_next_read_command,
-            override_completed_reads_command
+            override_completed_reads_command,
+            get_book_hours_command,
+            save_workload_config_command,
+            get_actual_reading_time_command,
+            record_active_reading_time_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

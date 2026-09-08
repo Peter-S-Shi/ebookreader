@@ -4,6 +4,8 @@
 
 use crate::db::{managed_books_dir, DbState};
 use crate::ReadingSessionState;
+use ebookreader_domain::actual_reading_time::{load_actual_reading_time, save_actual_reading_time, ActualReadingTime};
+use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
 use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
@@ -14,6 +16,7 @@ use ebookreader_domain::store::{
     BookSummary, OwnershipMode, RelinkOutcome,
 };
 use serde::Serialize;
+use std::time::Duration;
 use std::path::Path;
 use tauri::{AppHandle, State};
 use winreg::enums::HKEY_LOCAL_MACHINE;
@@ -234,4 +237,77 @@ pub fn override_completed_reads_command(
     progress.manual_override(completed_read_count);
     save_progress(&conn, &book_id, &progress).map_err(|e| format!("could not save reading progress: {e}"))?;
     Ok(progress)
+}
+
+#[derive(Debug, Serialize)]
+pub struct BookHours {
+    pub base_hours: f64,
+    pub cumulative_hours: f64,
+    pub cumulative_reading_percent: f64,
+}
+
+/// `PRODUCT_SPEC.md` SS9: Base/Cumulative Book Hours, computed from the
+/// Book's workload config and its current Cumulative Reading %. `None` if
+/// no workload config has been set yet for this Book.
+#[tauri::command]
+pub fn get_book_hours_command(state: State<DbState>, book_id: String) -> Result<Option<BookHours>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let config = load_workload_config(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    let Some(config) = config else { return Ok(None) };
+
+    let progress = load_progress(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    let cumulative_reading_percent = progress.cumulative_percent();
+    let base_hours = config.base_book_hours();
+
+    Ok(Some(BookHours {
+        base_hours,
+        cumulative_hours: cumulative_book_hours(base_hours, cumulative_reading_percent),
+        cumulative_reading_percent,
+    }))
+}
+
+/// Set/update a Book's workload config (SS9.1 inputs). Per SS9.3, this
+/// only changes the current estimate -- it cannot touch Actual Reading
+/// Time, which this command has no access to.
+#[tauri::command]
+pub fn save_workload_config_command(
+    state: State<DbState>,
+    book_id: String,
+    quantity: f64,
+    baseline_speed: f64,
+    difficulty_coefficient: f64,
+) -> Result<WorkloadConfig, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let config = WorkloadConfig { quantity, baseline_speed, difficulty_coefficient };
+    save_workload_config(&conn, &book_id, &config).map_err(|e| format!("could not save workload config: {e}"))?;
+    Ok(config)
+}
+
+/// `PRODUCT_SPEC.md` SS10: a Book's accumulated Actual Reading Time.
+#[tauri::command]
+pub fn get_actual_reading_time_command(state: State<DbState>, book_id: String) -> Result<ActualReadingTime, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    load_actual_reading_time(&conn, &book_id).map_err(|e| format!("could not load Actual Reading Time: {e}"))
+}
+
+/// Record a real elapsed reading interval for a Book, net of any OS
+/// lock/sleep exclusion during it (SS10 "OS lock/sleep always pauses").
+/// The caller (the Reader's heartbeat) supplies both durations, derived
+/// from real wall-clock elapsed time and the ReadingSession hook's
+/// excluded-time delta over the same interval -- never fabricated here.
+#[tauri::command]
+pub fn record_active_reading_time_command(
+    state: State<DbState>,
+    book_id: String,
+    elapsed_seconds: f64,
+    excluded_seconds: f64,
+) -> Result<ActualReadingTime, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let mut art = load_actual_reading_time(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    art.record(
+        Duration::from_secs_f64(elapsed_seconds.max(0.0)),
+        Duration::from_secs_f64(excluded_seconds.max(0.0)),
+    );
+    save_actual_reading_time(&conn, &book_id, &art).map_err(|e| format!("could not save Actual Reading Time: {e}"))?;
+    Ok(art)
 }
