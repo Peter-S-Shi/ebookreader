@@ -369,7 +369,7 @@ This promotion was granted at the second Human Architecture Gate (2026-09-08, HE
 
 # Milestone 1 — Foundation, Persistence & Library
 
-**Status:** In Progress  
+**Status:** **Complete** (2026-09-08, commit `94aff83`) — Exit Gate evidence below.  
 **Risk:** Medium
 
 ## Goal
@@ -402,11 +402,13 @@ Accepted architecture remains valid and required evidence passes.
 
 Frozen Library/file semantics are proven by implementation evidence.
 
+**Satisfied.** Cargo workspace (`crates/domain` pure-Rust + `src-tauri` shell) with a live, green CI Promotion Gate covering frontend typecheck/test/build and a real native Windows `cargo build` + `crates/domain` tests. 15 domain tests + 6 frontend tests (21 total): cryptographic fingerprinting; fingerprint-based duplicate-import detection (`PRODUCT_SPEC.md` "Duplicate import"); idempotent SQLite schema migration; Reference-mode import (source untouched) and Managed-Copy import (bytes copied into managed storage, source untouched); relink on unchanged fingerprint, explicit refusal (not silent inheritance) on a changed one (`ARCHITECTURE.md` "Same/Changed fingerprint"); Needs Relink surfaced when a Reference path goes missing (`PRODUCT_SPEC.md` "missing path enters Needs Relink"); Remove Book as the identity/destructive-boundary test (deletes a Managed Copy, never touches a Reference source). Wired end-to-end to a real Tauri command surface and a minimal Library view (native file picker, list, Needs Relink badge, Remove) — native visual acceptance confirmed via a foreground-verified screenshot of the live app. Two dev-environment findings recorded and worked around (GNU-toolchain `cargo test`/link instability with Tauri's COM graph; both non-issues on CI's MSVC runner, which is authoritative). Full detail in `PROJECT_STATUS.md`.
+
 ---
 
 # Milestone 2 — Core Reading Across Formats
 
-**Status:** Planned  
+**Status:** In Progress  
 **Risk:** High
 
 ## Goal
