@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Reader } from "./Reader";
+import { PdfReader } from "./PdfReader";
 import "./App.css";
 
 interface BookSummary {
@@ -15,9 +16,8 @@ interface BookSummary {
 
 // Per FORMAT_CAPABILITY_MATRIX.md / ROADMAP.md M2 Exit Gate ("no active
 // format exposes controls it cannot truthfully honor"): only offer to open
-// a format the Reader can actually render. PDF/TXT renderers are later M2
-// checkpoints.
-const READABLE_FORMATS = new Set(["epub"]);
+// a format a real renderer exists for. TXT is a later M2 checkpoint.
+const READABLE_FORMATS = new Set(["epub", "pdf"]);
 
 function App() {
   const [books, setBooks] = useState<BookSummary[] | null>(null);
@@ -50,7 +50,12 @@ function App() {
   }
 
   if (openBook) {
-    return <Reader bookId={openBook.book_id} title={openBook.title} onBack={() => setOpenBook(null)} />;
+    const onBack = () => setOpenBook(null);
+    return openBook.format === "pdf" ? (
+      <PdfReader bookId={openBook.book_id} title={openBook.title} onBack={onBack} />
+    ) : (
+      <Reader bookId={openBook.book_id} title={openBook.title} onBack={onBack} />
+    );
   }
 
   return (
