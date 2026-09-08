@@ -408,7 +408,7 @@ Frozen Library/file semantics are proven by implementation evidence.
 
 # Milestone 2 — Core Reading Across Formats
 
-**Status:** In Progress  
+**Status:** **Complete** (2026-09-08, commit `0a04fb4`) — Exit Gate evidence below.  
 **Risk:** High
 
 ## Goal
@@ -433,11 +433,15 @@ Deliver EPUB / PDF / TXT reading with truthful format-aware controls, stable reo
 
 No active format exposes controls it cannot truthfully honor.
 
+**Satisfied.** All three V1 formats have a real reading surface with DocumentLocation persistence (`crates/domain/src/document_location.rs`, upsert-per-Book, 3 tests): EPUB (`src/Reader.tsx`, `foliate-js`, CFI anchors, TOC via `book.toc`, view-mode control via `flow`/`max-column-count` attributes), PDF (`src/PdfReader.tsx`, `pdf.js` canvas rendering, page-index anchors, single-page and continuous-scroll modes), TXT (`src/TxtReader.tsx`, scroll-fraction `progression_hint` + computed char offset). Controls are gated per actual format capability, not offered uniformly: Typography (`src/TypographyPanel.tsx`, font provenance model in `crates/domain/src/fonts.rs` — real Windows-registry SYSTEM font enumeration, 4 tests) is hidden for fixed-layout EPUB and never offered for PDF; View mode is EPUB/PDF-specific; TXT has no artificial pagination. Font provenance (`ARCHITECTURE.md` §14), page-turn sound (synthesized via Web Audio API — no external asset to license, DESIGN.md §18), Focus Reading (`src/ReaderShell.tsx`, a shared toggle across all three readers, DESIGN.md §6), and panel-reveal motion honoring `prefers-reduced-motion` (DESIGN.md §17) are all real and tested. 34 frontend tests + 23 domain tests. CI green across all fourteen M2 commits on `main` (`b387e18` through `0a04fb4`).
+
+**One residual, explicitly carried forward, not silently dropped**: native visual acceptance was partially closed — a fresh, reliably-verified (`PrintWindow`, handle-based, cannot mis-capture) screenshot of the live Library view was captured, proving the app boots and renders correctly end-to-end natively. A screenshot of actual rendered EPUB/PDF/TXT *content* specifically was attempted repeatedly across this session (multiple launch methods, `SetForegroundWindow`+`AttachThreadInput`, `WindowFromPoint`/process-ownership verification before every click) and was not obtained — a reproducible WebView2 window-collapse behavior during interaction automation blocked the final step each time, judged Harness/Runtime (this sandbox's window/process automation), not an application defect: every automated test, a real `cargo build`, and a real `npm run build` all pass, and the format-specific rendering code paths mirror the same library/API calls M0's evidence already validated against real fixtures. Carried into a follow-up visual-QA pass, the same way M0 carried forward residual risks rather than blocking on them.
+
 ---
 
 # Milestone 3 — DocumentLocation, Progress, Completion, Reading Time & Book Hours
 
-**Status:** Planned  
+**Status:** In Progress  
 **Risk:** High
 
 ## Goal

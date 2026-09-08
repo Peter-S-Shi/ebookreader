@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** M2 — Core Reading Across Formats (autonomous feature loop)  
-**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1 (Foundation, Persistence & Library) complete**; M2 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `PROJECT_STATUS.md`, reproducible M0 evidence harness at `tooling/m0-evidence/`  
+**Phase:** M3 — DocumentLocation, Progress, Completion, Reading Time & Book Hours (autonomous feature loop)  
+**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1 (Foundation, Persistence & Library) complete**; **M2 (Core Reading Across Formats) complete**; M3 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `PROJECT_STATUS.md`, reproducible M0 evidence harness at `tooling/m0-evidence/`  
 **V1 product/domain scope:** Frozen  
 **V1 UI baseline:** Frozen  
 **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)  
