@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
+import { TocPanel, type TocItem } from "./TocPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 
 interface DocumentLocationDTO {
@@ -25,29 +26,36 @@ interface ReaderProps {
 interface FoliateRenderer {
   setStyles(css: string): void;
 }
+interface FoliateBook {
+  toc?: TocItem[];
+}
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
   goTo(target: string): Promise<void>;
   lastLocation?: { cfi?: string };
   isFixedLayout?: boolean;
   renderer?: FoliateRenderer;
+  book?: FoliateBook;
 }
+
+type OpenPanel = "typography" | "toc" | null;
 
 // Minimal EPUB reading surface: opens the Book via foliate-js and keeps
 // its DocumentLocation (ARCHITECTURE.md SS5) durable across reopens by
 // saving/loading through the Tauri command layer on every relocate.
 // DESIGN.md SS7/SS8: reflowable EPUB gets typography controls (`Aa`);
 // fixed-layout does not (foliate-js's own `isFixedLayout` flag gates it,
-// since "do not expose reflow typography that cannot work").
-// DESIGN.md's full Reader chrome (Contents/Notebook panels, Focus
-// Reading) is a later M2 checkpoint, not this one.
+// since "do not expose reflow typography that cannot work"). DESIGN.md
+// SS5: Contents panel navigates via the publication's own TOC, when it
+// has one. DESIGN.md's Notebook side panel is a later M2/M4 checkpoint.
 export function Reader({ bookId, title, onBack }: ReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateView | null>(null);
   const [status, setStatus] = useState("Loading…");
   const [isFixedLayout, setIsFixedLayout] = useState(false);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
-  const [typographyOpen, setTypographyOpen] = useState(false);
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +78,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
       if (cancelled) return;
       setStatus("Ready");
       setIsFixedLayout(Boolean(view.isFixedLayout));
+      setToc(view.book?.toc ?? []);
       if (!view.isFixedLayout) {
         view.renderer?.setStyles(toEpubCss(DEFAULT_TYPOGRAPHY));
       }
@@ -105,27 +114,43 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     viewRef.current?.renderer?.setStyles(toEpubCss(next));
   }
 
+  function handleTocNavigate(href: string) {
+    viewRef.current?.goTo(href).catch(() => {});
+    setOpenPanel(null);
+  }
+
   return (
     <ReaderShell
       title={title}
       onBack={onBack}
       status={status}
       toolbarExtra={
-        !isFixedLayout && (
-          <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
-            Aa
-          </button>
-        )
+        <>
+          {toc.length > 0 && (
+            <button type="button" onClick={() => setOpenPanel((p) => (p === "toc" ? null : "toc"))}>
+              Contents
+            </button>
+          )}
+          {!isFixedLayout && (
+            <button type="button" onClick={() => setOpenPanel((p) => (p === "typography" ? null : "typography"))}>
+              Aa
+            </button>
+          )}
+        </>
       }
       overlay={
-        typographyOpen &&
-        !isFixedLayout && (
-          <TypographyPanel
-            settings={typography}
-            onChange={handleTypographyChange}
-            onClose={() => setTypographyOpen(false)}
-          />
-        )
+        <>
+          {openPanel === "toc" && (
+            <TocPanel toc={toc} onNavigate={handleTocNavigate} onClose={() => setOpenPanel(null)} />
+          )}
+          {openPanel === "typography" && !isFixedLayout && (
+            <TypographyPanel
+              settings={typography}
+              onChange={handleTypographyChange}
+              onClose={() => setOpenPanel(null)}
+            />
+          )}
+        </>
       }
     >
       <div ref={hostRef} className="reader-surface" />
