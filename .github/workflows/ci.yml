@@ -1,0 +1,44 @@
+name: CI
+
+# Minimal CI Promotion Gate (ROADMAP.md Sec 1.9), established at M1's first
+# checkpoint. Sized to this Windows-first Tauri/Rust/React project: no
+# release-packaging matrix, no bundler/installer build here (that is M10
+# scope). Grows only as the project's real surface grows.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+
+  rust:
+    name: Rust (native Windows build + tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Pure-domain crate: no Tauri/WebView2 dependency, so this alone
+      # already gives fast, GUI-free unit-test coverage of Library/
+      # persistence logic (ARCHITECTURE.md's Rust domain/application layer).
+      - run: cargo test -p ebookreader-domain --locked
+      # Native Windows build of the Tauri shell crate. A full bundle/
+      # installer build is deferred to M10 (Release Candidate, Packaging);
+      # this verifies the desktop-shell crate compiles and links on the
+      # platform it actually ships on.
+      - run: cargo check -p ebookreader --locked
