@@ -3,12 +3,15 @@
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
 use crate::db::{managed_books_dir, DbState};
+use crate::ReadingSessionState;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
+use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::store::{
     get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
     BookSummary, OwnershipMode, RelinkOutcome,
 };
+use serde::Serialize;
 use std::path::Path;
 use tauri::{AppHandle, State};
 use winreg::enums::HKEY_LOCAL_MACHINE;
@@ -142,4 +145,32 @@ pub fn list_system_fonts_command() -> Result<Vec<String>, String> {
     let raw_names: Vec<String> = fonts_key.enum_values().filter_map(|entry| entry.ok().map(|(name, _)| name)).collect();
 
     Ok(parse_system_font_registry_names(raw_names))
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReadingSessionStatus {
+    /// "active" | "paused_locked" | "paused_suspended"
+    pub state: String,
+    pub total_excluded_ms: u128,
+}
+
+/// Current ReadingSession pause state, per `ARCHITECTURE.md` SS10: exact
+/// lock/sleep-excluded time, maintained by the real Win32 hook
+/// (`reading_session_hook`), not a fixed inactivity heuristic. Consumed by
+/// Actual Reading Time / Book Hours computation (M3).
+#[tauri::command]
+pub fn reading_session_status_command(state: State<ReadingSessionState>) -> Result<ReadingSessionStatus, String> {
+    let session = state
+        .0
+        .lock()
+        .map_err(|e| format!("ReadingSession lock poisoned: {e}"))?;
+    let state_str = match session.state() {
+        SessionState::Active => "active",
+        SessionState::PausedLocked => "paused_locked",
+        SessionState::PausedSuspended => "paused_suspended",
+    };
+    Ok(ReadingSessionStatus {
+        state: state_str.to_string(),
+        total_excluded_ms: session.total_excluded().as_millis(),
+    })
 }
