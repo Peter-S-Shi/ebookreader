@@ -2,9 +2,9 @@ mod commands;
 mod db;
 
 use commands::{
-    import_book_command, list_library_command, load_reading_location_command,
-    read_book_file_command, relink_book_command, remove_book_command,
-    save_reading_location_command,
+    import_book_command, list_library_command, list_system_fonts_command,
+    load_reading_location_command, read_book_file_command, relink_book_command,
+    remove_book_command, save_reading_location_command,
 };
 use tauri::Manager;
 
@@ -25,7 +25,8 @@ pub fn run() {
             remove_book_command,
             read_book_file_command,
             save_reading_location_command,
-            load_reading_location_command
+            load_reading_location_command,
+            list_system_fonts_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

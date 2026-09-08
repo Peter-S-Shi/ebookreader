@@ -4,12 +4,15 @@
 
 use crate::db::{managed_books_dir, DbState};
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
+use ebookreader_domain::fonts::parse_system_font_registry_names;
 use ebookreader_domain::store::{
     get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
     BookSummary, OwnershipMode, RelinkOutcome,
 };
 use std::path::Path;
 use tauri::{AppHandle, State};
+use winreg::enums::HKEY_LOCAL_MACHINE;
+use winreg::RegKey;
 
 /// Import a book file into the Library.
 ///
@@ -124,4 +127,19 @@ pub fn load_reading_location_command(
 ) -> Result<Option<DocumentLocation>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     load_location(&conn, &book_id).map_err(|e| format!("could not load reading location: {e}"))
+}
+
+/// List SYSTEM font families installed on Windows, per `ARCHITECTURE.md`
+/// SS14: enumerated/invoked for typography controls, never copied into the
+/// product. Reads registered font names, never font file bytes.
+#[tauri::command]
+pub fn list_system_fonts_command() -> Result<Vec<String>, String> {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    let fonts_key = hklm
+        .open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts")
+        .map_err(|e| format!("could not open the Windows Fonts registry key: {e}"))?;
+
+    let raw_names: Vec<String> = fonts_key.enum_values().filter_map(|entry| entry.ok().map(|(name, _)| name)).collect();
+
+    Ok(parse_system_font_registry_names(raw_names))
 }

@@ -9,6 +9,7 @@ use std::io::{self, Read};
 use std::path::Path;
 
 pub mod document_location;
+pub mod fonts;
 pub mod store;
 
 /// A minimal view of a Library entry sufficient for duplicate-import detection.
