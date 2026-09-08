@@ -125,6 +125,27 @@ button {
   }
 }
 
+/* Motion (DESIGN.md SS17): panels use "Reveal -> Unfold/Glide" -- a brief
+   fade + slight rise on mount, honoring prefers-reduced-motion (SS17
+   "Reduced Motion: honor OS reduced-motion preference"). */
+@keyframes panel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .typography-panel,
+  .toc-panel {
+    animation: panel-reveal 0.18s ease-out;
+  }
+}
+
 /* Typography panel (DESIGN.md SS8 "Aa"): a small overlay panel anchored
    under the reader toolbar. */
 .typography-panel {
