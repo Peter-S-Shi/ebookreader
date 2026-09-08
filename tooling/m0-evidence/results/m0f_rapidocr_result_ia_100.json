@@ -1,0 +1,3093 @@
+{
+  "fixture": "ia_100.jpg",
+  "wall_time_s": 45.331,
+  "engine_reported_elapse": [
+    2.0300053998362273,
+    0.8287551403045654,
+    41.717169523239136
+  ],
+  "python_traced_peak_mb": 131.29,
+  "num_lines_detected": 140,
+  "lines": [
+    {
+      "text": "YEAR XXIII.",
+      "score": 0.925,
+      "box": [
+        [
+          139.2,
+          239.4
+        ],
+        [
+          314.7,
+          239.4
+        ],
+        [
+          314.7,
+          269.7
+        ],
+        [
+          139.2,
+          269.7
+        ]
+      ]
+    },
+    {
+      "text": "DUKESEANG.",
+      "score": 0.99,
+      "box": [
+        [
+          629.5,
+          238.2
+        ],
+        [
+          845.1,
+          238.2
+        ],
+        [
+          845.1,
+          267.1
+        ],
+        [
+          629.5,
+          267.1
+        ]
+      ]
+    },
+    {
+      "text": "503",
+      "score": 0.999,
+      "box": [
+        [
+          1266.4,
+          238.2
+        ],
+        [
+          1337.9,
+          238.2
+        ],
+        [
+          1337.9,
+          279.7
+        ],
+        [
+          1266.4,
+          279.7
+        ]
+      ]
+    },
+    {
+      "text": "onKe-maou,when Mang-sun died,Kung-tsoo|wisdonwhich failedme（Referring tohisgoing",
+      "score": 0.938,
+      "box": [
+        [
+          139.2,
+          308.7
+        ],
+        [
+          1336.7,
+          308.7
+        ],
+        [
+          1336.7,
+          337.7
+        ],
+        [
+          139.2,
+          337.7
+        ]
+      ]
+    },
+    {
+      "text": "tookKeeh.and placedhim atthesideofthe",
+      "score": 0.95,
+      "box": [
+        [
+          140.4,
+          336.4
+        ],
+        [
+          727.3,
+          336.4
+        ],
+        [
+          727.3,
+          365.4
+        ],
+        [
+          140.4,
+          365.4
+        ]
+      ]
+    },
+    {
+      "text": "with the men-at-arms to see the workmen).I",
+      "score": 0.919,
+      "box": [
+        [
+          748.6,
+          332.7
+        ],
+        [
+          1339.2,
+          331.4
+        ],
+        [
+          1339.2,
+          365.4
+        ],
+        [
+          748.6,
+          366.7
+        ]
+      ]
+    },
+    {
+      "text": "door （ln the chiefmourner's place).Ke-sun",
+      "score": 0.925,
+      "box": [
+        [
+          141.7,
+          365.4
+        ],
+        [
+          726.0,
+          365.4
+        ],
+        [
+          726.0,
+          390.6
+        ],
+        [
+          141.7,
+          390.6
+        ]
+      ]
+    },
+    {
+      "text": "donotpresume tomake anyrequestformyself.",
+      "score": 0.976,
+      "box": [
+        [
+          748.6,
+          360.4
+        ],
+        [
+          1337.9,
+          360.4
+        ],
+        [
+          1337.9,
+          393.1
+        ],
+        [
+          748.6,
+          393.1
+        ]
+      ]
+    },
+    {
+      "text": "came to thehouse,entered the apartment,and",
+      "score": 0.936,
+      "box": [
+        [
+          139.2,
+          390.6
+        ],
+        [
+          726.0,
+          390.6
+        ],
+        [
+          726.0,
+          419.6
+        ],
+        [
+          139.2,
+          419.6
+        ]
+      ]
+    },
+    {
+      "text": "But ifyou allow themaintenance of the sacri-",
+      "score": 0.938,
+      "box": [
+        [
+          748.6,
+          389.4
+        ],
+        [
+          1339.2,
+          386.8
+        ],
+        [
+          1339.2,
+          419.6
+        ],
+        [
+          748.6,
+          422.1
+        ]
+      ]
+    },
+    {
+      "text": "wept.When hewasgoing out,he said,Where",
+      "score": 0.893,
+      "box": [
+        [
+          137.9,
+          414.6
+        ],
+        [
+          729.8,
+          413.3
+        ],
+        [
+          729.8,
+          447.3
+        ],
+        [
+          137.9,
+          448.6
+        ]
+      ]
+    },
+    {
+      "text": "fices to my ancestors,and do not forget the",
+      "score": 0.944,
+      "box": [
+        [
+          749.8,
+          415.8
+        ],
+        [
+          1340.4,
+          415.8
+        ],
+        [
+          1340.4,
+          448.6
+        ],
+        [
+          749.8,
+          448.6
+        ]
+      ]
+    },
+    {
+      "text": "is Chih ?”Kung-ts'oo replied,Keeh is here.\"",
+      "score": 0.884,
+      "box": [
+        [
+          136.7,
+          442.3
+        ],
+        [
+          729.8,
+          439.8
+        ],
+        [
+          729.8,
+          473.8
+        ],
+        [
+          136.7,
+          476.3
+        ]
+      ]
+    },
+    {
+      "text": "merits ofny twopredeccssors,shall I not",
+      "score": 0.919,
+      "box": [
+        [
+          752.3,
+          444.8
+        ],
+        [
+          1340.4,
+          444.8
+        ],
+        [
+          1340.4,
+          473.8
+        ],
+        [
+          752.3,
+          473.8
+        ]
+      ]
+    },
+    {
+      "text": "“But Chih is the elder,”said Ke-sun.“What",
+      "score": 0.927,
+      "box": [
+        [
+          136.7,
+          468.8
+        ],
+        [
+          729.8,
+          468.8
+        ],
+        [
+          729.8,
+          501.5
+        ],
+        [
+          136.7,
+          501.5
+        ]
+      ]
+    },
+    {
+      "text": "leave this city?Upon this Tsang Weiwas",
+      "score": 0.935,
+      "box": [
+        [
+          749.8,
+          466.2
+        ],
+        [
+          1341.7,
+          466.2
+        ],
+        [
+          1341.7,
+          502.8
+        ],
+        [
+          749.8,
+          502.8
+        ]
+      ]
+    },
+    {
+      "text": "have we to do with theelder?\"was thereply.",
+      "score": 0.924,
+      "box": [
+        [
+          137.9,
+          496.5
+        ],
+        [
+          728.5,
+          496.5
+        ],
+        [
+          728.5,
+          529.2
+        ],
+        [
+          137.9,
+          529.2
+        ]
+      ]
+    },
+    {
+      "text": "made Head of the family;and Tsang Heih",
+      "score": 0.92,
+      "box": [
+        [
+          749.8,
+          496.5
+        ],
+        [
+          1337.9,
+          496.5
+        ],
+        [
+          1337.9,
+          529.2
+        ],
+        [
+          749.8,
+          529.2
+        ]
+      ]
+    },
+    {
+      "text": "“We only require the abler.And his father",
+      "score": 0.927,
+      "box": [
+        [
+          137.9,
+          522.9
+        ],
+        [
+          733.5,
+          522.9
+        ],
+        [
+          733.5,
+          555.7
+        ],
+        [
+          137.9,
+          555.7
+        ]
+      ]
+    },
+    {
+      "text": "surrendered Fang,and fled to Ts'e.Some of",
+      "score": 0.919,
+      "box": [
+        [
+          751.1,
+          522.9
+        ],
+        [
+          1342.9,
+          522.9
+        ],
+        [
+          1342.9,
+          555.7
+        ],
+        [
+          751.1,
+          555.7
+        ]
+      ]
+    },
+    {
+      "text": "so commanded.\"Keeh was hereupon declared",
+      "score": 0.916,
+      "box": [
+        [
+          137.9,
+          550.7
+        ],
+        [
+          728.5,
+          550.7
+        ],
+        [
+          728.5,
+          583.4
+        ],
+        [
+          137.9,
+          583.4
+        ]
+      ]
+    },
+    {
+      "text": "hispeople said to him,Will they make a cove-",
+      "score": 0.931,
+      "box": [
+        [
+          751.1,
+          550.7
+        ],
+        [
+          1340.4,
+          550.7
+        ],
+        [
+          1340.4,
+          583.4
+        ],
+        [
+          751.1,
+          583.4
+        ]
+      ]
+    },
+    {
+      "text": "successor to Mang Chwang-tsze,and Chih fled",
+      "score": 0.945,
+      "box": [
+        [
+          136.7,
+          579.6
+        ],
+        [
+          728.5,
+          577.1
+        ],
+        [
+          728.5,
+          609.9
+        ],
+        [
+          136.7,
+          612.4
+        ]
+      ]
+    },
+    {
+      "text": "nant with reference tous?”They have nothing",
+      "score": 0.934,
+      "box": [
+        [
+          748.6,
+          575.9
+        ],
+        [
+          1341.7,
+          577.1
+        ],
+        [
+          1341.7,
+          611.1
+        ],
+        [
+          748.6,
+          609.9
+        ]
+      ]
+    },
+    {
+      "text": "toChoo.",
+      "score": 0.983,
+      "box": [
+        [
+          140.4,
+          606.1
+        ],
+        [
+          249.5,
+          608.6
+        ],
+        [
+          249.5,
+          635.1
+        ],
+        [
+          140.4,
+          632.6
+        ]
+      ]
+    },
+    {
+      "text": "to allege in doing so,”said Heih.It was deter-",
+      "score": 0.94,
+      "box": [
+        [
+          751.1,
+          604.8
+        ],
+        [
+          1339.2,
+          604.8
+        ],
+        [
+          1339.2,
+          637.6
+        ],
+        [
+          751.1,
+          637.6
+        ]
+      ]
+    },
+    {
+      "text": "·When Tsang-sun entered the apartment[of",
+      "score": 0.944,
+      "box": [
+        [
+          164.3,
+          631.3
+        ],
+        [
+          729.8,
+          631.3
+        ],
+        [
+          729.8,
+          664.1
+        ],
+        [
+          164.3,
+          664.1
+        ]
+      ]
+    },
+    {
+      "text": "mined,however,to do so,and Ke-sun calledthe",
+      "score": 0.92,
+      "box": [
+        [
+          751.1,
+          633.8
+        ],
+        [
+          1339.2,
+          633.8
+        ],
+        [
+          1339.2,
+          662.8
+        ],
+        [
+          751.1,
+          662.8
+        ]
+      ]
+    },
+    {
+      "text": "the dead],heweptvery sore,with many tears.",
+      "score": 0.924,
+      "box": [
+        [
+          139.2,
+          657.8
+        ],
+        [
+          732.3,
+          657.8
+        ],
+        [
+          732.3,
+          690.5
+        ],
+        [
+          139.2,
+          690.5
+        ]
+      ]
+    },
+    {
+      "text": "historiographer of the Exterior,and asked him",
+      "score": 0.939,
+      "box": [
+        [
+          752.3,
+          660.3
+        ],
+        [
+          1337.9,
+          660.3
+        ],
+        [
+          1337.9,
+          689.3
+        ],
+        [
+          752.3,
+          689.3
+        ]
+      ]
+    },
+    {
+      "text": "When he wentout,his charioteer said tohim,",
+      "score": 0.927,
+      "box": [
+        [
+          139.2,
+          685.5
+        ],
+        [
+          733.5,
+          685.5
+        ],
+        [
+          733.5,
+          718.2
+        ],
+        [
+          139.2,
+          718.2
+        ]
+      ]
+    },
+    {
+      "text": "how,indealingwiththecaseofaguiltyminister,",
+      "score": 0.943,
+      "box": [
+        [
+          751.1,
+          686.7
+        ],
+        [
+          1339.2,
+          686.7
+        ],
+        [
+          1339.2,
+          719.5
+        ],
+        [
+          751.1,
+          719.5
+        ]
+      ]
+    },
+    {
+      "text": "“Mang-sun hatedyou,and yet yon thus lament",
+      "score": 0.927,
+      "box": [
+        [
+          136.7,
+          709.4
+        ],
+        [
+          731.0,
+          710.7
+        ],
+        [
+          731.0,
+          747.2
+        ],
+        [
+          136.7,
+          746.0
+        ]
+      ]
+    },
+    {
+      "text": "the covenant shouldbeheaded.The historiogra-",
+      "score": 0.957,
+      "box": [
+        [
+          752.3,
+          714.5
+        ],
+        [
+          1339.2,
+          714.5
+        ],
+        [
+          1339.2,
+          743.4
+        ],
+        [
+          752.3,
+          743.4
+        ]
+      ]
+    },
+    {
+      "text": "him.IfKe-sun were todie,how would you",
+      "score": 0.93,
+      "box": [
+        [
+          137.9,
+          738.4
+        ],
+        [
+          733.5,
+          739.7
+        ],
+        [
+          733.5,
+          772.4
+        ],
+        [
+          137.9,
+          771.2
+        ]
+      ]
+    },
+    {
+      "text": "pherreplied,In thecovenantaboutthe minister",
+      "score": 0.962,
+      "box": [
+        [
+          753.6,
+          742.2
+        ],
+        [
+          1340.4,
+          742.2
+        ],
+        [
+          1340.4,
+          771.2
+        ],
+        [
+          753.6,
+          771.2
+        ]
+      ]
+    },
+    {
+      "text": "bear it?Tsang-sun answered him,\"The love",
+      "score": 0.935,
+      "box": [
+        [
+          136.7,
+          763.6
+        ],
+        [
+          732.3,
+          762.3
+        ],
+        [
+          732.3,
+          800.2
+        ],
+        [
+          136.7,
+          801.4
+        ]
+      ]
+    },
+    {
+      "text": "Tung-mun,it was said,·Letno one act liko",
+      "score": 0.918,
+      "box": [
+        [
+          752.3,
+          767.4
+        ],
+        [
+          1341.7,
+          767.4
+        ],
+        [
+          1341.7,
+          800.2
+        ],
+        [
+          752.3,
+          800.2
+        ]
+      ]
+    },
+    {
+      "text": "ofKe-sunproduced inmeafeverish eruption.",
+      "score": 0.958,
+      "box": [
+        [
+          140.4,
+          796.4
+        ],
+        [
+          728.5,
+          796.4
+        ],
+        [
+          728.5,
+          825.4
+        ],
+        [
+          140.4,
+          825.4
+        ]
+      ]
+    },
+    {
+      "text": "Tung-munSuy,whodisregarded theorderofthe",
+      "score": 0.963,
+      "box": [
+        [
+          753.6,
+          796.4
+        ],
+        [
+          1339.2,
+          796.4
+        ],
+        [
+          1339.2,
+          825.4
+        ],
+        [
+          753.6,
+          825.4
+        ]
+      ]
+    },
+    {
+      "text": "The hatred ofMang-sun was like a medical",
+      "score": 0.919,
+      "box": [
+        [
+          139.2,
+          822.8
+        ],
+        [
+          729.8,
+          822.8
+        ],
+        [
+          729.8,
+          851.8
+        ],
+        [
+          139.2,
+          851.8
+        ]
+      ]
+    },
+    {
+      "text": "duke,puttingtodeath therightful heir,andrais-",
+      "score": 0.939,
+      "box": [
+        [
+          752.3,
+          822.8
+        ],
+        [
+          1337.9,
+          822.8
+        ],
+        [
+          1337.9,
+          851.8
+        ],
+        [
+          752.3,
+          851.8
+        ]
+      ]
+    },
+    {
+      "text": "stone tome.'Thegooderuption was not so",
+      "score": 0.901,
+      "box": [
+        [
+          139.2,
+          850.6
+        ],
+        [
+          729.8,
+          850.6
+        ],
+        [
+          729.8,
+          879.5
+        ],
+        [
+          139.2,
+          879.5
+        ]
+      ]
+    },
+    {
+      "text": "ing theson ofa concubine inhisplace'In the",
+      "score": 0.933,
+      "box": [
+        [
+          753.6,
+          850.6
+        ],
+        [
+          1340.4,
+          850.6
+        ],
+        [
+          1340.4,
+          879.5
+        ],
+        [
+          753.6,
+          879.5
+        ]
+      ]
+    },
+    {
+      "text": "beneficial as the painful stone,which brought",
+      "score": 0.939,
+      "box": [
+        [
+          137.9,
+          874.5
+        ],
+        [
+          729.8,
+          873.2
+        ],
+        [
+          729.8,
+          906.0
+        ],
+        [
+          137.9,
+          907.3
+        ]
+      ]
+    },
+    {
+      "text": "covenant about the minister Shuh-sun,it was",
+      "score": 0.956,
+      "box": [
+        [
+          749.8,
+          877.0
+        ],
+        [
+          1339.2,
+          877.0
+        ],
+        [
+          1339.2,
+          906.0
+        ],
+        [
+          749.8,
+          906.0
+        ]
+      ]
+    },
+    {
+      "text": "me to life again,while the eruption increased",
+      "score": 0.93,
+      "box": [
+        [
+          137.9,
+          903.5
+        ],
+        [
+          729.8,
+          902.2
+        ],
+        [
+          729.8,
+          932.5
+        ],
+        [
+          137.9,
+          933.7
+        ]
+      ]
+    },
+    {
+      "text": "said,·Letno one act like Shuh-sun Keaou-joo,",
+      "score": 0.931,
+      "box": [
+        [
+          747.3,
+          901.0
+        ],
+        [
+          1337.9,
+          903.5
+        ],
+        [
+          1337.9,
+          936.2
+        ],
+        [
+          747.3,
+          933.7
+        ]
+      ]
+    },
+    {
+      "text": "itsvenom more andmore.Now thatMang-sun",
+      "score": 0.951,
+      "box": [
+        [
+          136.7,
+          928.7
+        ],
+        [
+          731.0,
+          927.4
+        ],
+        [
+          731.0,
+          960.2
+        ],
+        [
+          136.7,
+          961.4
+        ]
+      ]
+    },
+    {
+      "text": "whowished to setasidetheregular order ofthe",
+      "score": 0.956,
+      "box": [
+        [
+          752.3,
+          935.0
+        ],
+        [
+          1340.4,
+          935.0
+        ],
+        [
+          1340.4,
+          967.7
+        ],
+        [
+          752.3,
+          967.7
+        ]
+      ]
+    },
+    {
+      "text": "is dead,my exile is not distant.”The[new]",
+      "score": 0.941,
+      "box": [
+        [
+          135.4,
+          955.1
+        ],
+        [
+          728.5,
+          953.9
+        ],
+        [
+          728.5,
+          987.9
+        ],
+        [
+          135.4,
+          989.2
+        ]
+      ]
+    },
+    {
+      "text": "State,and overthrow our ducal House'Ke-",
+      "score": 0.948,
+      "box": [
+        [
+          752.3,
+          966.5
+        ],
+        [
+          1337.9,
+          967.7
+        ],
+        [
+          1337.9,
+          998.0
+        ],
+        [
+          752.3,
+          996.7
+        ]
+      ]
+    },
+    {
+      "text": "Head of the Mang family then shut his gate,",
+      "score": 0.921,
+      "box": [
+        [
+          137.9,
+          980.3
+        ],
+        [
+          728.5,
+          982.9
+        ],
+        [
+          728.5,
+          1015.6
+        ],
+        [
+          137.9,
+          1013.1
+        ]
+      ]
+    },
+    {
+      "text": "sun said,“The guilt of Tsang-sun is not equal",
+      "score": 0.929,
+      "box": [
+        [
+          748.6,
+          996.7
+        ],
+        [
+          1340.4,
+          999.2
+        ],
+        [
+          1340.4,
+          1033.3
+        ],
+        [
+          748.6,
+          1030.7
+        ]
+      ]
+    },
+    {
+      "text": "andsent word to Ke-sun that Tsang-sun was",
+      "score": 0.926,
+      "box": [
+        [
+          140.4,
+          1014.4
+        ],
+        [
+          728.5,
+          1014.4
+        ],
+        [
+          728.5,
+          1039.6
+        ],
+        [
+          140.4,
+          1039.6
+        ]
+      ]
+    },
+    {
+      "text": "about to raise a disturbance,and would not",
+      "score": 0.941,
+      "box": [
+        [
+          136.7,
+          1037.0
+        ],
+        [
+          731.0,
+          1035.8
+        ],
+        [
+          731.0,
+          1068.5
+        ],
+        [
+          136.7,
+          1069.8
+        ]
+      ]
+    },
+    {
+      "text": "to that ofeither ofthese.”Mang Tseaou sug-",
+      "score": 0.943,
+      "box": [
+        [
+          748.6,
+          1028.2
+        ],
+        [
+          1339.2,
+          1033.3
+        ],
+        [
+          1339.2,
+          1067.3
+        ],
+        [
+          748.6,
+          1062.2
+        ]
+      ]
+    },
+    {
+      "text": "allow him to bury his father.Ke-sun did not",
+      "score": 0.938,
+      "box": [
+        [
+          139.2,
+          1064.8
+        ],
+        [
+          729.8,
+          1063.5
+        ],
+        [
+          729.8,
+          1093.8
+        ],
+        [
+          139.2,
+          1095.0
+        ]
+      ]
+    },
+    {
+      "text": "gested that thecovenant shouldbegroundedon",
+      "score": 0.967,
+      "box": [
+        [
+          749.8,
+          1063.5
+        ],
+        [
+          1340.4,
+          1063.5
+        ],
+        [
+          1340.4,
+          1096.3
+        ],
+        [
+          749.8,
+          1096.3
+        ]
+      ]
+    },
+    {
+      "text": "believeit;but when‘T'sang-sun heard it,he took",
+      "score": 0.916,
+      "box": [
+        [
+          137.9,
+          1091.2
+        ],
+        [
+          729.8,
+          1090.0
+        ],
+        [
+          729.8,
+          1122.7
+        ],
+        [
+          137.9,
+          1124.0
+        ]
+      ]
+    },
+    {
+      "text": "hisviolence to the gateinbreakingdown the",
+      "score": 0.951,
+      "box": [
+        [
+          749.8,
+          1096.3
+        ],
+        [
+          1339.2,
+          1098.8
+        ],
+        [
+          1339.2,
+          1127.8
+        ],
+        [
+          749.8,
+          1125.3
+        ]
+      ]
+    },
+    {
+      "text": "precautionary mcasures.Inwinter,intheloth",
+      "score": 0.954,
+      "box": [
+        [
+          137.9,
+          1122.7
+        ],
+        [
+          728.5,
+          1117.7
+        ],
+        [
+          728.5,
+          1146.7
+        ],
+        [
+          137.9,
+          1151.7
+        ]
+      ]
+    },
+    {
+      "text": "barrier.Ke-sun adopted the suggestion,and",
+      "score": 0.977,
+      "box": [
+        [
+          748.6,
+          1125.3
+        ],
+        [
+          1340.4,
+          1129.0
+        ],
+        [
+          1340.4,
+          1161.8
+        ],
+        [
+          748.6,
+          1158.0
+        ]
+      ]
+    },
+    {
+      "text": "month,Mang-sun was about to prepare the",
+      "score": 0.953,
+      "box": [
+        [
+          136.7,
+          1146.7
+        ],
+        [
+          733.5,
+          1144.2
+        ],
+        [
+          733.5,
+          1176.9
+        ],
+        [
+          136.7,
+          1179.4
+        ]
+      ]
+    },
+    {
+      "text": "the covenant ran-“Let no one actlike Tsang-",
+      "score": 0.921,
+      "box": [
+        [
+          748.6,
+          1158.0
+        ],
+        [
+          1339.2,
+          1163.1
+        ],
+        [
+          1339.2,
+          1195.8
+        ],
+        [
+          748.6,
+          1190.8
+        ]
+      ]
+    },
+    {
+      "text": "grave,and borrowed labourers from'Tsang-sun,",
+      "score": 0.944,
+      "box": [
+        [
+          137.9,
+          1173.1
+        ],
+        [
+          731.0,
+          1171.9
+        ],
+        [
+          731.0,
+          1204.6
+        ],
+        [
+          137.9,
+          1205.9
+        ]
+      ]
+    },
+    {
+      "text": "whoorderedthesuperintendentofthemto",
+      "score": 0.975,
+      "box": [
+        [
+          137.9,
+          1199.6
+        ],
+        [
+          733.5,
+          1198.3
+        ],
+        [
+          733.5,
+          1231.1
+        ],
+        [
+          137.9,
+          1232.4
+        ]
+      ]
+    },
+    {
+      "text": "sun Heih,who violated the rules of theState,",
+      "score": 0.922,
+      "box": [
+        [
+          747.3,
+          1190.8
+        ],
+        [
+          1340.4,
+          1194.6
+        ],
+        [
+          1340.4,
+          1227.3
+        ],
+        [
+          747.3,
+          1223.5
+        ]
+      ]
+    },
+    {
+      "text": "render his assistance; and when they were",
+      "score": 0.922,
+      "box": [
+        [
+          139.2,
+          1228.6
+        ],
+        [
+          732.3,
+          1228.6
+        ],
+        [
+          732.3,
+          1257.6
+        ],
+        [
+          139.2,
+          1257.6
+        ]
+      ]
+    },
+    {
+      "text": "and broke through the gate,cutting down the",
+      "score": 0.945,
+      "box": [
+        [
+          748.6,
+          1223.5
+        ],
+        [
+          1341.7,
+          1227.3
+        ],
+        [
+          1341.7,
+          1260.1
+        ],
+        [
+          748.6,
+          1256.3
+        ]
+      ]
+    },
+    {
+      "text": "clearing the rond at the east gate,he went him-",
+      "score": 0.912,
+      "box": [
+        [
+          137.9,
+          1253.8
+        ],
+        [
+          733.5,
+          1252.5
+        ],
+        [
+          733.5,
+          1285.3
+        ],
+        [
+          137.9,
+          1286.5
+        ]
+      ]
+    },
+    {
+      "text": "barrier.\"When‘Tsang-sun heard these terms,",
+      "score": 0.942,
+      "box": [
+        [
+          749.8,
+          1253.8
+        ],
+        [
+          1340.4,
+          1260.1
+        ],
+        [
+          1340.4,
+          1294.1
+        ],
+        [
+          749.8,
+          1287.8
+        ]
+      ]
+    },
+    {
+      "text": "selfwith some men-at-arms to see them.Mang",
+      "score": 0.925,
+      "box": [
+        [
+          136.7,
+          1276.5
+        ],
+        [
+          734.8,
+          1279.0
+        ],
+        [
+          734.8,
+          1315.5
+        ],
+        [
+          136.7,
+          1313.0
+        ]
+      ]
+    },
+    {
+      "text": "he said,“There isa man in the State.Who",
+      "score": 0.933,
+      "box": [
+        [
+          748.6,
+          1287.8
+        ],
+        [
+          1341.7,
+          1291.6
+        ],
+        [
+          1341.7,
+          1324.3
+        ],
+        [
+          748.6,
+          1320.6
+        ]
+      ]
+    },
+    {
+      "text": "sun sent also information of this to Ke-sun,",
+      "score": 0.945,
+      "box": [
+        [
+          137.9,
+          1309.2
+        ],
+        [
+          728.5,
+          1308.0
+        ],
+        [
+          728.5,
+          1338.2
+        ],
+        [
+          137.9,
+          1339.5
+        ]
+      ]
+    },
+    {
+      "text": "wasit?Was it not Mang Tseaou?\"'",
+      "score": 0.91,
+      "box": [
+        [
+          749.8,
+          1319.3
+        ],
+        [
+          1228.8,
+          1319.3
+        ],
+        [
+          1228.8,
+          1355.8
+        ],
+        [
+          749.8,
+          1355.8
+        ]
+      ]
+    },
+    {
+      "text": "who was angry,and gave orders to attack",
+      "score": 0.95,
+      "box": [
+        [
+          136.7,
+          1333.2
+        ],
+        [
+          731.0,
+          1331.9
+        ],
+        [
+          731.0,
+          1369.7
+        ],
+        [
+          136.7,
+          1371.0
+        ]
+      ]
+    },
+    {
+      "text": "Tsang.Inconsequence,on Yih-hae,Tsang Hei",
+      "score": 0.885,
+      "box": [
+        [
+          135.4,
+          1359.6
+        ],
+        [
+          731.0,
+          1358.4
+        ],
+        [
+          731.0,
+          1396.2
+        ],
+        [
+          135.4,
+          1397.4
+        ]
+      ]
+    },
+    {
+      "text": "Par.12.The Chuen says:The people of",
+      "score": 0.94,
+      "box": [
+        [
+          777.4,
+          1352.1
+        ],
+        [
+          1341.7,
+          1354.6
+        ],
+        [
+          1341.7,
+          1388.6
+        ],
+        [
+          777.4,
+          1386.1
+        ]
+      ]
+    },
+    {
+      "text": "cut down ihebarrier at theLuh gate,made his",
+      "score": 0.911,
+      "box": [
+        [
+          136.7,
+          1389.9
+        ],
+        [
+          733.5,
+          1386.1
+        ],
+        [
+          733.5,
+          1420.1
+        ],
+        [
+          136.7,
+          1423.9
+        ]
+      ]
+    },
+    {
+      "text": "Tsin reduced Kuh-yuh,and took Lwan Ying,",
+      "score": 0.933,
+      "box": [
+        [
+          749.8,
+          1382.3
+        ],
+        [
+          1339.2,
+          1388.6
+        ],
+        [
+          1339.2,
+          1421.4
+        ],
+        [
+          749.8,
+          1415.1
+        ]
+      ]
+    },
+    {
+      "text": "escape,and ted to Choo.",
+      "score": 0.911,
+      "box": [
+        [
+          139.2,
+          1418.9
+        ],
+        [
+          446.4,
+          1417.6
+        ],
+        [
+          446.4,
+          1447.8
+        ],
+        [
+          139.2,
+          1449.1
+        ]
+      ]
+    },
+    {
+      "text": "when theyput to deathall themembersand",
+      "score": 0.951,
+      "box": [
+        [
+          749.8,
+          1416.3
+        ],
+        [
+          1340.4,
+          1418.9
+        ],
+        [
+          1340.4,
+          1452.9
+        ],
+        [
+          749.8,
+          1450.4
+        ]
+      ]
+    },
+    {
+      "text": "‘[Heih's father],‘T'sang Seuen-shuh had mar-",
+      "score": 0.886,
+      "box": [
+        [
+          165.5,
+          1449.1
+        ],
+        [
+          733.5,
+          1447.8
+        ],
+        [
+          733.5,
+          1480.6
+        ],
+        [
+          165.5,
+          1481.9
+        ]
+      ]
+    },
+    {
+      "text": "the partizans of the Lwan clan,Lwan Fang",
+      "score": 0.951,
+      "box": [
+        [
+          751.1,
+          1449.1
+        ],
+        [
+          1340.4,
+          1452.9
+        ],
+        [
+          1340.4,
+          1486.9
+        ],
+        [
+          751.1,
+          1483.1
+        ]
+      ]
+    },
+    {
+      "text": "rieda lady of Choo,whobore to himKea and",
+      "score": 0.916,
+      "box": [
+        [
+          137.9,
+          1476.8
+        ],
+        [
+          731.0,
+          1475.6
+        ],
+        [
+          731.0,
+          1508.3
+        ],
+        [
+          137.9,
+          1509.6
+        ]
+      ]
+    },
+    {
+      "text": "making his escape,and fying to Sung.In the",
+      "score": 0.959,
+      "box": [
+        [
+          749.8,
+          1481.9
+        ],
+        [
+          1340.4,
+          1484.4
+        ],
+        [
+          1340.4,
+          1517.1
+        ],
+        [
+          749.8,
+          1514.6
+        ]
+      ]
+    },
+    {
+      "text": "Wei,andthen died.Hle then raised to her",
+      "score": 0.935,
+      "box": [
+        [
+          142.9,
+          1505.8
+        ],
+        [
+          731.0,
+          1505.8
+        ],
+        [
+          731.0,
+          1534.8
+        ],
+        [
+          142.9,
+          1534.8
+        ]
+      ]
+    },
+    {
+      "text": "text there isnomention of Ying'sbeing “a",
+      "score": 0.921,
+      "box": [
+        [
+          751.1,
+          1514.6
+        ],
+        [
+          1341.7,
+          1518.4
+        ],
+        [
+          1341.7,
+          1548.6
+        ],
+        [
+          751.1,
+          1544.9
+        ]
+      ]
+    },
+    {
+      "text": "placeherniece.[whohad comewithher to the",
+      "score": 0.939,
+      "box": [
+        [
+          140.4,
+          1533.5
+        ],
+        [
+          731.0,
+          1531.0
+        ],
+        [
+          731.0,
+          1560.0
+        ],
+        [
+          140.4,
+          1562.5
+        ]
+      ]
+    },
+    {
+      "text": "great officer of Tsin,”because he had come",
+      "score": 0.934,
+      "box": [
+        [
+          749.8,
+          1546.1
+        ],
+        [
+          1341.7,
+          1547.4
+        ],
+        [
+          1341.7,
+          1581.4
+        ],
+        [
+          749.8,
+          1580.1
+        ]
+      ]
+    },
+    {
+      "text": "harem],-a daughter ofthe younger sister of",
+      "score": 0.921,
+      "box": [
+        [
+          140.4,
+          1558.7
+        ],
+        [
+          732.3,
+          1556.2
+        ],
+        [
+          732.3,
+          1589.0
+        ],
+        [
+          140.4,
+          1591.5
+        ]
+      ]
+    },
+    {
+      "text": "Muh-keang(Themother ofduke Ching）.This",
+      "score": 0.952,
+      "box": [
+        [
+          139.2,
+          1585.2
+        ],
+        [
+          733.5,
+          1582.7
+        ],
+        [
+          733.5,
+          1615.4
+        ],
+        [
+          139.2,
+          1617.9
+        ]
+      ]
+    },
+    {
+      "text": "[against it] from another State'Comp.the",
+      "score": 0.946,
+      "box": [
+        [
+          752.3,
+          1578.9
+        ],
+        [
+          1341.7,
+          1581.4
+        ],
+        [
+          1341.7,
+          1614.2
+        ],
+        [
+          752.3,
+          1611.6
+        ]
+      ]
+    },
+    {
+      "text": "lady bore lleih,whogrewupin the duke'spalace;",
+      "score": 0.921,
+      "box": [
+        [
+          139.2,
+          1611.6
+        ],
+        [
+          732.3,
+          1610.4
+        ],
+        [
+          732.3,
+          1644.4
+        ],
+        [
+          139.2,
+          1645.7
+        ]
+      ]
+    },
+    {
+      "text": "account of the death of LeangSeaou in xxx.7.",
+      "score": 0.932,
+      "box": [
+        [
+          748.6,
+          1610.4
+        ],
+        [
+          1340.4,
+          1612.9
+        ],
+        [
+          1340.4,
+          1645.7
+        ],
+        [
+          748.6,
+          1643.1
+        ]
+      ]
+    },
+    {
+      "text": "and beingtlhe objectof theduchessKeang'slove,",
+      "score": 0.906,
+      "box": [
+        [
+          139.2,
+          1641.9
+        ],
+        [
+          728.5,
+          1639.4
+        ],
+        [
+          728.5,
+          1668.3
+        ],
+        [
+          139.2,
+          1670.9
+        ]
+      ]
+    },
+    {
+      "text": "Par.13. The Chuen says:When the mar-",
+      "score": 0.947,
+      "box": [
+        [
+          774.9,
+          1641.9
+        ],
+        [
+          1341.7,
+          1645.7
+        ],
+        [
+          1341.7,
+          1678.4
+        ],
+        [
+          774.9,
+          1674.6
+        ]
+      ]
+    },
+    {
+      "text": "he was made successor tohis father.When that",
+      "score": 0.94,
+      "box": [
+        [
+          139.2,
+          1669.6
+        ],
+        [
+          728.5,
+          1665.8
+        ],
+        [
+          728.5,
+          1694.8
+        ],
+        [
+          139.2,
+          1698.6
+        ]
+      ]
+    },
+    {
+      "text": "quis of Ts'e returned fromTs'in,without enter-",
+      "score": 0.926,
+      "box": [
+        [
+          749.8,
+          1675.9
+        ],
+        [
+          1340.4,
+          1677.2
+        ],
+        [
+          1340.4,
+          1711.2
+        ],
+        [
+          749.8,
+          1709.9
+        ]
+      ]
+    },
+    {
+      "text": "took place,his [half-] brothers Kea and Wei",
+      "score": 0.928,
+      "box": [
+        [
+          139.2,
+          1694.8
+        ],
+        [
+          728.5,
+          1691.0
+        ],
+        [
+          728.5,
+          1721.3
+        ],
+        [
+          139.2,
+          1725.1
+        ]
+      ]
+    },
+    {
+      "text": "left theStateand lived in Choo.Woo-chung",
+      "score": 0.945,
+      "box": [
+        [
+          137.9,
+          1720.0
+        ],
+        [
+          729.8,
+          1720.0
+        ],
+        [
+          729.8,
+          1752.8
+        ],
+        [
+          137.9,
+          1752.8
+        ]
+      ]
+    },
+    {
+      "text": "ing[his capital],he fell on Keu by surprise,",
+      "score": 0.949,
+      "box": [
+        [
+          749.8,
+          1708.7
+        ],
+        [
+          1337.9,
+          1712.4
+        ],
+        [
+          1337.9,
+          1745.2
+        ],
+        [
+          749.8,
+          1741.4
+        ]
+      ]
+    },
+    {
+      "text": "[now]sentwordfrom ChootoKeaofwhathad",
+      "score": 0.966,
+      "box": [
+        [
+          141.7,
+          1750.3
+        ],
+        [
+          728.5,
+          1747.7
+        ],
+        [
+          728.5,
+          1776.7
+        ],
+        [
+          141.7,
+          1779.2
+        ]
+      ]
+    },
+    {
+      "text": "and attacked the gate of Tseu-yu.A wound in",
+      "score": 0.93,
+      "box": [
+        [
+          749.8,
+          1741.4
+        ],
+        [
+          1340.4,
+          1745.2
+        ],
+        [
+          1340.4,
+          1778.0
+        ],
+        [
+          749.8,
+          1774.2
+        ]
+      ]
+    },
+    {
+      "text": "befallenhim,and sent him a large tortoise,say-",
+      "score": 0.923,
+      "box": [
+        [
+          142.9,
+          1776.7
+        ],
+        [
+          732.3,
+          1776.7
+        ],
+        [
+          732.3,
+          1805.7
+        ],
+        [
+          142.9,
+          1805.7
+        ]
+      ]
+    },
+    {
+      "text": "thethighobligedhim toretire;butnextdayhe",
+      "score": 0.982,
+      "box": [
+        [
+          752.3,
+          1776.7
+        ],
+        [
+          1337.9,
+          1780.5
+        ],
+        [
+          1337.9,
+          1809.5
+        ],
+        [
+          752.3,
+          1805.7
+        ]
+      ]
+    },
+    {
+      "text": "ing,Through my want ofability,I have lost",
+      "score": 0.938,
+      "box": [
+        [
+          136.7,
+          1803.2
+        ],
+        [
+          731.0,
+          1799.4
+        ],
+        [
+          731.0,
+          1832.2
+        ],
+        [
+          136.7,
+          1835.9
+        ]
+      ]
+    },
+    {
+      "text": "resolved torenew thefight,andfixedon Show-",
+      "score": 0.958,
+      "box": [
+        [
+          749.8,
+          1808.2
+        ],
+        [
+          1339.2,
+          1813.3
+        ],
+        [
+          1339.2,
+          1842.2
+        ],
+        [
+          749.8,
+          1837.2
+        ]
+      ]
+    },
+    {
+      "text": "the change ofour anccstral temple,andI",
+      "score": 0.938,
+      "box": [
+        [
+          136.7,
+          1829.6
+        ],
+        [
+          733.5,
+          1827.1
+        ],
+        [
+          733.5,
+          1859.9
+        ],
+        [
+          136.7,
+          1862.4
+        ]
+      ]
+    },
+    {
+      "text": "shoo as the place ofengagement.[In the mean-",
+      "score": 0.933,
+      "box": [
+        [
+          749.8,
+          1839.7
+        ],
+        [
+          1341.7,
+          1844.8
+        ],
+        [
+          1341.7,
+          1877.5
+        ],
+        [
+          749.8,
+          1872.5
+        ]
+      ]
+    },
+    {
+      "text": "venture totell youofmypitiable case.My",
+      "score": 0.959,
+      "box": [
+        [
+          139.2,
+          1858.6
+        ],
+        [
+          727.3,
+          1856.1
+        ],
+        [
+          727.3,
+          1885.1
+        ],
+        [
+          139.2,
+          1887.6
+        ]
+      ]
+    },
+    {
+      "text": "time]Ke Chih and Hwa Seuen passed during",
+      "score": 0.928,
+      "box": [
+        [
+          751.1,
+          1870.0
+        ],
+        [
+          1340.4,
+          1876.3
+        ],
+        [
+          1340.4,
+          1910.3
+        ],
+        [
+          751.1,
+          1904.0
+        ]
+      ]
+    },
+    {
+      "text": "offence,however,is notofa character that",
+      "score": 0.925,
+      "box": [
+        [
+          139.2,
+          1886.3
+        ],
+        [
+          729.8,
+          1882.6
+        ],
+        [
+          729.8,
+          1911.5
+        ],
+        [
+          139.2,
+          1915.3
+        ]
+      ]
+    },
+    {
+      "text": "shouldlead totheextinctionofoursacrifices.",
+      "score": 0.969,
+      "box": [
+        [
+          140.4,
+          1911.5
+        ],
+        [
+          729.8,
+          1911.5
+        ],
+        [
+          729.8,
+          1940.5
+        ],
+        [
+          140.4,
+          1940.5
+        ]
+      ]
+    },
+    {
+      "text": "the nightin their armour througha defile near",
+      "score": 0.943,
+      "box": [
+        [
+          751.1,
+          1902.7
+        ],
+        [
+          1342.9,
+          1909.0
+        ],
+        [
+          1342.9,
+          1941.8
+        ],
+        [
+          751.1,
+          1935.5
+        ]
+      ]
+    },
+    {
+      "text": "Doyou present to the duke this large tortoise,",
+      "score": 0.945,
+      "box": [
+        [
+          137.9,
+          1938.0
+        ],
+        [
+          733.5,
+          1935.5
+        ],
+        [
+          733.5,
+          1969.5
+        ],
+        [
+          137.9,
+          1972.0
+        ]
+      ]
+    },
+    {
+      "text": "Tseu-yu,and reached the suburbs ofthe capital",
+      "score": 0.952,
+      "box": [
+        [
+          749.8,
+          1935.5
+        ],
+        [
+          1340.4,
+          1940.5
+        ],
+        [
+          1340.4,
+          1973.3
+        ],
+        [
+          749.8,
+          1968.2
+        ]
+      ]
+    },
+    {
+      "text": "andasktobepernitted tocontinue them;",
+      "score": 0.921,
+      "box": [
+        [
+          137.9,
+          1964.5
+        ],
+        [
+          721.0,
+          1963.2
+        ],
+        [
+          721.0,
+          1996.0
+        ],
+        [
+          137.9,
+          1997.2
+        ]
+      ]
+    },
+    {
+      "text": "city.Nextday,beforethemarquis,theymetwith",
+      "score": 0.943,
+      "box": [
+        [
+          751.1,
+          1968.2
+        ],
+        [
+          1340.4,
+          1972.0
+        ],
+        [
+          1340.4,
+          2006.0
+        ],
+        [
+          751.1,
+          2002.3
+        ]
+      ]
+    },
+    {
+      "text": "and it may be granted.\"Kea replied,\"What",
+      "score": 0.908,
+      "box": [
+        [
+          137.9,
+          1990.9
+        ],
+        [
+          729.8,
+          1988.4
+        ],
+        [
+          729.8,
+          2021.2
+        ],
+        [
+          137.9,
+          2023.7
+        ]
+      ]
+    },
+    {
+      "text": "theviscountofKeuatP'oo-how-she,whooffered",
+      "score": 0.969,
+      "box": [
+        [
+          752.3,
+          2002.3
+        ],
+        [
+          1339.2,
+          2007.3
+        ],
+        [
+          1339.2,
+          2036.3
+        ],
+        [
+          752.3,
+          2031.3
+        ]
+      ]
+    },
+    {
+      "text": "hashappenedisthenisfortuneofourfamily,and",
+      "score": 0.913,
+      "box": [
+        [
+          137.9,
+          2019.9
+        ],
+        [
+          729.8,
+          2017.4
+        ],
+        [
+          729.8,
+          2050.2
+        ],
+        [
+          137.9,
+          2052.7
+        ]
+      ]
+    },
+    {
+      "text": "themlargebribes toinduce themnottofightto",
+      "score": 0.969,
+      "box": [
+        [
+          752.3,
+          2033.8
+        ],
+        [
+          1339.2,
+          2038.8
+        ],
+        [
+          1339.2,
+          2067.8
+        ],
+        [
+          752.3,
+          2062.8
+        ]
+      ]
+    },
+    {
+      "text": "not throughanyfaultofyours.Ihavereceived",
+      "score": 0.96,
+      "box": [
+        [
+          137.9,
+          2048.9
+        ],
+        [
+          727.3,
+          2043.9
+        ],
+        [
+          727.3,
+          2072.8
+        ],
+        [
+          137.9,
+          2077.9
+        ]
+      ]
+    },
+    {
+      "text": "your commanis.\"Hle then bowed twice,and",
+      "score": 0.925,
+      "box": [
+        [
+          135.4,
+          2071.6
+        ],
+        [
+          731.0,
+          2066.5
+        ],
+        [
+          731.0,
+          2103.1
+        ],
+        [
+          135.4,
+          2108.1
+        ]
+      ]
+    },
+    {
+      "text": "the death,and begged them to make a covenant",
+      "score": 0.938,
+      "box": [
+        [
+          752.3,
+          2066.5
+        ],
+        [
+          1340.4,
+          2070.3
+        ],
+        [
+          1340.4,
+          2100.6
+        ],
+        [
+          752.3,
+          2096.8
+        ]
+      ]
+    },
+    {
+      "text": "receivedthetortoise,which heentrusted to[his",
+      "score": 0.954,
+      "box": [
+        [
+          139.2,
+          2101.8
+        ],
+        [
+          729.8,
+          2098.0
+        ],
+        [
+          729.8,
+          2127.0
+        ],
+        [
+          139.2,
+          2130.8
+        ]
+      ]
+    },
+    {
+      "text": "with him.Hwa Chow（Hwa Seuen)replied,",
+      "score": 0.946,
+      "box": [
+        [
+          752.3,
+          2098.0
+        ],
+        [
+          1337.9,
+          2104.3
+        ],
+        [
+          1337.9,
+          2133.3
+        ],
+        [
+          752.3,
+          2127.0
+        ]
+      ]
+    },
+    {
+      "text": "brother]Wei topresentwith therequestwhiich",
+      "score": 0.948,
+      "box": [
+        [
+          137.9,
+          2127.0
+        ],
+        [
+          729.8,
+          2124.5
+        ],
+        [
+          729.8,
+          2157.3
+        ],
+        [
+          137.9,
+          2159.8
+        ]
+      ]
+    },
+    {
+      "text": "“If,covetingyour bribes,we should cast away",
+      "score": 0.927,
+      "box": [
+        [
+          749.8,
+          2128.3
+        ],
+        [
+          1340.4,
+          2134.6
+        ],
+        [
+          1340.4,
+          2167.3
+        ],
+        [
+          749.8,
+          2161.0
+        ]
+      ]
+    },
+    {
+      "text": "had bcen suggested.ButWei preferred the re-",
+      "score": 0.944,
+      "box": [
+        [
+          137.9,
+          2154.7
+        ],
+        [
+          731.0,
+          2152.2
+        ],
+        [
+          731.0,
+          2185.0
+        ],
+        [
+          137.9,
+          2187.5
+        ]
+      ]
+    },
+    {
+      "text": "our orders,your lordship would hate us.If",
+      "score": 0.96,
+      "box": [
+        [
+          751.1,
+          2164.8
+        ],
+        [
+          1342.9,
+          2166.1
+        ],
+        [
+          1342.9,
+          2196.3
+        ],
+        [
+          751.1,
+          2195.1
+        ]
+      ]
+    },
+    {
+      "text": "quest in his own behalf. Tsang-sun went to",
+      "score": 0.959,
+      "box": [
+        [
+          137.9,
+          2181.2
+        ],
+        [
+          732.3,
+          2178.7
+        ],
+        [
+          732.3,
+          2212.7
+        ],
+        [
+          137.9,
+          2215.2
+        ]
+      ]
+    },
+    {
+      "text": "beforemid-daywecouldforgettheorderswhich",
+      "score": 0.987,
+      "box": [
+        [
+          753.6,
+          2195.1
+        ],
+        [
+          1339.2,
+          2197.6
+        ],
+        [
+          1339.2,
+          2227.8
+        ],
+        [
+          753.6,
+          2225.3
+        ]
+      ]
+    },
+    {
+      "text": "Fang（the city of the T'sang clan),and sent a",
+      "score": 0.896,
+      "box": [
+        [
+          137.9,
+          2207.7
+        ],
+        [
+          734.8,
+          2206.4
+        ],
+        [
+          734.8,
+          2239.2
+        ],
+        [
+          137.9,
+          2240.4
+        ]
+      ]
+    },
+    {
+      "text": "message Irom it to the duke,saying,It was",
+      "score": 0.908,
+      "box": [
+        [
+          137.9,
+          2235.4
+        ],
+        [
+          734.8,
+          2232.9
+        ],
+        [
+          734.8,
+          2266.9
+        ],
+        [
+          137.9,
+          2269.4
+        ]
+      ]
+    },
+    {
+      "text": "we received at dawn,wherewith shonld we",
+      "score": 0.925,
+      "box": [
+        [
+          752.3,
+          2226.6
+        ],
+        [
+          1342.9,
+          2227.8
+        ],
+        [
+          1342.9,
+          2261.8
+        ],
+        [
+          752.3,
+          2260.6
+        ]
+      ]
+    },
+    {
+      "text": "not inmypower to do anyharm;—itwas wy|serve anyruler?\"On this theviscount hiniself",
+      "score": 0.917,
+      "box": [
+        [
+          135.4,
+          2261.8
+        ],
+        [
+          1344.2,
+          2256.8
+        ],
+        [
+          1344.2,
+          2293.3
+        ],
+        [
+          135.4,
+          2298.4
+        ]
+      ]
+    },
+    {
+      "text": "DigitizedbyGoogle",
+      "score": 0.987,
+      "box": [
+        [
+          1289.0,
+          2416.8
+        ],
+        [
+          1576.2,
+          2416.8
+        ],
+        [
+          1576.2,
+          2454.6
+        ],
+        [
+          1289.0,
+          2454.6
+        ]
+      ]
+    }
+  ]
+}

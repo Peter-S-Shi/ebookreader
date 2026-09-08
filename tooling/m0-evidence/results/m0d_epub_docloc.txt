@@ -1,0 +1,35 @@
+Captured from a live browser preview (Vite + React host registering foliate-js's
+<foliate-view> custom element) loading fixtures/alice.epub. See
+scripts/m0d_epub_docloc_App.tsx for the exact test harness component.
+
+M0-D corrective: EPUB DocumentLocation stability (reopen/resize/typography/jump-back)
+[A] opened
+[A] navigated, savedCfi=epubcfi(/6/8!/4/2[pgepubid00004],/2,/4/3:141)
+[A] text snippet at anchor: "CHAPTER II.\nThe Pool of Tears\n\n“Curiouser and curiouser!” cried Alice (she was s"
+[A] calling setStyles...
+[A] setStyles called (sync return), settling...
+[A] settled, calling goTo(savedCfi) after typography change...
+[A] goTo after typography returned: [object Object]
+[A] after typography change (220% font), re-goTo(savedCfi) -> cfi=epubcfi(/6/8!/4/2[pgepubid00004]/2,/2[chap02],/4)
+[A] section match: true
+[A] goTo after resize returned: [object Object]
+[A] after resize (220x700), re-goTo(savedCfi) -> cfi=epubcfi(/6/8!/4/2[pgepubid00004]/2,/2[chap02],/3:3)
+[A] section match: true
+[B fresh instance = "reopen"] goTo(savedCfi) -> cfi=epubcfi(/6/8!/4/2[pgepubid00004],/2,/4/3:141)
+[B] text snippet at same anchor: "CHAPTER II.\nThe Pool of Tears\n\n“Curiouser and curiouser!” cried Alice (she was s"
+[B] jump-back text match vs [A] original: true
+[B] jump-back cfi exact match: true
+DONE
+
+Interpretation:
+- Reopen (fresh <foliate-view> instance, fresh File object, default typography/size):
+  CFI exact match TRUE, rendered text exact match TRUE. Strongest, cleanest result.
+- Typography change (220% font) and resize (220x700 container) both: goTo(savedCfi)
+  succeeds and lands in the SAME section (section match true), but the CFI value
+  reported back by the `relocate` event afterward is NOT byte-identical to the
+  requested savedCfi - it reflects the current page/view boundary, not the exact
+  requested anchor. Implementation nuance: for stable progress restore, goTo(cfi)
+  is reliable for navigating TO the correct content, but do not assume
+  view.lastLocation.cfi will echo back byte-identical to a previously-saved CFI
+  after a typography/resize change - re-derive position from the DOM/content,
+  don't rely on CFI string equality as the correctness check.

@@ -1,0 +1,5 @@
+numPages: 1
+page 1: 1 text items, viewport 893x1263 @1.5x, 16ms
+
+TOTAL: 1 pages, 1 text items, 65ms wall (load+parse all pages)
+avg per page: 65.0ms

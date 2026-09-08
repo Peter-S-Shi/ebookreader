@@ -1,8 +1,8 @@
 # EbookReader V1 Architecture
 
-Status: **Architecture Hypothesis — M0 Evidence Produced, Awaiting Human Architecture Lock**
+Status: **Architecture Hypothesis — M0 Corrective Evidence Pass Complete, Awaiting Second Human Architecture Gate**
 
-See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions. This file's content below reflects the M0-evidenced hypothesis; it remains a hypothesis, not an accepted baseline, until a human explicitly approves the Architecture Lock.
+See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions (including the corrective pass: a first Architecture Lock submission was declined and specific gaps were closed with new evidence — see both files' "Corrective" sections). This file's content below reflects the M0-evidenced hypothesis; it remains a hypothesis, not an accepted baseline, until a human explicitly approves the Architecture Lock.
 
 
 This document defines architectural boundaries and M0 decision gates. It intentionally does not claim that the final stack is already locked.
@@ -345,7 +345,7 @@ OS lock/sleep always pauses.
 
 Historical facts should remain explainable when Settings change.
 
-**M0 finding:** Tauri exposes a native `WindowEvent::Focused(bool)` for foreground/background tracking, requiring no custom platform code. There is no dedicated OS sleep/lock window event; V1 relies on the existing inactivity-timeout policy above as a truthful (if up to ~5 minutes delayed) fallback for sleep/lock detection. An immediate Win32 power/session-lock hook is technically reachable (via the already-transitive `windows` crate) and is a documented future enhancement, not a V1 requirement. See `M0_TECHNICAL_SPIKE_REPORT.md` (M0-G).
+**M0 finding (corrected in the M0 Corrective Evidence Pass):** Tauri exposes a native `WindowEvent::Focused(bool)` for foreground/background tracking, requiring no custom platform code. There is no dedicated OS sleep/lock window event, but a Win32 session-lock/power-broadcast hook (`WTSRegisterSessionNotification` + `WM_WTSSESSION_CHANGE` + `WM_POWERBROADCAST`, via the `windows` crate) was built and confirmed to produce exact pause/resume boundaries — this hook is **required V1 behavior**, not an optional enhancement, per the "OS lock/sleep always pauses" rule above. An earlier version of this finding proposed tolerating up to ~5 minutes of misattributed session time via the inactivity-timeout policy alone; that proposal was a self-approved frozen-semantic downgrade and has been retracted. The inactivity-timeout policy remains V1 only for genuine inactivity, which has no OS signal of its own. See `M0_TECHNICAL_SPIKE_REPORT.md` (M0-G) and `M0_ARCHITECTURE_DECISION.md` §10.
 
 ---
 

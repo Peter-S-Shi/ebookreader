@@ -1,0 +1,10 @@
+RUST ORT INFERENCE RESULT
+model: <local pip-installed rapidocr_onnxruntime>/models/ch_PP-OCRv4_det_infer.onnx
+image: tooling/m0-evidence/fixtures/ocr_real/ia_200.jpg (1622x2500 -> resized 1632x2496)
+output_name: sigmoid_0.tmp_0
+output_shape: [1, 1, 2496, 1632]
+output_min: 0.000000
+output_max: 1.000000
+output_mean: 0.141716
+pixels_above_0.3_textness: 582691 / 4073472
+inference_wall_time_ms: 490.01

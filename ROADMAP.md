@@ -219,7 +219,7 @@ Portfolio / Maintenance
 
 # Milestone 0 — Feasibility & Architecture Lock
 
-**Status:** Evidence Produced — Awaiting Human Architecture Gate (see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`)  
+**Status:** Corrective Evidence Pass Complete — Awaiting Second Human Architecture Gate (see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, reproducible harness at `tooling/m0-evidence/`). A first Architecture Lock submission was declined; a Failure-Attribution-driven corrective pass closed the named gaps without discarding prior evidence.  
 **Risk / Change Budget:** High  
 **Autonomy Envelope:** M0 only  
 **Human Gate Required:** Yes — Architecture Lock

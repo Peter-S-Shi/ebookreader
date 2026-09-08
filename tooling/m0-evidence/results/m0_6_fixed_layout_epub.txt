@@ -1,0 +1,21 @@
+Captured from a live browser preview loading fixtures/fixed_layout_sample.epub
+(a minimal, self-authored, valid EPUB3 fixed-layout book - see
+fixtures/make_fixed_layout_epub.py) via foliate-js. See
+scripts/m0_6_fixed_layout_epub_App.tsx for the exact test harness component.
+
+M0-6 corrective: fixed-layout EPUB sanity check
+fetched fixed-layout epub: 3021 bytes
+view.open resolved
+book sections: 2
+rendition layout metadata: {"layout":"pre-paginated","orientation":"landscape","spread":"none"}
+lastLocation after open: undefined
+lastLocation after next(): {"fraction":0.4955300127713921,"section":{"current":0,"total":2},"location":{"current":0,"next":0,"total":1},"time":{"section":0.2425,"total":0.489375},"tocItem":{"label":"Page 1","href":"OEBPS/page1.xhtml","subitems":null,"id":0},"pageItem":null,"cfi":"epubcfi(/6/2)","range":null}
+DONE
+
+Interpretation:
+foliate-js correctly parses the EPUB3 rendition:layout=pre-paginated metadata
+(layout/orientation/spread all round-trip correctly) and correctly counts the
+book's two fixed-layout pages as two sections, with working next()/goTo()
+navigation and CFI/TOC generation. This is a renderer-lock sanity check only
+(does the fixed-layout code path exist and parse correctly), not a full M2
+fixed-layout rendering/typography implementation.

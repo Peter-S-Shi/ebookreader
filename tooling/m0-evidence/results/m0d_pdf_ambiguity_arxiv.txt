@@ -1,0 +1,15 @@
+Fixture: arxiv_sample.pdf (NOT vendored in this repo - see
+fixtures/EXTERNAL_FIXTURES.md for the fetch URL + sha256 pin; re-fetch it and
+point scripts/m0d_pdf_ambiguity.mjs at the local copy to reproduce).
+
+Command: node scripts/m0d_pdf_ambiguity.mjs <path-to-arxiv_sample.pdf>
+
+Output:
+ambiguous text-quote fragments on page 1 (count > 1): [ [ '∗', 7 ], [ 'Google Brain', 3 ], [ 'Google Research', 3 ] ]
+
+Interpretation:
+On a real multi-author academic PDF, short/repeated text fragments (author
+affiliation labels, footnote markers) are genuinely ambiguous as a sole
+text-quote anchor - "Google Brain" appears 3 times on page 1 alone. This
+confirms ARCHITECTURE.md's `context_selector` fallback is not a theoretical
+nicety but a real requirement for any anchor built from a short text-quote.

@@ -1,7 +1,7 @@
 {
   "baseline_date": "2026-09-08",
   "version": "V2 Loop Engineering Refactor",
-  "status": "V1 product/domain/UI frozen; P0 loop-control refactor applied; M0 evidence produced, awaiting Human Architecture Gate",
+  "status": "V1 product/domain/UI frozen; P0 loop-control refactor applied; M0 corrective evidence pass complete, awaiting second Human Architecture Gate",
   "authority_model": {
     "product": "PRODUCT_SPEC.md",
     "ui": "DESIGN.md",
@@ -15,7 +15,8 @@
   "m0_evidence": {
     "spike_report": "M0_TECHNICAL_SPIKE_REPORT.md",
     "architecture_decision": "M0_ARCHITECTURE_DECISION.md",
-    "human_gate_status": "not yet approved"
+    "evidence_harness": "tooling/m0-evidence/",
+    "human_gate_status": "first submission declined; corrective pass complete; second submission pending"
   },
   "files": [
     "ARCHITECTURE.md",
@@ -28,6 +29,7 @@
     "PROJECT_STATUS.md",
     "README.md",
     "ROADMAP.md",
-    "docs/design/EbookReader_UI_Prototype_v0_5.html"
+    "docs/design/EbookReader_UI_Prototype_v0_5.html",
+    "tooling/m0-evidence/"
   ]
 }

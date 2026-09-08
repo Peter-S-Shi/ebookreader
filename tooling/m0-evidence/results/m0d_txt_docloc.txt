@@ -1,0 +1,10 @@
+1. [reopen] original offset of anchor: 173
+   re-derived on reopen (same bytes): 173 match=True
+2. [typography] TXT anchor is a pure character offset with no layout dependency -> unaffected by font-size/line-height changes by construction.
+3. [content shifted] stale offset=173 now points at: 'and a fine drizzle of rain, slipped qui' (WRONG if used naively)
+   fallback re-anchor: offset=201 method=exact_quote recovered_text='slipped quickly through the glass doors'
+   jump-back correctness after content shift: True
+4. [context also shifted] fallback re-anchor: offset=172 method=exact_quote recovered_text='slipped quickly through the glass doors'
+   still resolves via exact_quote: True
+
+OVERALL: PASS

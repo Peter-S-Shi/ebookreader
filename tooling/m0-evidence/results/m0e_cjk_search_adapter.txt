@@ -1,0 +1,18 @@
+query              expected_note                                           hits  matched_docs
+中文                 2-char CJK, doc[0] contains it                          2     ['这是一段中文测试文本，用', '混合 mixed CJK']
+测试                 2-char CJK, doc[0] contains it                          1     ['这是一段中文测试文本，用']
+英文                 2-char CJK, absent from corpus (should be 0 hits)       0     []
+搜索                 2-char CJK, present in doc[0]/doc[1]-adjacent/doc[2]    2     ['这是一段中文测试文本，用', '混合 mixed CJK']
+mixed              English word                                            1     ['混合 mixed CJK']
+English            English word, case-folding via unicode61                2     ['EbookReader ', '混合 mixed CJK']
+CJK/Latin          mixed token with punctuation                            1     ['混合 mixed CJK']
+中文和English         mixed CJK+Latin phrase spanning doc[2]                  1     ['混合 mixed CJK']
+天气                 2-char CJK, only in doc[3]                              1     ['无关内容：今天天气很好，']
+
+--- pass/fail ---
+PASS - 2-char Chinese '中文' finds a real hit
+PASS - 2-char Chinese '英文' (absent) finds 0
+PASS - English 'mixed' finds a real hit
+PASS - mixed CJK/Latin '中文和English' finds a real hit
+
+OVERALL: PASS

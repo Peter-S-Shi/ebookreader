@@ -1,0 +1,10 @@
+WTSRegisterSessionNotification succeeded: true
+PAUSE  reason=WTS_SESSION_LOCK at=exact-instant
+RESUME reason=WTS_SESSION_UNLOCK excluded_ms=300 (exact, not a fixed heuristic window)
+PAUSE  reason=PBT_APMSUSPEND at=exact-instant
+RESUME reason=PBT_APMRESUMESUSPEND excluded_ms=150 (exact, not a fixed heuristic window)
+
+--- SUMMARY ---
+final_state: Active
+total_excluded_ms (sum of lock + suspend intervals): 450
+PASS: excluded interval is derived from exact pause/resume instants (Instant::now() deltas), not a fixed ~5min inactivity heuristic. Locked-time and suspended-time are both excluded.

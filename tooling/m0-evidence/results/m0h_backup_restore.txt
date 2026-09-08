@@ -1,0 +1,11 @@
+1. Seeded library: 1 Managed-Copy book, 1 Reference book
+2. Created backup: full_backup_1.zip (1150 bytes)
+3. Preview (no mutation): schema_ok=True entries=2 missing=[]
+4a. Restore (Reference file intact): status=RESTORED relink_needed=[]
+    verify: {'db_matches_pre_backup_state': True, 'managed_copy_fingerprint_ok': True}
+4b. Restore (Reference file now MISSING): status=RESTORED relink_needed=['book_b']
+4c. Restore (corrupt archive, missing managed-copy bytes): status=REJECTED reason=archive_incomplete
+4c. app-data unchanged after rejection: True
+
+OVERALL: PASS - manifest/preview -> safety snapshot -> restore -> verify workflow exercised,
+including Reference relink surfacing and rejection of an incomplete archive without partial apply.

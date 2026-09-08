@@ -1,0 +1,7 @@
+--- ocr_en.png (wall=4.32s) ---
+  [0.98] The quick brown fox jumps over the lazy dog. 1234567890
+  [0.97] EbookReader OCR spike test - single column English text
+--- ocr_zh.png (wall=4.89s) ---
+  [0.98] 这是一段中文测试文本，用于验证本地OCR 的中文识别能力。
+  [0.99] 混合mixedCJK/Latin
+  [0.96] 文本test 123.

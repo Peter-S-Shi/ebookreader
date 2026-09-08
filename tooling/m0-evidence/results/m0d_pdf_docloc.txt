@@ -1,0 +1,11 @@
+[A] anchor text: "Dummy PDF file"
+[A] pixel pos @scale=1.0: (56.80, 758.10)
+[A] normalized pos: (0.0955, 0.9004)
+  [resize scale=0.5] normalized->pixel: (28.40, 379.05) viewport=298x421
+  [resize scale=1] normalized->pixel: (56.80, 758.10) viewport=595x842
+  [resize scale=2] normalized->pixel: (113.60, 1516.20) viewport=1190x1684
+  [resize scale=3] normalized->pixel: (170.40, 2274.30) viewport=1785x2526
+
+[B fresh instance = "reopen"] re-locate by text-quote "Dummy PDF file": FOUND
+[B] pixel pos: (56.80, 758.10)  matches [A]: true
+[B] text-quote match count on page: 1 (>1 means text-quote alone is AMBIGUOUS -> context_selector required)

@@ -1,0 +1,32 @@
+Fixture: arxiv_sample.pdf (NOT vendored in this repo - see
+fixtures/EXTERNAL_FIXTURES.md for the fetch URL + sha256 pin).
+
+Command: node scripts/m0c_pdf_larger.mjs <path-to-arxiv_sample.pdf>
+
+Output:
+numPages: 15
+page 1: 99 text items, viewport 918x1188 @1.5x, 50ms
+page 2: 108 text items, viewport 918x1188 @1.5x, 17ms
+page 3: 73 text items, viewport 918x1188 @1.5x, 5ms
+page 4: 189 text items, viewport 918x1188 @1.5x, 15ms
+page 5: 223 text items, viewport 918x1188 @1.5x, 7ms
+page 6: 273 text items, viewport 918x1188 @1.5x, 6ms
+page 7: 209 text items, viewport 918x1188 @1.5x, 6ms
+page 8: 322 text items, viewport 918x1188 @1.5x, 8ms
+page 9: 270 text items, viewport 918x1188 @1.5x, 4ms
+page 10: 142 text items, viewport 918x1188 @1.5x, 5ms
+page 11: 108 text items, viewport 918x1188 @1.5x, 3ms
+page 12: 96 text items, viewport 918x1188 @1.5x, 3ms
+page 13: 140 text items, viewport 918x1188 @1.5x, 50ms
+page 14: 222 text items, viewport 918x1188 @1.5x, 59ms
+page 15: 222 text items, viewport 918x1188 @1.5x, 49ms
+
+TOTAL: 15 pages, 2696 text items, 337ms wall (load+parse all pages)
+avg per page: 22.5ms
+
+Interpretation:
+A real 15-page academic PDF (text, tables, references, footnotes) parses in
+337ms total (~22.5ms/page average) via pdf.js on this machine - a real,
+non-trivial multi-page document, not the single-line sample.pdf used
+elsewhere in this harness. No errors, no missing pages, consistent per-page
+timing (no pathological blowup on later/denser pages).
