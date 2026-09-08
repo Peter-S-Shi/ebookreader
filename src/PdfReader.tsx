@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { ReaderShell } from "./ReaderShell";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -87,27 +88,32 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   }, [pageNumber, bookId]);
 
   return (
-    <div className="reader">
-      <div className="reader-toolbar">
-        <button type="button" onClick={onBack}>
-          Back to Library
-        </button>
-        <span>{title}</span>
-        <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>
-          Previous
-        </button>
-        <span>
-          Page {pageNumber}
-          {pageCount > 0 ? ` of ${pageCount}` : ""}
-        </span>
-        <button type="button" disabled={pageCount > 0 && pageNumber >= pageCount} onClick={() => setPageNumber((p) => p + 1)}>
-          Next
-        </button>
-        <span>{status}</span>
-      </div>
+    <ReaderShell
+      title={title}
+      onBack={onBack}
+      status={status}
+      toolbarExtra={
+        <>
+          <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>
+            Previous
+          </button>
+          <span>
+            Page {pageNumber}
+            {pageCount > 0 ? ` of ${pageCount}` : ""}
+          </span>
+          <button
+            type="button"
+            disabled={pageCount > 0 && pageNumber >= pageCount}
+            onClick={() => setPageNumber((p) => p + 1)}
+          >
+            Next
+          </button>
+        </>
+      }
+    >
       <div className="reader-surface">
         <canvas ref={canvasRef} />
       </div>
-    </div>
+    </ReaderShell>
   );
 }

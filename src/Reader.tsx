@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 
@@ -105,27 +106,29 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   }
 
   return (
-    <div className="reader">
-      <div className="reader-toolbar">
-        <button type="button" onClick={onBack}>
-          Back to Library
-        </button>
-        <span>{title}</span>
-        {!isFixedLayout && (
+    <ReaderShell
+      title={title}
+      onBack={onBack}
+      status={status}
+      toolbarExtra={
+        !isFixedLayout && (
           <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
             Aa
           </button>
-        )}
-        <span>{status}</span>
-      </div>
-      {typographyOpen && !isFixedLayout && (
-        <TypographyPanel
-          settings={typography}
-          onChange={handleTypographyChange}
-          onClose={() => setTypographyOpen(false)}
-        />
-      )}
+        )
+      }
+      overlay={
+        typographyOpen &&
+        !isFixedLayout && (
+          <TypographyPanel
+            settings={typography}
+            onChange={handleTypographyChange}
+            onClose={() => setTypographyOpen(false)}
+          />
+        )
+      }
+    >
       <div ref={hostRef} className="reader-surface" />
-    </div>
+    </ReaderShell>
   );
 }

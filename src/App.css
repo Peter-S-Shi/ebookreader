@@ -85,6 +85,7 @@ button {
   padding: 0.5em 1em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
   flex-shrink: 0;
+  transition: opacity 0.2s ease, border-color 0.2s ease;
 }
 
 .reader-surface {
@@ -93,6 +94,28 @@ button {
   overflow: auto;
   display: flex;
   justify-content: center;
+}
+
+/* Focus Reading (DESIGN.md SS6): minimal reader chrome, subtle surface
+   contrast -- only the Focus/Exit Focus toggle remains in the toolbar. */
+.focus-toggle {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.focus-toggle:hover {
+  opacity: 1;
+}
+
+.reader--focus .reader-toolbar {
+  border-color: transparent;
+  justify-content: flex-end;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-toolbar {
+    transition: none;
+  }
 }
 
 /* Typography panel (DESIGN.md SS8 "Aa"): a small overlay panel anchored

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
 
@@ -82,26 +83,27 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   };
 
   return (
-    <div className="reader">
-      <div className="reader-toolbar">
-        <button type="button" onClick={onBack}>
-          Back to Library
-        </button>
-        <span>{title}</span>
+    <ReaderShell
+      title={title}
+      onBack={onBack}
+      toolbarExtra={
         <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
           Aa
         </button>
-        {typographyOpen && (
+      }
+      overlay={
+        typographyOpen && (
           <TypographyPanel
             settings={typography}
             onChange={setTypography}
             onClose={() => setTypographyOpen(false)}
           />
-        )}
-      </div>
+        )
+      }
+    >
       <div ref={containerRef} className="reader-surface txt-surface" onScroll={handleScroll}>
         <pre style={textStyle}>{text ?? "Loading…"}</pre>
       </div>
-    </div>
+    </ReaderShell>
   );
 }
