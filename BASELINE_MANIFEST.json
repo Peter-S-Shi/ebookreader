@@ -1,7 +1,7 @@
 {
   "baseline_date": "2026-09-08",
   "version": "V2 Loop Engineering Refactor",
-  "status": "V1 product/domain/UI frozen; P0 loop-control refactor applied; M0 corrective evidence pass complete, awaiting second Human Architecture Gate",
+  "status": "V1 product/domain/UI frozen; P0 loop-control refactor applied; M0 Architecture Lock approved at second Human Architecture Gate; M1 in progress under M1-M8 autonomous envelope",
   "authority_model": {
     "product": "PRODUCT_SPEC.md",
     "ui": "DESIGN.md",
@@ -16,7 +16,7 @@
     "spike_report": "M0_TECHNICAL_SPIKE_REPORT.md",
     "architecture_decision": "M0_ARCHITECTURE_DECISION.md",
     "evidence_harness": "tooling/m0-evidence/",
-    "human_gate_status": "first submission declined; corrective pass complete; second submission pending"
+    "human_gate_status": "first submission declined; corrective pass complete; second submission approved 2026-09-08 at HEAD 5729bf4"
   },
   "files": [
     "ARCHITECTURE.md",

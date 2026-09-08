@@ -4,11 +4,11 @@
 
 ## Current Status
 
-**Phase:** Pre-implementation specification / workflow hardening  
-**Milestone:** M0 — Feasibility & Architecture Lock (corrective evidence pass complete, awaiting second Human Architecture Gate — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, reproducible harness at `tooling/m0-evidence/`)  
+**Phase:** M1 — Foundation, Persistence & Library (autonomous feature loop)  
+**Milestone:** M0 Architecture Lock **approved** at the second Human Architecture Gate (2026-09-08, HEAD `5729bf4`); M1 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, reproducible harness at `tooling/m0-evidence/`  
 **V1 product/domain scope:** Frozen  
 **V1 UI baseline:** Frozen  
-**Architecture:** Hypothesis, M0-evidenced (corrective pass) — not yet human-approved  
+**Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)  
 **Feature Freeze:** Not entered  
 **Release:** Not started
 

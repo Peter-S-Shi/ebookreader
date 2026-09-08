@@ -187,6 +187,27 @@ Goal:
 
 > **Minimize human interruption without surrendering human authority.**
 
+## 1.9 CI Promotion Gate
+
+Added at the second Human Architecture Gate (2026-09-08), effective from M1's earliest checkpoint onward.
+
+A minimal GitHub Actions CI is established at M1's first checkpoint, sized to this Windows-first Tauri/Rust/React project — not a full release-packaging matrix. At minimum it covers, and grows only as the project's real surface grows:
+
+- TypeScript typecheck and unit tests;
+- a TypeScript/frontend build;
+- Windows Rust build (`cargo check` / `cargo build`) and Rust unit tests;
+- Windows-native Tauri build verification once a shell exists to build.
+
+Before every Milestone / promotion-unit candidate is pushed:
+
+1. Run the fast local equivalent of the required CI jobs first (typecheck, unit tests, `cargo check`/`cargo test`).
+2. Commit and push.
+3. Wait for GitHub Actions to complete.
+
+A Milestone / promotion unit may not be promoted to the next Milestone until its required CI jobs are green. Red, cancelled, or incomplete CI is never skipped or bypassed — apply Failure Attribution (§1.4) and repair the correct layer (implementation, test, harness, or environment), then push again for a fresh green run.
+
+**CI green is necessary evidence, not sufficient truth.** It does not substitute for the native/manual/data/recovery evidence each Milestone's own Success Evidence and `MANUAL_QA.md` require (§1.5, Evidence-Gated Promotion) — both must hold before promotion.
+
 ---
 
 # 2. Lifecycle
@@ -219,10 +240,10 @@ Portfolio / Maintenance
 
 # Milestone 0 — Feasibility & Architecture Lock
 
-**Status:** Corrective Evidence Pass Complete — Awaiting Second Human Architecture Gate (see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, reproducible harness at `tooling/m0-evidence/`). A first Architecture Lock submission was declined; a Failure-Attribution-driven corrective pass closed the named gaps without discarding prior evidence.  
+**Status:** **Complete — Architecture Lock approved at the second Human Architecture Gate** (2026-09-08, HEAD `5729bf4`). A first Architecture Lock submission was declined; a Failure-Attribution-driven corrective pass closed the named gaps without discarding prior evidence; the second submission was approved (see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, reproducible harness at `tooling/m0-evidence/`).  
 **Risk / Change Budget:** High  
 **Autonomy Envelope:** M0 only  
-**Human Gate Required:** Yes — Architecture Lock
+**Human Gate Required:** Yes — Architecture Lock — **satisfied**
 
 ## Goal
 
@@ -333,26 +354,22 @@ M0 passes only if:
 - packaging direction is credible;
 - later Milestones can proceed without guessing core architecture.
 
-### HARD STOP
+### HARD STOP — satisfied
 
-After the M0 decision package:
-
-> **STOP. Do not begin M1.**
-
-Human must explicitly promote:
+After the M0 decision package, M1 was gated pending explicit human promotion:
 
 ```text
 Architecture Hypothesis
 → Accepted Architecture Baseline
 ```
 
-Only then may the M1→M8 autonomous envelope be issued.
+This promotion was granted at the second Human Architecture Gate (2026-09-08, HEAD `5729bf4`), together with a continuous M1→M8→Feature Complete Candidate autonomous engineering authorization envelope (`ROADMAP.md` §1.8: agent may continue between approved feature Milestones after M0 while no stop/escalation trigger is active). The next Human Gate in this envelope is the Human Feature Freeze Gate after M8 (see `## 2. Lifecycle` and §1.9 below); no per-Milestone approval is required in between unless a stop/escalation trigger fires.
 
 ---
 
 # Milestone 1 — Foundation, Persistence & Library
 
-**Status:** Planned  
+**Status:** In Progress  
 **Risk:** Medium
 
 ## Goal

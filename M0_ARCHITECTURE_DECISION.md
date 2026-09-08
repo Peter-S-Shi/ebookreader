@@ -1,6 +1,6 @@
 # M0 Architecture Decision Record
 
-Status: **Architecture Hypothesis, M0-evidenced (corrective pass complete) — Awaiting Second Human Architecture Gate**
+Status: **Accepted Architecture Baseline** — approved at the second Human Architecture Gate (2026-09-08, HEAD `5729bf4`)
 Date: 2026-09-08 (original), corrected 2026-09-08
 Evidence source: `M0_TECHNICAL_SPIKE_REPORT.md`, reproducible harness at `tooling/m0-evidence/`
 
@@ -204,6 +204,6 @@ No frozen `PRODUCT_SPEC.md` semantic required weakening in the corrected decisio
 
 ---
 
-### HARD STOP
+### HARD STOP — resolved
 
-Per `ROADMAP.md`: this ADR does **not** self-promote architecture from Hypothesis to Accepted Baseline. Human review and explicit approval of the Architecture Lock is required before M1 may begin. This is the **second** submission of this ADR for that approval; the first was declined pending this corrective pass.
+Per `ROADMAP.md`: this ADR does not self-promote architecture from Hypothesis to Accepted Baseline; only explicit human approval does that. The first submission of this ADR was declined pending the corrective pass recorded above. This second submission was **approved** at the Human Architecture Gate on 2026-09-08 (HEAD `5729bf4`), promoting this document's decisions from Architecture Hypothesis to **Accepted Architecture Baseline**, together with a continuous M1→M8→Feature Complete Candidate autonomous engineering authorization envelope. The Residual Risks list above remains binding on the Milestones named there; a CI Promotion Gate (`ROADMAP.md` §1.9) was added at this same approval, effective from M1 onward. The next Human Gate in this envelope is the Human Feature Freeze Gate after M8.

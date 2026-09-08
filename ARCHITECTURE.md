@@ -1,8 +1,8 @@
 # EbookReader V1 Architecture
 
-Status: **Architecture Hypothesis — M0 Corrective Evidence Pass Complete, Awaiting Second Human Architecture Gate**
+Status: **Accepted Architecture Baseline** — approved at the second Human Architecture Gate (2026-09-08, HEAD `5729bf4`)
 
-See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions (including the corrective pass: a first Architecture Lock submission was declined and specific gaps were closed with new evidence — see both files' "Corrective" sections). This file's content below reflects the M0-evidenced hypothesis; it remains a hypothesis, not an accepted baseline, until a human explicitly approves the Architecture Lock.
+See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions (including the corrective pass: a first Architecture Lock submission was declined and specific gaps were closed with new evidence — see both files' "Corrective" sections; the second submission was approved). This file's content below reflects the Accepted Architecture Baseline for M1–M8. Amendments still require reconciliation under the Architecture Promotion Rule below; Product-Contract Conflicts still require a Human Gate.
 
 
 This document defines architectural boundaries and M0 decision gates. It intentionally does not claim that the final stack is already locked.

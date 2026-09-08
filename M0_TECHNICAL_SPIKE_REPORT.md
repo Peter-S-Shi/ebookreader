@@ -1,6 +1,6 @@
 # M0 Technical Spike Report
 
-Status: **M0 Corrective Evidence Pass Complete — Awaiting Second Human Architecture Gate**
+Status: **M0 Complete — Architecture Lock approved at the second Human Architecture Gate** (2026-09-08, HEAD `5729bf4`)
 Date: 2026-09-08 (original pass), corrective pass appended 2026-09-08
 
 This report records the Question → Prototype/Experiment → Evidence → Finding → Architecture Implication → ACCEPT/MODIFY/REJECT sequence for each M0 evidence track, per `ROADMAP.md` Milestone 0.
