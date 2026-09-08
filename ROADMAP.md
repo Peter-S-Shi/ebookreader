@@ -219,7 +219,7 @@ Portfolio / Maintenance
 
 # Milestone 0 — Feasibility & Architecture Lock
 
-**Status:** Planned  
+**Status:** Evidence Produced — Awaiting Human Architecture Gate (see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`)  
 **Risk / Change Budget:** High  
 **Autonomy Envelope:** M0 only  
 **Human Gate Required:** Yes — Architecture Lock

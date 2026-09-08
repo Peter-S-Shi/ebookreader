@@ -5,10 +5,10 @@
 ## Current Status
 
 **Phase:** Pre-implementation specification / workflow hardening  
-**Milestone:** M0 — Feasibility & Architecture Lock (not started)  
+**Milestone:** M0 — Feasibility & Architecture Lock (evidence produced, awaiting Human Architecture Gate — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`)  
 **V1 product/domain scope:** Frozen  
 **V1 UI baseline:** Frozen  
-**Architecture:** Hypothesis until M0 evidence passes  
+**Architecture:** Hypothesis, M0-evidenced — not yet human-approved  
 **Feature Freeze:** Not entered  
 **Release:** Not started
 

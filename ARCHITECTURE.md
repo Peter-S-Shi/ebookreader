@@ -1,6 +1,8 @@
 # EbookReader V1 Architecture
 
-Status: **Architecture Hypothesis — M0 Evidence Required**
+Status: **Architecture Hypothesis — M0 Evidence Produced, Awaiting Human Architecture Lock**
+
+See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions. This file's content below reflects the M0-evidenced hypothesis; it remains a hypothesis, not an accepted baseline, until a human explicitly approves the Architecture Lock.
 
 
 This document defines architectural boundaries and M0 decision gates. It intentionally does not claim that the final stack is already locked.
@@ -343,6 +345,8 @@ OS lock/sleep always pauses.
 
 Historical facts should remain explainable when Settings change.
 
+**M0 finding:** Tauri exposes a native `WindowEvent::Focused(bool)` for foreground/background tracking, requiring no custom platform code. There is no dedicated OS sleep/lock window event; V1 relies on the existing inactivity-timeout policy above as a truthful (if up to ~5 minutes delayed) fallback for sleep/lock detection. An immediate Win32 power/session-lock hook is technically reachable (via the already-transitive `windows` crate) and is a documented future enhancement, not a V1 requirement. See `M0_TECHNICAL_SPIKE_REPORT.md` (M0-G).
+
 ---
 
 ## 8. Book Hours Architecture
@@ -404,6 +408,8 @@ Requirements:
 M0 must test CJK quality and performance with the chosen local index.
 
 If SQLite FTS5 is insufficient for the required CJK behavior, architecture may add a tokenizer/index adapter without changing the domain contract.
+
+**M0 finding (Architecture Amendment):** SQLite FTS5's stock tokenizers are insufficient as-is. `unicode61` fails to match CJK substrings entirely; `trigram` matches correctly at 3+ characters but returns zero hits for 2-character CJK queries, which are the most common length for Chinese search terms. FTS5 remains the index engine, but a CJK segmentation/n-gram pre-processing adapter (word segmentation or bigram expansion at index time) is required in front of it. See `M0_TECHNICAL_SPIKE_REPORT.md` (M0-E) for evidence.
 
 ---
 
@@ -612,9 +618,11 @@ Required behavior:
 startup/manual trigger
 → background stable-release check
 → semantic version comparison
-→ Up To Date / Update Available / Check Failed
+→ Up To Date / Update Available / Check Failed / No Stable Release Yet
 → optional release-page navigation
 ```
+
+**M0 finding:** a repository with no releases yet returns a structured "not found" response, not a network error. The state model must distinguish this from `Check Failed` so a legitimately-empty release feed at V1 launch is never displayed as a failed check. See `M0_TECHNICAL_SPIKE_REPORT.md` (M0-I).
 
 Rules:
 
