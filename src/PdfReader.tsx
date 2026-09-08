@@ -4,6 +4,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
 import { currentPageFromScroll } from "./pdfContinuous";
+import { useSoundToggle } from "./useSoundToggle";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -46,6 +47,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const [pageCount, setPageCount] = useState(0);
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
 
   useEffect(() => {
     let cancelled = false;
@@ -169,7 +171,14 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           </select>
           {viewMode === "single" && (
             <>
-              <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber((p) => p - 1)}>
+              <button
+                type="button"
+                disabled={pageNumber <= 1}
+                onClick={() => {
+                  setPageNumber((p) => p - 1);
+                  playPageTurn();
+                }}
+              >
                 Previous
               </button>
               <span>
@@ -179,7 +188,10 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
               <button
                 type="button"
                 disabled={pageCount > 0 && pageNumber >= pageCount}
-                onClick={() => setPageNumber((p) => p + 1)}
+                onClick={() => {
+                  setPageNumber((p) => p + 1);
+                  playPageTurn();
+                }}
               >
                 Next
               </button>
@@ -191,6 +203,9 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
               {pageCount > 0 ? ` of ${pageCount}` : ""}
             </span>
           )}
+          <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
+            {soundEnabled ? "Sound: On" : "Sound: Off"}
+          </button>
         </>
       }
     >

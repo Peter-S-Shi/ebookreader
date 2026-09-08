@@ -5,6 +5,7 @@ import { TypographyPanel } from "./TypographyPanel";
 import { TocPanel, type TocItem } from "./TocPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
+import { useSoundToggle } from "./useSoundToggle";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -60,6 +61,11 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("paginated-double");
+  const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
+  const playPageTurnRef = useRef(playPageTurn);
+  useEffect(() => {
+    playPageTurnRef.current = playPageTurn;
+  }, [playPageTurn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +103,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
         const detail = (event as CustomEvent).detail ?? {};
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
         if (!cfi) return;
+        playPageTurnRef.current();
         const location: DocumentLocationDTO = {
           book_id: bookId,
           format: "epub",
@@ -160,6 +167,9 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
               </button>
             </>
           )}
+          <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
+            {soundEnabled ? "Sound: On" : "Sound: Off"}
+          </button>
         </>
       }
       overlay={
