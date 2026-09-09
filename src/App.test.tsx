@@ -123,6 +123,21 @@ describe("Library", () => {
   });
 });
 
+describe("Settings", () => {
+  it("opens the Settings panel and loads Appearance", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]); // initial list
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    invokeMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null); // get_setting_command x2
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(await screen.findByText("Appearance")).toBeInTheDocument();
+    expect(invokeMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
+  });
+});
+
 describe("Library-wide Search", () => {
   it("runs a search and shows results with the matching book's title", async () => {
     const user = userEvent.setup();

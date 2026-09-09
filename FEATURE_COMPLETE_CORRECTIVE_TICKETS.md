@@ -6,7 +6,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 
 | # | Ticket | Status | Depends on |
 |---|---|---|---|
-| 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | OPEN | — |
+| 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | IN_PROGRESS — see note | — |
 | 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | OPEN | — |
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | OPEN | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | OPEN | 1 (lives under Data) |
@@ -38,3 +38,14 @@ Closed already (no ticket): FC-A12 (OCR workflow), FC-A13 (Bilingual Alignment w
 7. Commit, push, wait for required GitHub Actions jobs green before treating the ticket as closed.
 
 Status values: `OPEN`, `IN_PROGRESS`, `BLOCKED` (state reason), `CLOSED` (commit hash + CI run).
+
+## Ticket 1 progress note (2026-09-09)
+
+Failure Attribution for FC-C05 found the earliest-wrong layer was **Persistence**, not Frontend integration: no settings storage of any kind existed (`crates/domain/src/store.rs`'s schema had a dedicated table per feature but nothing generic, and `TypographyPanel.tsx`/the sound-toggle hook were explicitly session-only). Landed so far, domain-first:
+
+- `crates/domain/src/settings.rs` — generic `app_setting` key-value table (schema migration to `user_version = 9`) + `get_setting`/`set_setting`, with round-trip/overwrite/no-collision tests.
+- `get_setting_command`/`set_setting_command` Tauri commands wired in `src-tauri/src/commands.rs` + `lib.rs`.
+- `src/appSettings.ts` (frontend helper; named to avoid a case-insensitive-filesystem collision with `Settings.tsx`) + `src/Settings.tsx`: the first real Settings section, Appearance (theme mode: system/light/dark applied via `data-theme` + `prefers-color-scheme`; accent color applied via a `--accent-color` CSS variable), persisted and reloaded on mount.
+- Reachable today via a `Settings` toggle button in `App.tsx`, following the same pattern as the existing Calendar/Data & Recovery sections -- this satisfies FC-C05's "user-reachable and persisted" for Appearance specifically, but is **not yet** FC-C06's top-level nav shell (Library/Notes/Calendar/Data/Settings as real hierarchical destinations, Search demoted to topbar/context). That IA restructuring touches ~20 existing `App.test.tsx` cases that assume the current flat section-toggle layout and is being done as its own follow-up commit within this same ticket rather than bundled here, per the corrective-pass prompt's "coherent, reviewable correction units" guidance.
+- Still open within FC-C05 itself: the rest of the required settings list (reading-time policy toggles, Reading Checkpoint, typography defaults, sound/motion, default import mode, update-awareness preference, About & Updates) -- each is owned by its own later ticket (9-16) per the dependency table above, and will land inside this same `Settings.tsx` surface rather than inventing a second settings location.
+- All Rust tests (155), all frontend tests (100), `tsc --noEmit`, and `vite build` are green as of this commit.

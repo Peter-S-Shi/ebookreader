@@ -275,6 +275,22 @@ pub fn get_book_hours_command(state: State<DbState>, book_id: String) -> Result<
     }))
 }
 
+/// The canonical Settings surface (`DESIGN.md` "Settings"). A generic
+/// get/set pair backed by `ebookreader_domain::settings`'s key-value store
+/// -- see that module's doc comment for why this is not one command per
+/// setting.
+#[tauri::command]
+pub fn get_setting_command(state: State<DbState>, key: String) -> Result<Option<String>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ebookreader_domain::settings::get_setting(&conn, &key).map_err(|e| format!("{e}"))
+}
+
+#[tauri::command]
+pub fn set_setting_command(state: State<DbState>, key: String, value: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ebookreader_domain::settings::set_setting(&conn, &key, &value).map_err(|e| format!("{e}"))
+}
+
 /// Set/update a Book's workload config (SS9.1 inputs). Per SS9.3, this
 /// only changes the current estimate -- it cannot touch Actual Reading
 /// Time, which this command has no access to.

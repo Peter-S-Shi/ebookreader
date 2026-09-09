@@ -7,6 +7,7 @@ import { TxtReader } from "./TxtReader";
 import { Calendar } from "./Calendar";
 import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
+import { Settings } from "./Settings";
 import "./App.css";
 
 interface BookSummary {
@@ -54,6 +55,7 @@ function App() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [dataRecoveryOpen, setDataRecoveryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [globalNotes, setGlobalNotes] = useState<ReadingAssetDTO[]>([]);
   const [notesKindFilter, setNotesKindFilter] = useState<"" | "annotation" | "excerpt" | "note">("");
   const [openBilingual, setOpenBilingual] = useState<
@@ -280,6 +282,13 @@ function App() {
           {dataRecoveryOpen ? "Hide Data & Recovery" : "Data & Recovery"}
         </button>
         {dataRecoveryOpen && <DataRecovery />}
+      </section>
+
+      <section aria-label="Settings">
+        <button type="button" onClick={() => setSettingsOpen((open) => !open)}>
+          {settingsOpen ? "Hide Settings" : "Settings"}
+        </button>
+        {settingsOpen && <Settings />}
       </section>
 
       <section aria-label="Library">

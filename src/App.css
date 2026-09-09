@@ -4,6 +4,7 @@
   line-height: 24px;
   font-weight: 400;
 
+  --accent-color: #3b6ea5;
   color: #0f0f0f;
   background-color: #f6f6f6;
 
@@ -12,6 +13,23 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+/* `Settings.tsx` Appearance: an explicit Light/Dark choice is applied as
+   `data-theme` on <html>; "Match System" (the default) leaves it unset and
+   falls through to `prefers-color-scheme` below. Semantic success/warning
+   /danger/info colors are intentionally not defined here -- FC-C05 requires
+   they stay independent of the user Accent. */
+:root[data-theme="dark"] {
+  color: #f6f6f6;
+  background-color: #1a1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color: #f6f6f6;
+    background-color: #1a1a1a;
+  }
 }
 
 .container {
@@ -25,7 +43,7 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--accent-color);
   text-decoration: inherit;
 }
 
