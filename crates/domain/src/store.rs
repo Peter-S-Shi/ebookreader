@@ -204,6 +204,32 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 11 {
+        conn.execute_batch(
+            "
+            CREATE TABLE collection (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL
+            );
+            CREATE TABLE book_collection (
+                book_id TEXT NOT NULL REFERENCES book(id),
+                collection_id TEXT NOT NULL REFERENCES collection(id),
+                PRIMARY KEY (book_id, collection_id)
+            );
+            CREATE TABLE tag (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE
+            );
+            CREATE TABLE book_tag (
+                book_id TEXT NOT NULL REFERENCES book(id),
+                tag_id TEXT NOT NULL REFERENCES tag(id),
+                PRIMARY KEY (book_id, tag_id)
+            );
+            PRAGMA user_version = 11;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -571,7 +597,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 10);
+        assert_eq!(version, 11);
     }
 
     #[test]

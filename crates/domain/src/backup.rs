@@ -361,6 +361,9 @@ mod tests {
                 &crate::book_hours::WorkloadConfig { quantity: 50_000.0, baseline_speed: 250.0, difficulty_coefficient: 1.1 },
             )
             .unwrap();
+            crate::collections::create_collection(&conn, "col-1", "Favorites").unwrap();
+            crate::collections::add_book_to_collection(&conn, "book-1", "col-1").unwrap();
+            crate::collections::add_tag_to_book(&conn, "book-1", "to-reread").unwrap();
         }
 
         let zip_path = dir.join("backup.zip");
@@ -384,6 +387,15 @@ mod tests {
 
         let workload = crate::book_hours::load_workload_config(&conn, "book-1").unwrap().unwrap();
         assert_eq!(workload.quantity, 50_000.0);
+
+        let collections = crate::collections::list_collections_for_book(&conn, "book-1").unwrap();
+        assert_eq!(collections.len(), 1);
+        assert_eq!(collections[0].name, "Favorites");
+        assert_eq!(
+            crate::collections::list_tags_for_book(&conn, "book-1").unwrap(),
+            vec!["to-reread".to_string()],
+            "FC-A01: Collections/Tags are canonical user data (PRODUCT_SPEC.md SS3.3) and must survive backup/restore"
+        );
     }
 
     #[test]

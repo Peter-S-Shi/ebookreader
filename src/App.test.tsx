@@ -3,12 +3,34 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-const { invokeMock, openMock } = vi.hoisted(() => ({
+const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   openMock: vi.fn(),
+  // FC-A01: App now fetches Collections on every mount alongside the
+  // Library listing. Routing these commands to their own mock (with sane
+  // defaults set in beforeEach) keeps every pre-existing test's
+  // invokeMock.mockResolvedValueOnce(...) call sequence -- written before
+  // Collections existed -- valid without editing each of them.
+  collectionsMock: vi.fn(),
+  COLLECTIONS_COMMANDS: new Set([
+    "list_collections_command",
+    "create_collection_command",
+    "rename_collection_command",
+    "delete_collection_command",
+    "add_book_to_collection_command",
+    "remove_book_from_collection_command",
+    "list_book_ids_in_collection_command",
+    "list_collections_for_book_command",
+    "add_tag_to_book_command",
+    "remove_tag_from_book_command",
+    "list_tags_for_book_command",
+  ]),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (...args: [string, ...unknown[]]) =>
+    (COLLECTIONS_COMMANDS.has(args[0]) ? collectionsMock : invokeMock)(...args),
+}));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock }));
 vi.mock("./Reader", () => ({
   Reader: ({
@@ -55,7 +77,21 @@ vi.mock("./TxtReader", () => ({
 beforeEach(() => {
   invokeMock.mockReset();
   openMock.mockReset();
+  collectionsMock.mockReset();
   vi.restoreAllMocks();
+  collectionsMock.mockImplementation(async (cmd: string) => {
+    switch (cmd) {
+      case "list_collections_command":
+      case "list_collections_for_book_command":
+      case "list_tags_for_book_command":
+      case "list_book_ids_in_collection_command":
+        return [];
+      case "create_collection_command":
+        return "new-collection-id";
+      default:
+        return undefined;
+    }
+  });
 });
 
 describe("App shell", () => {
@@ -283,6 +319,120 @@ describe("Library", () => {
       expect(invokeMock).not.toHaveBeenCalledWith("relink_book_command", expect.anything());
       expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
     });
+  });
+});
+
+describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
+  it("creates a Collection and lists it as a filter option", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]); // initial library list
+    collectionsMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+      if (cmd === "create_collection_command") return "col-1";
+      return [];
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await user.type(screen.getByLabelText("New Collection"), "Favorites");
+    await user.click(screen.getByRole("button", { name: "Create Collection" }));
+
+    expect(collectionsMock).toHaveBeenCalledWith("create_collection_command", { name: "Favorites" });
+    expect(await screen.findByRole("button", { name: "Favorites" })).toBeInTheDocument();
+  });
+
+  it("filtering by a Collection shows only its member Books", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "In Collection", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+      { book_id: "b2", title: "Not In Collection", path: "C:/books/b2.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    collectionsMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+      if (cmd === "list_book_ids_in_collection_command") return ["b1"];
+      return [];
+    });
+    const user = userEvent.setup();
+
+    render(<App />);
+    await screen.findByText("In Collection");
+    expect(screen.getByText("Not In Collection")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+
+    expect(await screen.findByText("In Collection")).toBeInTheDocument();
+    expect(screen.queryByText("Not In Collection")).not.toBeInTheDocument();
+    expect(collectionsMock).toHaveBeenCalledWith("list_book_ids_in_collection_command", { collectionId: "col-1" });
+  });
+
+  it("deleting a Collection removes it as a filter option without touching its Books", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    collectionsMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") return [{ id: "col-1", name: "Temporary" }];
+      return [];
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+    await screen.findByRole("button", { name: "Temporary" });
+
+    await user.click(screen.getByRole("button", { name: "Delete Collection" }));
+
+    expect(collectionsMock).toHaveBeenCalledWith("delete_collection_command", { collectionId: "col-1" });
+    expect(screen.getByText("A Book")).toBeInTheDocument();
+  });
+
+  it("the Organize panel adds/removes a Book's Collection membership and Tags", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    let bookCollections: { id: string; name: string }[] = [];
+    let bookTags: string[] = [];
+    collectionsMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+      if (cmd === "list_collections_for_book_command") return bookCollections;
+      if (cmd === "list_tags_for_book_command") return bookTags;
+      if (cmd === "add_book_to_collection_command") {
+        bookCollections = [{ id: "col-1", name: "Favorites" }];
+        return undefined;
+      }
+      if (cmd === "remove_book_from_collection_command") {
+        bookCollections = [];
+        return undefined;
+      }
+      if (cmd === "add_tag_to_book_command") {
+        bookTags = ["reread"];
+        return undefined;
+      }
+      if (cmd === "remove_tag_from_book_command") {
+        bookTags = [];
+        return undefined;
+      }
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+
+    await user.click(screen.getByRole("button", { name: "Organize" }));
+    const panel = await screen.findByRole("region", { name: "Organize A Book" });
+
+    await user.selectOptions(within(panel).getByLabelText("Add to Collection"), "col-1");
+    expect(collectionsMock).toHaveBeenCalledWith("add_book_to_collection_command", { bookId: "b1", collectionId: "col-1" });
+    await waitFor(() => expect(panel.querySelector(".collection-chip")).toHaveTextContent("Favorites"));
+
+    await user.click(within(panel).getByRole("button", { name: "Remove" }));
+    expect(collectionsMock).toHaveBeenCalledWith("remove_book_from_collection_command", { bookId: "b1", collectionId: "col-1" });
+
+    await user.type(within(panel).getByLabelText("New Tag"), "reread");
+    await user.click(within(panel).getByRole("button", { name: "Add Tag" }));
+    expect(collectionsMock).toHaveBeenCalledWith("add_tag_to_book_command", { bookId: "b1", tagName: "reread" });
+    expect(await within(panel).findByText("reread")).toBeInTheDocument();
   });
 });
 

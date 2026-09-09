@@ -50,6 +50,12 @@ interface ReadingAssetDTO {
   orphaned: boolean;
 }
 
+// Mirrors `ebookreader_domain::collections::Collection`.
+interface CollectionDTO {
+  id: string;
+  name: string;
+}
+
 // Mirrors `commands::ImportBookResult`.
 type ImportBookResult =
   | { kind: "imported"; book_id: string }
@@ -98,15 +104,107 @@ function App() {
   const [duplicateImport, setDuplicateImport] = useState<{ bookId: string; title: string; path: string } | null>(
     null,
   );
+  // FC-A01 (`PRODUCT_SPEC.md` SS4.3/4.4): Collections are a user-controlled
+  // grouping of Books; a Book may belong to several. `collectionFilter` is
+  // the Library's optional "show only this Collection" view; `null` means
+  // "All". `organizeBookId` is which Book's inline Collections/Tags editor
+  // is expanded, loaded lazily since most Books are never opened.
+  const [collections, setCollections] = useState<CollectionDTO[]>([]);
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
+  const [collectionFilterBookIds, setCollectionFilterBookIds] = useState<Set<string> | null>(null);
+  const [organizeBookId, setOrganizeBookId] = useState<string | null>(null);
+  const [organizeBookCollections, setOrganizeBookCollections] = useState<CollectionDTO[]>([]);
+  const [organizeBookTags, setOrganizeBookTags] = useState<string[]>([]);
+  const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
+  const [newTagName, setNewTagName] = useState("");
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
     setBooks(result);
   }, []);
 
+  const refreshCollections = useCallback(async () => {
+    const result = await invoke<CollectionDTO[]>("list_collections_command");
+    setCollections(result);
+  }, []);
+
   useEffect(() => {
     refreshLibrary();
-  }, [refreshLibrary]);
+    refreshCollections();
+  }, [refreshLibrary, refreshCollections]);
+
+  async function createCollection() {
+    const name = newCollectionName.trim();
+    if (!name) return;
+    await invoke("create_collection_command", { name });
+    setNewCollectionName("");
+    await refreshCollections();
+  }
+
+  async function applyCollectionFilter(collectionId: string | null) {
+    setCollectionFilter(collectionId);
+    if (collectionId === null) {
+      setCollectionFilterBookIds(null);
+      return;
+    }
+    const bookIds = await invoke<string[]>("list_book_ids_in_collection_command", { collectionId });
+    setCollectionFilterBookIds(new Set(bookIds));
+  }
+
+  async function deleteCollection(collectionId: string) {
+    const confirmed = window.confirm("Delete this Collection? Its Books are not affected -- only the grouping is removed.");
+    if (!confirmed) return;
+    await invoke("delete_collection_command", { collectionId });
+    if (collectionFilter === collectionId) {
+      setCollectionFilter(null);
+      setCollectionFilterBookIds(null);
+    }
+    await refreshCollections();
+  }
+
+  async function toggleOrganizePanel(bookId: string) {
+    if (organizeBookId === bookId) {
+      setOrganizeBookId(null);
+      return;
+    }
+    setOrganizeBookId(bookId);
+    setAddToCollectionChoice("");
+    setNewTagName("");
+    const [bookCollections, bookTags] = await Promise.all([
+      invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }),
+      invoke<string[]>("list_tags_for_book_command", { bookId }),
+    ]);
+    setOrganizeBookCollections(bookCollections);
+    setOrganizeBookTags(bookTags);
+  }
+
+  async function addBookToCollection(bookId: string, collectionId: string) {
+    if (!collectionId) return;
+    await invoke("add_book_to_collection_command", { bookId, collectionId });
+    setOrganizeBookCollections(await invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }));
+    setAddToCollectionChoice("");
+    if (collectionFilter) await applyCollectionFilter(collectionFilter);
+  }
+
+  async function removeBookFromCollection(bookId: string, collectionId: string) {
+    await invoke("remove_book_from_collection_command", { bookId, collectionId });
+    setOrganizeBookCollections(await invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }));
+    if (collectionFilter) await applyCollectionFilter(collectionFilter);
+  }
+
+  async function addTagToBook(bookId: string) {
+    const tagName = newTagName.trim();
+    if (!tagName) return;
+    await invoke("add_tag_to_book_command", { bookId, tagName });
+    setNewTagName("");
+    setOrganizeBookTags(await invoke<string[]>("list_tags_for_book_command", { bookId }));
+  }
+
+  async function removeTagFromBook(bookId: string, tagName: string) {
+    await invoke("remove_tag_from_book_command", { bookId, tagName });
+    setOrganizeBookTags(await invoke<string[]>("list_tags_for_book_command", { bookId }));
+  }
 
   async function importBook() {
     const path = await open({
@@ -431,43 +529,158 @@ function App() {
             </div>
           )}
 
+          <section aria-label="Collections">
+            <label>
+              New Collection
+              <input
+                type="text"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+              />
+            </label>
+            <button type="button" onClick={createCollection}>
+              Create Collection
+            </button>
+            <ul className="collection-filter-list">
+              <li>
+                <button
+                  type="button"
+                  aria-current={collectionFilter === null ? "true" : undefined}
+                  onClick={() => applyCollectionFilter(null)}
+                >
+                  All
+                </button>
+              </li>
+              {collections.map((collection) => (
+                <li key={collection.id}>
+                  <button
+                    type="button"
+                    aria-current={collectionFilter === collection.id ? "true" : undefined}
+                    onClick={() => applyCollectionFilter(collection.id)}
+                  >
+                    {collection.name}
+                  </button>
+                  <button type="button" onClick={() => deleteCollection(collection.id)}>
+                    Delete Collection
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
           {books === null ? null : books.length === 0 ? (
             <p>Library is empty. Import a book to get started.</p>
-          ) : (
-            <ul>
-              {books.map((book) => {
-                const canOpen = book.available && READABLE_FORMATS.has(book.format);
-                return (
-                  <li key={book.book_id}>
-                    {canOpen ? (
-                      <button type="button" onClick={() => setOpenBook(book)}>
-                        {book.title}
+          ) : (() => {
+            const visibleBooks =
+              collectionFilterBookIds === null
+                ? books
+                : books.filter((book) => collectionFilterBookIds.has(book.book_id));
+            return visibleBooks.length === 0 ? (
+              <p>No Books in this Collection.</p>
+            ) : (
+              <ul>
+                {visibleBooks.map((book) => {
+                  const canOpen = book.available && READABLE_FORMATS.has(book.format);
+                  return (
+                    <li key={book.book_id}>
+                      {canOpen ? (
+                        <button type="button" onClick={() => setOpenBook(book)}>
+                          {book.title}
+                        </button>
+                      ) : (
+                        book.title
+                      )}
+                      {!book.available && <span> — Needs Relink</span>}
+                      {canOpen && (
+                        <button type="button" onClick={() => openBilingualForBook(book)}>
+                          Bilingual
+                        </button>
+                      )}
+                      <button type="button" onClick={() => toggleOrganizePanel(book.book_id)}>
+                        Organize
                       </button>
-                    ) : (
-                      book.title
-                    )}
-                    {!book.available && <span> — Needs Relink</span>}
-                    {canOpen && (
-                      <button type="button" onClick={() => openBilingualForBook(book)}>
-                        Bilingual
+                      <button type="button" onClick={() => removeBook(book.book_id)}>
+                        Remove from Library
                       </button>
-                    )}
-                    <button type="button" onClick={() => removeBook(book.book_id)}>
-                      Remove from Library
-                    </button>
-                    <button type="button" onClick={() => deleteReadingData(book.book_id)}>
-                      Delete Reading Data
-                    </button>
-                    {book.ownership_mode === "managed_copy" && (
-                      <button type="button" onClick={() => deleteManagedCopyFile(book.book_id)}>
-                        Delete Managed-Copy File
+                      <button type="button" onClick={() => deleteReadingData(book.book_id)}>
+                        Delete Reading Data
                       </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                      {book.ownership_mode === "managed_copy" && (
+                        <button type="button" onClick={() => deleteManagedCopyFile(book.book_id)}>
+                          Delete Managed-Copy File
+                        </button>
+                      )}
+                      {organizeBookId === book.book_id && (
+                        <div className="organize-panel" role="region" aria-label={`Organize ${book.title}`}>
+                          <div>
+                            <span>Collections: </span>
+                            {organizeBookCollections.length === 0 ? (
+                              <span>None</span>
+                            ) : (
+                              organizeBookCollections.map((collection) => (
+                                <span key={collection.id} className="collection-chip">
+                                  {collection.name}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeBookFromCollection(book.book_id, collection.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </span>
+                              ))
+                            )}
+                            <label>
+                              Add to Collection
+                              <select
+                                value={addToCollectionChoice}
+                                onChange={(e) => {
+                                  setAddToCollectionChoice(e.target.value);
+                                  addBookToCollection(book.book_id, e.target.value);
+                                }}
+                              >
+                                <option value="">Choose a Collection…</option>
+                                {collections.map((collection) => (
+                                  <option key={collection.id} value={collection.id}>
+                                    {collection.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          <div>
+                            <span>Tags: </span>
+                            {organizeBookTags.length === 0 ? (
+                              <span>None</span>
+                            ) : (
+                              organizeBookTags.map((tag) => (
+                                <span key={tag} className="tag-chip">
+                                  {tag}
+                                  <button type="button" onClick={() => removeTagFromBook(book.book_id, tag)}>
+                                    Remove
+                                  </button>
+                                </span>
+                              ))
+                            )}
+                            <label>
+                              New Tag
+                              <input
+                                type="text"
+                                value={newTagName}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                              />
+                            </label>
+                            <button type="button" onClick={() => addTagToBook(book.book_id)}>
+                              Add Tag
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })()}
         </section>
       )}
     </main>

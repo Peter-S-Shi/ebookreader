@@ -15,6 +15,7 @@ pub mod backup;
 pub mod book_hours;
 pub mod calendar;
 pub mod cjk_search;
+pub mod collections;
 pub mod completion;
 pub mod document_location;
 pub mod fonts;

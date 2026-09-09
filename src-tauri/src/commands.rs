@@ -12,6 +12,7 @@ use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::backup::{self, BackupManifest, BackupPreview};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
 use ebookreader_domain::calendar::{self, DayDetail};
+use ebookreader_domain::collections;
 use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
@@ -105,6 +106,84 @@ pub fn import_book_command(
 pub fn list_library_command(state: State<DbState>) -> Result<Vec<BookSummary>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     list_books(&conn).map_err(|e| format!("could not list Library: {e}"))
+}
+
+/// Create a Collection (`PRODUCT_SPEC.md` SS4.3: "a user-controlled
+/// grouping of Books"). Returns the new Collection's id.
+#[tauri::command]
+pub fn create_collection_command(state: State<DbState>, name: String) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let id = uuid::Uuid::new_v4().to_string();
+    collections::create_collection(&conn, &id, &name).map_err(|e| format!("could not create collection: {e}"))?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn rename_collection_command(state: State<DbState>, collection_id: String, name: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::rename_collection(&conn, &collection_id, &name).map_err(|e| format!("could not rename collection: {e}"))
+}
+
+/// Deletes the Collection and its Book memberships. Member Books, and
+/// every other kind of canonical user data attached to them, are
+/// untouched.
+#[tauri::command]
+pub fn delete_collection_command(state: State<DbState>, collection_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::delete_collection(&conn, &collection_id).map_err(|e| format!("could not delete collection: {e}"))
+}
+
+#[tauri::command]
+pub fn list_collections_command(state: State<DbState>) -> Result<Vec<collections::Collection>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::list_collections(&conn).map_err(|e| format!("could not list collections: {e}"))
+}
+
+#[tauri::command]
+pub fn add_book_to_collection_command(state: State<DbState>, book_id: String, collection_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::add_book_to_collection(&conn, &book_id, &collection_id)
+        .map_err(|e| format!("could not add book to collection: {e}"))
+}
+
+#[tauri::command]
+pub fn remove_book_from_collection_command(state: State<DbState>, book_id: String, collection_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::remove_book_from_collection(&conn, &book_id, &collection_id)
+        .map_err(|e| format!("could not remove book from collection: {e}"))
+}
+
+#[tauri::command]
+pub fn list_book_ids_in_collection_command(state: State<DbState>, collection_id: String) -> Result<Vec<String>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::list_book_ids_in_collection(&conn, &collection_id)
+        .map_err(|e| format!("could not list collection members: {e}"))
+}
+
+#[tauri::command]
+pub fn list_collections_for_book_command(state: State<DbState>, book_id: String) -> Result<Vec<collections::Collection>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::list_collections_for_book(&conn, &book_id).map_err(|e| format!("could not list book's collections: {e}"))
+}
+
+/// Applies `tag_name` to `book_id` (`PRODUCT_SPEC.md` SS4.4: "a
+/// descriptive label"), creating the Tag on first use. Idempotent.
+#[tauri::command]
+pub fn add_tag_to_book_command(state: State<DbState>, book_id: String, tag_name: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::add_tag_to_book(&conn, &book_id, &tag_name).map_err(|e| format!("could not tag book: {e}"))
+}
+
+#[tauri::command]
+pub fn remove_tag_from_book_command(state: State<DbState>, book_id: String, tag_name: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::remove_tag_from_book(&conn, &book_id, &tag_name).map_err(|e| format!("could not untag book: {e}"))
+}
+
+#[tauri::command]
+pub fn list_tags_for_book_command(state: State<DbState>, book_id: String) -> Result<Vec<String>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    collections::list_tags_for_book(&conn, &book_id).map_err(|e| format!("could not list book's tags: {e}"))
 }
 
 /// Attempt to relink `book_id`'s BookFile to `candidate_path`.
