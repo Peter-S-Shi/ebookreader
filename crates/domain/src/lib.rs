@@ -17,6 +17,7 @@ pub mod document_location;
 pub mod fonts;
 pub mod ocr;
 pub mod ocr_detect;
+pub mod ocr_recognize;
 pub mod progress_store;
 pub mod reading_session;
 pub mod search;
