@@ -10,7 +10,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | CLOSED | — |
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | CLOSED (`22afafc`, CI run 34402533583 success) | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | CLOSED (`2de37bc`, CI run 34403600204 success) | 1 (lives under Data) |
-| 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | OPEN | — |
+| 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | CLOSED (`bb3ac72`, CI run 34410909121 success) | — |
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | OPEN | — |
 | 7 | FC-A02 — Metadata editing UI + user-correction precedence | OPEN | — |
 | 8 | FC-A04 — Notebook Markdown export | OPEN | — |
@@ -103,3 +103,18 @@ Evidence:
 - Domain verification: `cargo test -p ebookreader-domain` passed (161 passed, 2 ignored), including existing manual-override domain tests.
 - Static/build verification: `npm run typecheck`, `npm run build`, and `cargo build --manifest-path src-tauri\Cargo.toml` passed.
 - GitHub Actions: CI run 34403600204 passed on `2de37bc` (Frontend and Rust jobs green).
+
+## Ticket 5 (FC-A03) — closed 2026-09-09 (`bb3ac72`, CI run 34410909121 success)
+
+Failure Attribution: earliest-wrong layer was the **domain contract**, not just the frontend. `store::import_book_internal` conflated duplicate *detection* with duplicate *resolution*: on a fingerprint match against an active Library entry it silently returned the existing `book_id` and, on the Managed-Copy/path-update branch, silently overwrote the existing Book's title and stored path -- a caller had no way to learn a duplicate had even occurred, so no frontend fix alone could have produced the frozen 3-choice dialog (`PRODUCT_SPEC.md` "Duplicate import"). `App.tsx`'s `importBook()` also had no dialog, but that gap was downstream of the missing domain signal. The existing `relink_book_file` / `relink_book_command` (built for "Needs Relink" repair) already implemented exactly what "Relink Existing Book" requires -- Failure Attribution found it was simply never called from this flow.
+
+Landed:
+- `crates/domain/src/store.rs`: new `ImportOutcome { Imported(String), DuplicateFound { book_id, title } }`. `import_book_internal` returns `DuplicateFound` without mutating anything when the match is against an *active* Library entry. Re-importing a fingerprint whose Book was previously removed from the Library (`remove_from_library`) is unaffected -- that is a legitimate restore, not the "already active" duplicate case FC-A03 governs, and still resolves straight to `Imported`.
+- `src-tauri/src/commands.rs`: `import_book_command` now returns a serde-tagged `ImportBookResult` (`{kind:"imported",...}` / `{kind:"duplicate",...}`) instead of a bare `book_id` string, so the frontend can tell the two outcomes apart.
+- `src/App.tsx`: `importBook()` shows a `role="dialog" aria-label="Duplicate Book"` panel with the frozen copy ("This book already exists.") and three buttons. Open Existing reuses the existing `openBookAtLocation` flow (anchor `null`, same as opening a Book plainly). Relink Existing Book calls the already-implemented `relink_book_command` with the existing `book_id` and the just-picked file's path (fingerprints already match by construction, so this always succeeds). Cancel discards the picked file and does nothing.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (162 passed, 2 ignored) -- includes 2 new/rewritten tests: `reimporting_the_same_fingerprint_does_not_create_a_second_book` (now asserts `DuplicateFound`, not a silently-resolved id) and new `reimporting_the_same_fingerprint_while_active_does_not_mutate_the_existing_book`; `reimporting_a_removed_book_restores_the_existing_library_entry` updated to assert `Imported` for the legitimate restore path.
+- `cargo build` (both `ebookreader-domain` and `src-tauri`) passed; `cargo test` in `src-tauri` passed (0 unit tests there by design -- command logic is covered via the domain crate's tests and frontend integration tests).
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 117 tests, including 4 new tests in `src/App.test.tsx`'s new "Duplicate Fingerprint" describe block: dialog appears with all three choices and does not itself refresh the Library; Open Existing opens the existing Book; Relink Existing Book calls `relink_book_command` with the picked path and refreshes; Cancel dismisses with no side effects). `npx vite build` passed.
+- GitHub Actions: CI run 34410909121 passed on `bb3ac72` (Frontend and Rust jobs green).

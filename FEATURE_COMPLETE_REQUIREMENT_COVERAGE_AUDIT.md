@@ -26,7 +26,7 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 |---|---|---|---|---|
 | FC-A01 | Collections and Tags (V1 domain entities) | **MISSING** | Zero matches for `collection`/`tag` in `store.rs` schema, `commands.rs`, or `src/App.tsx` | FC-A01 |
 | FC-A02 | Metadata editing / user-correction precedence | **MISSING** | Only `title` persisted, set once at import (`store.rs:199-268`); no edit UI, no re-detection path, so the invariant is vacuously true because nothing exists to violate it | FC-A02 |
-| FC-A03 | Duplicate fingerprint UX (3-choice dialog) | **IMPLEMENTED_BACKEND_ONLY** | `store.rs:190-240` silently returns existing `book_id`; `App.tsx:73-83` shows no dialog at all | FC-A03 |
+| FC-A03 | Duplicate fingerprint UX (3-choice dialog) | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `crates/domain/src/store.rs`: `import_book_internal` returns `ImportOutcome::DuplicateFound` (no mutation) on an active-entry fingerprint match; `src-tauri/src/commands.rs`'s `ImportBookResult` surfaces it; `src/App.tsx` shows the frozen "This book already exists." dialog with Open Existing / Relink Existing Book (reusing `relink_book_command`) / Cancel | — (closed) |
 | FC-A04 | Notebook Markdown export | **MISSING** | No `markdown`/`export` hits anywhere in production source beyond JS keyword noise | FC-A04 |
 | FC-A05 | Book Hours configuration/history fidelity | **IMPLEMENTED_PARTIAL** | `book_hours.rs:41-76` overwrites current config (`ON CONFLICT DO UPDATE`), no history table (comment at 21-24 admits this is deferred); no UI at all calls the existing commands | FC-A05 |
 | FC-A06 | Actual Reading Time policy controls | **IMPLEMENTED_PARTIAL** | Only OS lock/sleep pause is real (`reading_session_hook.rs`); background-pause, 5-min inactivity, note-taking-counts have zero code; no Settings UI for any of the four toggles | FC-A06 |
@@ -42,8 +42,9 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 ## Summary
 
 - Updated 2026-09-09: `FC-C01`, `FC-C02`, `FC-C03`, `FC-C04`, `FC-C06` closed via corrective-pass tickets 1-4; `FC-C05` partially closed (Appearance). 5 of the 8 confirmed (`FC-C01`-`FC-C08`) items are now fully closed.
+- Updated 2026-09-09 (Ticket 5): `FC-A03` closed.
 - 2 items (`FC-A12`, `FC-A13`) were already genuinely closed — no ticket needed.
-- 13 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
+- 12 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
 - No item required a `NEEDS_HUMAN_CONFLICT_DECISION` — every gap found is a coverage/implementation gap against an already-frozen, non-conflicting authority, not a contract conflict.
 - No item is `LEGITIMATE_DEFERRED_NON_GOAL` — nothing found is marked deferred by the authorities themselves.
 
