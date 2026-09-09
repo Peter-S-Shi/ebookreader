@@ -6,7 +6,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 
 | # | Ticket | Status | Depends on |
 |---|---|---|---|
-| 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | IN_PROGRESS — see note | — |
+| 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | CLOSED (nav shell + Appearance) — remaining FC-C05 setting groups tracked under tickets 9-16 | — |
 | 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | OPEN | — |
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | OPEN | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | OPEN | 1 (lives under Data) |
@@ -49,3 +49,7 @@ Failure Attribution for FC-C05 found the earliest-wrong layer was **Persistence*
 - Reachable today via a `Settings` toggle button in `App.tsx`, following the same pattern as the existing Calendar/Data & Recovery sections -- this satisfies FC-C05's "user-reachable and persisted" for Appearance specifically, but is **not yet** FC-C06's top-level nav shell (Library/Notes/Calendar/Data/Settings as real hierarchical destinations, Search demoted to topbar/context). That IA restructuring touches ~20 existing `App.test.tsx` cases that assume the current flat section-toggle layout and is being done as its own follow-up commit within this same ticket rather than bundled here, per the corrective-pass prompt's "coherent, reviewable correction units" guidance.
 - Still open within FC-C05 itself: the rest of the required settings list (reading-time policy toggles, Reading Checkpoint, typography defaults, sound/motion, default import mode, update-awareness preference, About & Updates) -- each is owned by its own later ticket (9-16) per the dependency table above, and will land inside this same `Settings.tsx` surface rather than inventing a second settings location.
 - All Rust tests (155), all frontend tests (100), `tsc --noEmit`, and `vite build` are green as of this commit.
+
+## Ticket 1 closure (2026-09-09, follow-up commit)
+
+FC-C06 landed: `App.tsx` now has a real `<nav aria-label="Main">` with five destinations (Library/Notes/Calendar/Data/Settings), `aria-current="page"` on the active one, Library as the default so existing book-list behavior is unchanged, Search kept as an always-visible topbar section independent of destination (never a sixth nav item), and Reader/Bilingual unchanged as contextual overlays with no nav entry at all. All ~20 pre-existing `App.test.tsx` cases pass unmodified against the new structure (none of them depended on more than one section being visible simultaneously), plus 4 new tests asserting the real nav semantics (default destination, switching hides the previous panel, Search stays visible, Reader has no nav). 104 frontend tests, `tsc --noEmit`, `vite build` green. Ticket 1 is CLOSED for FC-C06 and for FC-C05's Appearance slice; the rest of FC-C05's required settings list remains explicitly open under tickets 9-16.

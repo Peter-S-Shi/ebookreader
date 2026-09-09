@@ -123,6 +123,59 @@ describe("Library", () => {
   });
 });
 
+describe("Top-level navigation (DESIGN.md; FC-C06)", () => {
+  it("shows Library by default and marks it as the current destination", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    expect(screen.getByRole("button", { name: "Library" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Notes" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("switching to another destination hides the Library panel, and back shows it again", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Book One");
+
+    invokeMock.mockResolvedValueOnce([]); // list_all_reading_assets_command
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+
+    expect(screen.queryByText("Book One")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Notes" })).toHaveAttribute("aria-current", "page");
+
+    await user.click(screen.getByRole("button", { name: "Library" }));
+    expect(await screen.findByText("Book One")).toBeInTheDocument();
+  });
+
+  it("keeps Search visible regardless of which destination is active", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]);
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    invokeMock.mockResolvedValueOnce([]); // list_all_reading_assets_command
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+
+    expect(screen.getByLabelText("Search the library")).toBeInTheDocument();
+  });
+
+  it("Reader stays contextual: opening a Book does not add a new nav destination", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "epub-1", title: "Openable EPUB", path: "C:/books/openable.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Openable EPUB" }));
+
+    await screen.findByText(/Reading: Openable EPUB/);
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+});
+
 describe("Settings", () => {
   it("opens the Settings panel and loads Appearance", async () => {
     const user = userEvent.setup();

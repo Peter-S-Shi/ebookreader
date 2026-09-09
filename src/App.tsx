@@ -52,10 +52,12 @@ function App() {
   const [openBook, setOpenBook] = useState<BookSummary | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [dataRecoveryOpen, setDataRecoveryOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Top-level management information architecture (`DESIGN.md`; FC-C06):
+  // Library / Notes / Calendar / Data / Settings are real destinations,
+  // not independently-toggled sections that can pile up on screen at
+  // once. Reader/Bilingual stay contextual overlays (below), and Search
+  // is a persistent topbar affordance rather than a sixth destination.
+  const [destination, setDestination] = useState<"library" | "notes" | "calendar" | "data" | "settings">("library");
   const [globalNotes, setGlobalNotes] = useState<ReadingAssetDTO[]>([]);
   const [notesKindFilter, setNotesKindFilter] = useState<"" | "annotation" | "excerpt" | "note">("");
   const [openBilingual, setOpenBilingual] = useState<
@@ -154,12 +156,9 @@ function App() {
     setGlobalNotes(assets);
   }
 
-  function toggleNotes() {
-    setNotesOpen((open) => {
-      const next = !open;
-      if (next) loadGlobalNotes(notesKindFilter);
-      return next;
-    });
+  function goToNotes() {
+    setDestination("notes");
+    loadGlobalNotes(notesKindFilter);
   }
 
   if (openBilingual) {
@@ -186,11 +185,26 @@ function App() {
     }
   }
 
+  // `DESIGN.md` top-level management IA (FC-C06): Library / Notes /
+  // Calendar / Data / Settings are the five real destinations; each nav
+  // button's own accessible name doubles as which panel is showing, so
+  // there is no separate "current page" heading to keep in sync.
+  const destinations: { id: typeof destination; label: string; onSelect: () => void }[] = [
+    { id: "library", label: "Library", onSelect: () => setDestination("library") },
+    { id: "notes", label: "Notes", onSelect: goToNotes },
+    { id: "calendar", label: "Calendar", onSelect: () => setDestination("calendar") },
+    { id: "data", label: "Data", onSelect: () => setDestination("data") },
+    { id: "settings", label: "Settings", onSelect: () => setDestination("settings") },
+  ];
+
   return (
     <main className="container">
       <h1>EbookReader</h1>
 
-      <section aria-label="Search">
+      {/* Search is topbar/context, not a top-level destination
+          (`DESIGN.md`; FC-C06) -- it stays visible across every
+          destination rather than competing with Library/Notes/etc. */}
+      <section aria-label="Search" className="topbar-search">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -228,108 +242,115 @@ function App() {
         )}
       </section>
 
-      <section aria-label="Global Notes">
-        <button type="button" onClick={toggleNotes}>
-          {notesOpen ? "Hide Notes" : "Notes"}
-        </button>
-        {notesOpen && (
-          <div>
-            <label>
-              Filter
-              <select
-                aria-label="Filter Notes by type"
-                value={notesKindFilter}
-                onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
-              >
-                <option value="">All</option>
-                <option value="note">Note</option>
-                <option value="excerpt">Excerpt</option>
-                <option value="annotation">Annotation</option>
-              </select>
-            </label>
-            <ul className="global-notes-list">
-              {globalNotes.length === 0 ? (
-                <li>No Notebook assets yet.</li>
-              ) : (
-                globalNotes.map((asset) => {
-                  const book = books?.find((b) => b.book_id === asset.book_id);
-                  return (
-                    <li key={asset.id}>
-                      <button type="button" onClick={() => openSearchResultBook(asset.book_id)}>
-                        {book?.title ?? asset.book_id}
-                      </button>
-                      <span className="search-hit-kind"> ({asset.kind})</span>
-                      {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
-                      <p>{asset.text}</p>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          </div>
-        )}
-      </section>
+      <nav aria-label="Main">
+        {destinations.map((d) => (
+          <button
+            key={d.id}
+            type="button"
+            aria-current={destination === d.id ? "page" : undefined}
+            onClick={d.onSelect}
+          >
+            {d.label}
+          </button>
+        ))}
+      </nav>
 
-      <section aria-label="Calendar">
-        <button type="button" onClick={() => setCalendarOpen((open) => !open)}>
-          {calendarOpen ? "Hide Calendar" : "Calendar"}
-        </button>
-        {calendarOpen && <Calendar />}
-      </section>
-
-      <section aria-label="Data and Recovery">
-        <button type="button" onClick={() => setDataRecoveryOpen((open) => !open)}>
-          {dataRecoveryOpen ? "Hide Data & Recovery" : "Data & Recovery"}
-        </button>
-        {dataRecoveryOpen && <DataRecovery />}
-      </section>
-
-      <section aria-label="Settings">
-        <button type="button" onClick={() => setSettingsOpen((open) => !open)}>
-          {settingsOpen ? "Hide Settings" : "Settings"}
-        </button>
-        {settingsOpen && <Settings />}
-      </section>
-
-      <section aria-label="Library">
-        <button type="button" onClick={importBook}>
-          Import Book
-        </button>
-        <button type="button" onClick={importAlignmentPackage}>
-          Import Alignment Package
-        </button>
-        {bilingualError && <p role="alert">{bilingualError}</p>}
-
-        {books === null ? null : books.length === 0 ? (
-          <p>Library is empty. Import a book to get started.</p>
-        ) : (
-          <ul>
-            {books.map((book) => {
-              const canOpen = book.available && READABLE_FORMATS.has(book.format);
-              return (
-                <li key={book.book_id}>
-                  {canOpen ? (
-                    <button type="button" onClick={() => setOpenBook(book)}>
-                      {book.title}
+      {destination === "notes" && (
+        <section aria-label="Notes">
+          <label>
+            Filter
+            <select
+              aria-label="Filter Notes by type"
+              value={notesKindFilter}
+              onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
+            >
+              <option value="">All</option>
+              <option value="note">Note</option>
+              <option value="excerpt">Excerpt</option>
+              <option value="annotation">Annotation</option>
+            </select>
+          </label>
+          <ul className="global-notes-list">
+            {globalNotes.length === 0 ? (
+              <li>No Notebook assets yet.</li>
+            ) : (
+              globalNotes.map((asset) => {
+                const book = books?.find((b) => b.book_id === asset.book_id);
+                return (
+                  <li key={asset.id}>
+                    <button type="button" onClick={() => openSearchResultBook(asset.book_id)}>
+                      {book?.title ?? asset.book_id}
                     </button>
-                  ) : (
-                    book.title
-                  )}
-                  {!book.available && <span> — Needs Relink</span>}
-                  {canOpen && (
-                    <button type="button" onClick={() => openBilingualForBook(book)}>
-                      Bilingual
-                    </button>
-                  )}
-                  <button type="button" onClick={() => removeBook(book.book_id)}>
-                    Remove
-                  </button>
-                </li>
-              );
-            })}
+                    <span className="search-hit-kind"> ({asset.kind})</span>
+                    {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
+                    <p>{asset.text}</p>
+                  </li>
+                );
+              })
+            )}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
+
+      {destination === "calendar" && (
+        <section aria-label="Calendar">
+          <Calendar />
+        </section>
+      )}
+
+      {destination === "data" && (
+        <section aria-label="Data">
+          <DataRecovery />
+        </section>
+      )}
+
+      {destination === "settings" && (
+        <section aria-label="Settings">
+          <Settings />
+        </section>
+      )}
+
+      {destination === "library" && (
+        <section aria-label="Library">
+          <button type="button" onClick={importBook}>
+            Import Book
+          </button>
+          <button type="button" onClick={importAlignmentPackage}>
+            Import Alignment Package
+          </button>
+          {bilingualError && <p role="alert">{bilingualError}</p>}
+
+          {books === null ? null : books.length === 0 ? (
+            <p>Library is empty. Import a book to get started.</p>
+          ) : (
+            <ul>
+              {books.map((book) => {
+                const canOpen = book.available && READABLE_FORMATS.has(book.format);
+                return (
+                  <li key={book.book_id}>
+                    {canOpen ? (
+                      <button type="button" onClick={() => setOpenBook(book)}>
+                        {book.title}
+                      </button>
+                    ) : (
+                      book.title
+                    )}
+                    {!book.available && <span> — Needs Relink</span>}
+                    {canOpen && (
+                      <button type="button" onClick={() => openBilingualForBook(book)}>
+                        Bilingual
+                      </button>
+                    )}
+                    <button type="button" onClick={() => removeBook(book.book_id)}>
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
     </main>
   );
 }

@@ -47,6 +47,19 @@ a {
   text-decoration: inherit;
 }
 
+nav[aria-label="Main"] {
+  display: flex;
+  justify-content: center;
+  gap: 0.5em;
+  margin: 1em auto;
+}
+
+nav[aria-label="Main"] button[aria-current="page"] {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
 .search-results,
 .global-notes-list {
   list-style: none;
