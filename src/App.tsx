@@ -8,6 +8,8 @@ import { Calendar } from "./Calendar";
 import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
+import { loadUpdateCheckOnStartupPreference } from "./appSettings";
+import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import "./App.css";
 
 interface BookSummary {
@@ -122,6 +124,14 @@ function App() {
   // Book's title is currently being edited inline, and the draft value.
   const [renamingBookId, setRenamingBookId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  // FC-C08 (`PRODUCT_SPEC.md` SS17: "optional automatic startup check" +
+  // "check must not block the main UI"): fired once on mount, gated by
+  // the user's Settings preference; the app renders immediately either
+  // way, and this banner appears only if/when the check later resolves
+  // to an available update (never for up-to-date/failed, to avoid
+  // startup noise for the common case).
+  const [startupUpdateResult, setStartupUpdateResult] = useState<UpdateCheckResult | null>(null);
+  const [startupUpdateBannerDismissed, setStartupUpdateBannerDismissed] = useState(false);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
@@ -137,6 +147,17 @@ function App() {
     refreshLibrary();
     refreshCollections();
   }, [refreshLibrary, refreshCollections]);
+
+  useEffect(() => {
+    loadUpdateCheckOnStartupPreference().then((enabled) => {
+      if (!enabled) return;
+      checkForUpdate(CURRENT_VERSION, REPO_OWNER, REPO_NAME).then((result) => {
+        if (result.status === "update_available") {
+          setStartupUpdateResult(result);
+        }
+      });
+    });
+  }, []);
 
   async function createCollection() {
     const name = newCollectionName.trim();
@@ -414,6 +435,20 @@ function App() {
   return (
     <main className="container">
       <h1>EbookReader</h1>
+
+      {startupUpdateResult && !startupUpdateBannerDismissed && (
+        <p role="status" className="startup-update-banner">
+          Update Available: {startupUpdateResult.latestVersion}.{" "}
+          {startupUpdateResult.releaseUrl && (
+            <a href={startupUpdateResult.releaseUrl} target="_blank" rel="noreferrer">
+              Release notes
+            </a>
+          )}
+          <button type="button" onClick={() => setStartupUpdateBannerDismissed(true)}>
+            Dismiss
+          </button>
+        </p>
+      )}
 
       {/* Search is topbar/context, not a top-level destination
           (`DESIGN.md`; FC-C06) -- it stays visible across every

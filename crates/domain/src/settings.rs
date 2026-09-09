@@ -33,9 +33,12 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Resul
 /// Known setting keys. Grouped by the corrective ticket that owns them;
 /// see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md`.
 pub mod keys {
-    // FC-C05 (this ticket): Appearance.
+    // FC-C05: Appearance.
     pub const THEME_MODE: &str = "appearance.theme_mode"; // "light" | "dark" | "system"
     pub const ACCENT_COLOR: &str = "appearance.accent_color"; // hex string, e.g. "#3b6ea5"
+
+    // FC-C08: Update Awareness startup-check preference.
+    pub const UPDATE_CHECK_ON_STARTUP: &str = "update_awareness.check_on_startup"; // "true" | "false"
 }
 
 #[cfg(test)]

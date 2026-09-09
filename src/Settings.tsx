@@ -4,7 +4,10 @@ import {
   applyAppearance,
   DEFAULT_ACCENT_COLOR,
   DEFAULT_THEME_MODE,
+  DEFAULT_UPDATE_CHECK_ON_STARTUP,
   loadAndApplyAppearance,
+  loadUpdateCheckOnStartupPreference,
+  saveUpdateCheckOnStartupPreference,
   setSetting,
   THEME_MODE_KEY,
   type ThemeMode,
@@ -19,14 +22,18 @@ import {
 export function Settings() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(DEFAULT_THEME_MODE);
   const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT_COLOR);
+  const [updateCheckOnStartup, setUpdateCheckOnStartup] = useState(DEFAULT_UPDATE_CHECK_ON_STARTUP);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    loadAndApplyAppearance().then(({ themeMode, accentColor }) => {
-      setThemeMode(themeMode);
-      setAccentColor(accentColor);
-      setLoaded(true);
-    });
+    Promise.all([loadAndApplyAppearance(), loadUpdateCheckOnStartupPreference()]).then(
+      ([{ themeMode, accentColor }, checkOnStartup]) => {
+        setThemeMode(themeMode);
+        setAccentColor(accentColor);
+        setUpdateCheckOnStartup(checkOnStartup);
+        setLoaded(true);
+      },
+    );
   }, []);
 
   async function updateThemeMode(next: ThemeMode) {
@@ -39,6 +46,11 @@ export function Settings() {
     setAccentColor(next);
     applyAppearance(themeMode, next);
     await setSetting(ACCENT_COLOR_KEY, next);
+  }
+
+  async function updateUpdateCheckOnStartup(next: boolean) {
+    setUpdateCheckOnStartup(next);
+    await saveUpdateCheckOnStartupPreference(next);
   }
 
   if (!loaded) return null;
@@ -70,6 +82,17 @@ export function Settings() {
             value={accentColor}
             onChange={(e) => updateAccentColor(e.target.value)}
           />
+        </label>
+      </section>
+      <section aria-label="Update Awareness">
+        <h2>Update Awareness</h2>
+        <label>
+          <input
+            type="checkbox"
+            checked={updateCheckOnStartup}
+            onChange={(e) => updateUpdateCheckOnStartup(e.target.checked)}
+          />
+          Check for updates on startup
         </label>
       </section>
     </div>

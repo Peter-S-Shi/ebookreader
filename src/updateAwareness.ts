@@ -8,6 +8,13 @@
 /// renderer via `fetch` -- no filesystem/native access is needed for a
 /// read-only version check, so no Tauri command exists for this.
 
+// This repository/current-version triple, shared by the manual "Check
+// Now" (`DataRecovery.tsx`) and the optional startup check (`App.tsx`) so
+// there is exactly one place either would need updating for a release.
+export const REPO_OWNER = "Peter-S-Shi";
+export const REPO_NAME = "ebookreader";
+export const CURRENT_VERSION = "0.1.0";
+
 export type UpdateCheckStatus = "up_to_date" | "update_available" | "check_failed";
 
 export interface UpdateCheckResult {

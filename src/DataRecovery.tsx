@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open, confirm } from "@tauri-apps/plugin-dialog";
-import { checkForUpdate, type UpdateCheckResult } from "./updateAwareness";
+import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 
 interface BackupManifestDTO {
   kind: "AppData" | "FullLibrary";
@@ -27,9 +27,6 @@ interface ReadingProgressDTO {
   completed_read_count: number;
 }
 
-const REPO_OWNER = "Peter-S-Shi";
-const REPO_NAME = "ebookreader";
-const CURRENT_VERSION = "0.1.0";
 
 /// `DESIGN.md` SS14 "Data / Recovery" (canonical `ER-DATA-001`): a safety
 /// center. `PRODUCT_SPEC.md` SS16 "Stable V1 requires real Restore" --

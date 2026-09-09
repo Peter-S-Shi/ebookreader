@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS } = vi.hoisted(() => ({
+const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   openMock: vi.fn(),
   // FC-A01: App now fetches Collections on every mount alongside the
@@ -25,11 +25,27 @@ const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS } = vi.hoist
     "remove_tag_from_book_command",
     "list_tags_for_book_command",
   ]),
+  // FC-C08: App also reads this one setting on every mount to decide
+  // whether to run the startup Update Awareness check. Routed separately
+  // (keyed on the `get_setting_command` call's specific `key` argument,
+  // not the whole command, since Settings-destination tests already
+  // exercise `get_setting_command` for other keys through invokeMock)
+  // and defaulted to "false" in beforeEach so pre-existing tests never
+  // trigger a real `fetch` via `checkForUpdate`.
+  updateCheckPrefMock: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (...args: [string, ...unknown[]]) =>
-    (COLLECTIONS_COMMANDS.has(args[0]) ? collectionsMock : invokeMock)(...args),
+  invoke: (...args: [string, ...unknown[]]) => {
+    const [cmd, callArgs] = args;
+    if (
+      cmd === "get_setting_command" &&
+      (callArgs as { key?: string } | undefined)?.key === "update_awareness.check_on_startup"
+    ) {
+      return updateCheckPrefMock(...args);
+    }
+    return (COLLECTIONS_COMMANDS.has(cmd) ? collectionsMock : invokeMock)(...args);
+  },
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock }));
 vi.mock("./Reader", () => ({
@@ -78,6 +94,7 @@ beforeEach(() => {
   invokeMock.mockReset();
   openMock.mockReset();
   collectionsMock.mockReset();
+  updateCheckPrefMock.mockReset();
   vi.restoreAllMocks();
   collectionsMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
@@ -92,6 +109,7 @@ beforeEach(() => {
         return undefined;
     }
   });
+  updateCheckPrefMock.mockResolvedValue("false");
 });
 
 describe("App shell", () => {
@@ -319,6 +337,69 @@ describe("Library", () => {
       expect(invokeMock).not.toHaveBeenCalledWith("relink_book_command", expect.anything());
       expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
     });
+  });
+});
+
+describe("Startup Update Awareness check (PRODUCT_SPEC.md SS17; FC-C08)", () => {
+  it("does not check for updates on startup when the preference is off (the beforeEach default)", async () => {
+    invokeMock.mockResolvedValueOnce([]); // initial list
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    expect(updateCheckPrefMock).toHaveBeenCalledWith("get_setting_command", { key: "update_awareness.check_on_startup" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows an update-available banner when the startup check finds a newer stable release", async () => {
+    invokeMock.mockResolvedValueOnce([]); // initial list
+    updateCheckPrefMock.mockResolvedValue("true");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: "v99.0.0", html_url: "https://example.invalid/releases/v99.0.0" }),
+    } as Response);
+
+    render(<App />);
+
+    expect(await screen.findByText(/update available: 99\.0\.0/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Release notes" })).toHaveAttribute(
+      "href",
+      "https://example.invalid/releases/v99.0.0",
+    );
+  });
+
+  it("never shows a banner when already up to date, and does not block the Library from rendering", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    updateCheckPrefMock.mockResolvedValue("true");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: "v0.1.0", html_url: "https://example.invalid/releases/v0.1.0" }),
+    } as Response);
+
+    render(<App />);
+
+    expect(await screen.findByText("A Book")).toBeInTheDocument();
+    expect(screen.queryByText(/update available/i)).not.toBeInTheDocument();
+  });
+
+  it("Dismiss hides the banner", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockResolvedValue("true");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: "v99.0.0", html_url: "https://example.invalid/releases/v99.0.0" }),
+    } as Response);
+
+    render(<App />);
+    await screen.findByText(/update available/i);
+
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByText(/update available/i)).not.toBeInTheDocument();
   });
 });
 
