@@ -148,6 +148,13 @@ button {
   border-bottom: 1px solid rgba(180, 130, 0, 0.2);
 }
 
+.pdf-ocr-scope {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  font-size: 0.9em;
+}
+
 .pdf-ocr-error {
   margin: 0;
   color: #a33;

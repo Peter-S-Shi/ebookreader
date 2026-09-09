@@ -52,8 +52,11 @@ type PdfViewMode = "single" | "continuous";
 // degraded state -- visual reading still works, text-dependent features
 // don't pretend to. The OCR pipeline itself (local ONNX inference via the
 // Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) now runs for real
-// via run_ocr_job_command, scoped to Current Page only this checkpoint --
-// Selected Pages/Entire Book scope selection in this UI is a follow-up.
+// via run_ocr_job_command, with SS13.1's full Current Page / Selected Pages
+// / Entire Book scope selection. Real mid-run pause/cancel and incremental
+// per-page progress reporting are not wired (a single command call blocks
+// until every target page is done) -- a genuine residual, not hidden from
+// the user: the button's label says so rather than faking a progress bar.
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -71,12 +74,19 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   // search/selection/excerpt work -- `null` until the whole-document text
   // pass below has actually checked every page.
   const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
-  // SS13.1: real OCR job state for the current page (scoped to Current Page
-  // only this checkpoint -- Selected Pages/Entire Book scope selection is a
-  // follow-up on top of the same run_ocr_job_command).
-  const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "succeeded" | "failed">("idle");
+  // SS13.1: "user chooses Current Page, Selected Pages, or Entire Book".
+  // `ocrPhase` is deliberately not a numeric progress bar -- rendering each
+  // target page to bytes is fast, but the actual OCR inference for all of
+  // them happens inside one run_ocr_job_command call with no incremental
+  // callback (a real residual, see PROJECT_STATUS.md), so a fake "3 of 5"
+  // counter that then sits still for minutes would be more misleading than
+  // an honest "running, this may take a while" (SS13.2's "no pretending").
+  const [ocrScope, setOcrScope] = useState<"current" | "selected" | "entire">("current");
+  const [ocrPageRangeInput, setOcrPageRangeInput] = useState("");
+  const [ocrPhase, setOcrPhase] = useState<"idle" | "rendering" | "inferring" | "succeeded" | "failed">("idle");
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrPagesRun, setOcrPagesRun] = useState<number | null>(null);
   const [ocrDraft, setOcrDraft] = useState("");
   const [ocrEditing, setOcrEditing] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
@@ -138,7 +148,8 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       .then((text) => {
         if (!cancelled) {
           setOcrText(text);
-          setOcrStatus(text !== null ? "succeeded" : "idle");
+          setOcrPhase(text !== null ? "succeeded" : "idle");
+          setOcrPagesRun(null);
         }
       })
       .catch(() => {});
@@ -147,30 +158,84 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
     };
   }, [bookId, pageNumber, hasExtractableText]);
 
-  async function handleRunOcrCurrentPage() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    setOcrStatus("running");
+  function parsePageRangeInput(input: string, maxPage: number): number[] {
+    const pages = new Set<number>();
+    for (const part of input.split(",").map((s) => s.trim()).filter(Boolean)) {
+      const range = part.match(/^(\d+)-(\d+)$/);
+      if (range) {
+        const start = parseInt(range[1], 10);
+        const end = parseInt(range[2], 10);
+        for (let p = start; p <= end; p++) {
+          if (p >= 1 && p <= maxPage) pages.add(p);
+        }
+      } else {
+        const p = parseInt(part, 10);
+        if (Number.isFinite(p) && p >= 1 && p <= maxPage) pages.add(p);
+      }
+    }
+    return Array.from(pages).sort((a, b) => a - b);
+  }
+
+  async function renderPageToPngBytes(pageNum: number): Promise<number[]> {
+    const pdf = pdfRef.current!;
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1.2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const context = canvas.getContext("2d")!;
+    await page.render({ canvasContext: context, viewport, canvas }).promise;
+    const dataUrl = canvas.toDataURL("image/png");
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    return Array.from(atob(base64), (c) => c.charCodeAt(0));
+  }
+
+  async function handleRunOcr() {
+    const pdf = pdfRef.current;
+    if (!pdf) return;
+    const targetPages =
+      ocrScope === "current"
+        ? [pageNumber]
+        : ocrScope === "entire"
+          ? Array.from({ length: pdf.numPages }, (_, i) => i + 1)
+          : parsePageRangeInput(ocrPageRangeInput, pdf.numPages);
+    if (targetPages.length === 0) return;
+
+    setOcrPhase("rendering");
     setOcrError(null);
+    setOcrPagesRun(null);
     try {
       const job = await invoke<{ id: string }>("create_ocr_job_command", {
         bookId,
-        scope: { kind: "current_page", page: pageNumber },
+        scope:
+          ocrScope === "current"
+            ? { kind: "current_page", page: pageNumber }
+            : ocrScope === "entire"
+              ? { kind: "entire_book" }
+              : { kind: "selected_pages", pages: targetPages },
       });
-      const dataUrl = canvas.toDataURL("image/png");
-      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      const bytes = Array.from(atob(base64), (c) => c.charCodeAt(0));
-      await invoke("run_ocr_job_command", {
-        jobId: job.id,
-        bookId,
-        pages: [[pageNumber, bytes]],
-      });
-      const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber });
-      setOcrText(text ?? "");
-      setOcrStatus("succeeded");
+
+      const pages: [number, number[]][] = [];
+      for (const p of targetPages) {
+        pages.push([p, await renderPageToPngBytes(p)]);
+      }
+
+      setOcrPhase("inferring");
+      await invoke("run_ocr_job_command", { jobId: job.id, bookId, pages });
+
+      if (ocrScope === "current") {
+        const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber });
+        setOcrText(text ?? "");
+      } else {
+        // Multi-page: no single page's text to show here -- navigate to a
+        // page to see its saved result via the effective-text loader above.
+        setOcrText(null);
+      }
+      setOcrPagesRun(targetPages.length);
+      setOcrPhase("succeeded");
     } catch (e) {
       setOcrError(String(e));
-      setOcrStatus("failed");
+      setOcrPhase("failed");
     }
   }
 
@@ -414,19 +479,72 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
         <div className="pdf-ocr-panel">
           <p className="pdf-degraded-notice" role="status">
             Scanned PDF -- no extractable text found on this page. Visual reading works normally; search, text
-            selection, and Excerpt/Annotation are unavailable for this page until OCR is run.
+            selection, and Excerpt/Annotation are unavailable for pages without OCR text.
           </p>
-          {ocrStatus !== "succeeded" && (
-            <button type="button" onClick={handleRunOcrCurrentPage} disabled={ocrStatus === "running"}>
-              {ocrStatus === "running" ? "Running OCR…" : "Run OCR on this page"}
+          {ocrPhase !== "rendering" && ocrPhase !== "inferring" && (
+            <div className="pdf-ocr-scope">
+              <label>
+                <input
+                  type="radio"
+                  name="ocr-scope"
+                  checked={ocrScope === "current"}
+                  onChange={() => setOcrScope("current")}
+                />
+                Current page
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="ocr-scope"
+                  checked={ocrScope === "selected"}
+                  onChange={() => setOcrScope("selected")}
+                />
+                Selected pages
+              </label>
+              {ocrScope === "selected" && (
+                <input
+                  type="text"
+                  aria-label="Page numbers or ranges, e.g. 1,3,5-7"
+                  placeholder="e.g. 1,3,5-7"
+                  value={ocrPageRangeInput}
+                  onChange={(e) => setOcrPageRangeInput(e.target.value)}
+                />
+              )}
+              <label>
+                <input
+                  type="radio"
+                  name="ocr-scope"
+                  checked={ocrScope === "entire"}
+                  onChange={() => setOcrScope("entire")}
+                />
+                Entire book
+              </label>
+            </div>
+          )}
+          {ocrPhase !== "succeeded" && (
+            <button
+              type="button"
+              onClick={handleRunOcr}
+              disabled={ocrPhase === "rendering" || ocrPhase === "inferring"}
+            >
+              {ocrPhase === "rendering"
+                ? "Preparing pages…"
+                : ocrPhase === "inferring"
+                  ? "Running OCR (this may take a while for many pages)…"
+                  : "Run OCR"}
             </button>
           )}
-          {ocrStatus === "failed" && ocrError && (
+          {ocrPhase === "failed" && ocrError && (
             <p className="pdf-ocr-error" role="alert">
               OCR failed: {ocrError}
             </p>
           )}
-          {ocrStatus === "succeeded" && ocrText !== null && !ocrEditing && (
+          {ocrPhase === "succeeded" && ocrPagesRun !== null && ocrPagesRun > 1 && (
+            <p className="pdf-ocr-result-text">
+              OCR complete for {ocrPagesRun} pages. Navigate to a page to see its recognized text.
+            </p>
+          )}
+          {ocrPhase === "succeeded" && ocrText !== null && !ocrEditing && (
             <div className="pdf-ocr-result">
               <p className="pdf-ocr-result-text">{ocrText || "(no text recognized on this page)"}</p>
               <button
@@ -438,7 +556,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
               >
                 Correct text
               </button>
-              <button type="button" onClick={handleRunOcrCurrentPage}>
+              <button type="button" onClick={handleRunOcr}>
                 Re-run OCR
               </button>
             </div>
