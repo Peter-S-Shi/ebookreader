@@ -13,7 +13,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | CLOSED (`bb3ac72`, CI run 34410909121 success) | — |
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | CLOSED (`c54ea86`, CI run 34412338912 success) | — |
 | 7 | FC-A02 — Metadata editing UI + user-correction precedence | CLOSED (`df4e570`, CI run 34413175475 success) | — |
-| 8 | FC-A04 — Notebook Markdown export | OPEN | — |
+| 8 | FC-A04 — Notebook Markdown export | CLOSED (`dc4eb4d`, CI run 34414007149 success) | — |
 | 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | OPEN | 1 (lives under Data) |
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | OPEN | 1 (preference lives in Settings) |
 | 11 | FC-A05 — Book Hours configuration UI + revision history | OPEN | 1 |
@@ -150,3 +150,18 @@ Evidence:
 - `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 123 tests -- 2 new tests: edit-and-refresh, Cancel-discards-draft-without-invoking-the-command). `npx vite build` passed.
 - GitHub Actions: CI run 34413175475 passed on `df4e570` (Frontend and Rust jobs green).
+
+## Ticket 8 (FC-A04) — closed 2026-09-09 (`dc4eb4d`, CI run 34414007149 success)
+
+Failure Attribution: earliest-wrong layer was the **product surface** itself -- genuinely `MISSING`, not a wiring gap. The original audit's `grep` for `markdown`/`export` across production source found zero real hits (JS keyword noise only), confirming no domain function, no command, and no UI existed anywhere for `PRODUCT_SPEC.md` SS11's "Notebook export should support reader-friendly Markdown at minimum ... source Book/location included as designed."
+
+Landed:
+- `crates/domain/src/assets.rs`: pure `export_notebook_markdown(book_title, assets) -> String` (no I/O, directly testable) renders each asset as a Markdown section (kind heading + text), includes `_Location: {primary_anchor}_` when the asset has a source anchor, and marks Orphaned assets; an empty Notebook renders a truthful "no assets yet" message rather than a blank file. Added `AssetKind::display_label()` for the human-readable heading text.
+- `src-tauri/src/commands.rs` + `lib.rs`: `export_notebook_markdown_command(book_id, dest_path)` loads the Book's title and its Notebook assets, renders the Markdown, and writes it to `dest_path`.
+- `src/NotebookPanel.tsx`: "Export as Markdown" action, reusing the exact native save-dialog pattern `DataRecovery.tsx` already established for backup export (`@tauri-apps/plugin-dialog`'s `save()`), with a status line reporting the written path. `NotebookPanel` gained a required `bookTitle` prop (for the default export filename), threaded from `Reader.tsx`/`PdfReader.tsx`/`TxtReader.tsx`'s existing `title` prop.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (176 passed, 2 ignored; was 173 after Ticket 7). 3 new tests in `assets.rs`.
+- `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 125 tests -- 2 new tests in `NotebookPanel.test.tsx`'s new "Markdown export" describe block: export writes to the chosen destination and reports it; cancelling the destination picker performs no export). `npx vite build` passed.
+- GitHub Actions: CI run 34414007149 passed on `dc4eb4d` (Frontend and Rust jobs green).
