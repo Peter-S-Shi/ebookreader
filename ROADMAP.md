@@ -657,7 +657,7 @@ tests). None of these residuals threaten the Exit Gate's own condition.
 
 # Milestone 6 — Calendar, Goals & Library Planning
 
-**Status:** Planned  
+**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
 **Risk:** Low–Medium
 
 ## Goal
@@ -679,6 +679,48 @@ Deliver lightweight plan-vs-actual reading planning without growing into gamific
 ## Exit Gate
 
 Calendar stays lightweight and semantically distinct from factual reading-time history.
+
+**Satisfied.** A new `crates/domain/src/calendar.rs` module adds a
+day-keyed Calendar surface (`DESIGN.md` SS13, canonical `ER-CAL-001`)
+strictly on top of the existing facts, never a second source of truth
+for what counts as reading time: `record_active_reading_time_command`
+computes one `active_duration` figure per heartbeat tick exactly as
+before, and now folds that same figure into both the per-book
+`actual_reading_time` ledger (M3, unchanged) and a new day-keyed
+`daily_reading_time` aggregate -- one fact, two groupings, never
+independently derived. "Planned Book Hours" and "lightweight goals" are
+deliberately unified into a single mechanism: a lightweight, global
+daily reading-time goal (`daily_goal_history`, one number, no
+streaks/badges/per-book due dates -- nothing in frozen
+`PRODUCT_SPEC.md` SS9/SS15 defines a due-date/pacing algorithm, so none
+was invented). Explainable historical reporting is a structural
+property, not a display-time patch: `daily_goal_history` is append-only,
+keyed by the day a value became effective, and `goal_in_effect_on`
+always resolves a past day to whatever goal was actually in effect on
+that day, never the goal's current value -- proven directly by
+`changing_the_goal_does_not_retroactively_alter_a_past_days_planned_figure`.
+The Stop/Escalate condition ("factual historical time would be
+retroactively altered") cannot trigger by construction: `record_daily_reading_time`
+only ever adds (`ON CONFLICT ... seconds = seconds + excluded.seconds`),
+mirroring `ActualReadingTime::record`'s own accumulate-only discipline,
+and nothing in this module has a delete/rewrite path for the actual-time
+ledger. A `Calendar.tsx` surface (month grid with activity dots, a
+per-day detail card showing Planned vs Actual, and a goal editor)
+matches the accepted `docs/design/EbookReader_UI_Prototype_v0_5.html`
+prototype's composition. 10 new domain tests (134 total, was 124), 5 new
+frontend tests (68 total, was 63), CI green.
+
+**Residuals explicitly carried forward, not silently dropped**: (1) the
+daily reading goal is a single global value, not per-book or
+per-week/weekday -- a deliberate scope choice to stay "lightweight," not
+an oversight; a future Milestone could add finer granularity if a real
+need surfaces. (2) The Calendar's month navigation and goal-editing UI
+have not been exercised via a live native-window click-through and
+screenshotted, for the same `SetForegroundWindow` sandbox residual
+already carried from M4/M5 (`[[feedback-native-gui-visual-verification]]`)
+-- confidence comes from source-level review plus clean
+typecheck/test/build/CI. Neither residual threatens the Exit Gate's own
+condition.
 
 ---
 

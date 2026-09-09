@@ -6,14 +6,14 @@ mod reading_session_hook;
 use commands::{
     advance_reading_progress_command, clear_ocr_cache_command, complete_current_read_command,
     create_ocr_job_command, create_reading_asset_command, get_actual_reading_time_command, get_book_hours_command,
-    get_ocr_effective_text_command, get_ocr_job_command, get_reading_progress_command, import_book_command,
-    index_search_text_command, list_all_reading_assets_command, list_library_command, list_reading_assets_command,
-    list_system_fonts_command, load_reading_location_command, mark_reading_asset_orphaned_command,
-    override_completed_reads_command, read_book_file_command, reading_session_status_command,
-    record_active_reading_time_command, relink_book_command, remove_book_command, run_ocr_job_command,
-    save_ocr_correction_command, save_ocr_page_result_command, save_reading_location_command,
+    get_calendar_day_command, get_calendar_range_command, get_ocr_effective_text_command, get_ocr_job_command,
+    get_reading_progress_command, import_book_command, index_search_text_command, list_all_reading_assets_command,
+    list_library_command, list_reading_assets_command, list_system_fonts_command, load_reading_location_command,
+    mark_reading_asset_orphaned_command, override_completed_reads_command, read_book_file_command,
+    reading_session_status_command, record_active_reading_time_command, relink_book_command, remove_book_command,
+    run_ocr_job_command, save_ocr_correction_command, save_ocr_page_result_command, save_reading_location_command,
     save_workload_config_command, rebuild_search_index_command, search_in_book_command, search_library_command,
-    set_ocr_job_status_command, start_next_read_command,
+    set_daily_goal_command, set_ocr_job_status_command, start_next_read_command,
 };
 use ebookreader_domain::ocr_engine::OcrEngine;
 use ebookreader_domain::reading_session::ReadingSession;
@@ -65,6 +65,9 @@ pub fn run() {
             save_workload_config_command,
             get_actual_reading_time_command,
             record_active_reading_time_command,
+            get_calendar_day_command,
+            get_calendar_range_command,
+            set_daily_goal_command,
             index_search_text_command,
             search_library_command,
             search_in_book_command,

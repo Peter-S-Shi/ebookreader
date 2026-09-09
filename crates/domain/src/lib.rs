@@ -11,6 +11,7 @@ use std::path::Path;
 pub mod actual_reading_time;
 pub mod assets;
 pub mod book_hours;
+pub mod calendar;
 pub mod cjk_search;
 pub mod completion;
 pub mod document_location;

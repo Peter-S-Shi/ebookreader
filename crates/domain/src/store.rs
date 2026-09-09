@@ -148,6 +148,22 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 7 {
+        conn.execute_batch(
+            "
+            CREATE TABLE daily_reading_time (
+                day TEXT PRIMARY KEY,
+                seconds REAL NOT NULL DEFAULT 0
+            );
+            CREATE TABLE daily_goal_history (
+                effective_day TEXT PRIMARY KEY,
+                seconds REAL NOT NULL
+            );
+            PRAGMA user_version = 7;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -410,7 +426,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]

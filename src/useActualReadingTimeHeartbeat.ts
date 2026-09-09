@@ -6,6 +6,19 @@ interface ReadingSessionStatusDTO {
   total_excluded_ms: number;
 }
 
+/// Today's local calendar date as `YYYY-MM-DD`, for the Calendar's
+/// day-keyed reading ledger (`[[calendar]]`). Deliberately local, not
+/// UTC -- a desktop app's "today" is whatever the OS/user's own calendar
+/// says, not a server-normalized day that could silently disagree with
+/// it near midnight.
+function localDay(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /// PRODUCT_SPEC.md SS10 Actual Reading Time: while a Book's Reader is
 /// mounted, periodically records real elapsed time net of any OS lock/
 /// sleep exclusion that happened during the same interval (the one
@@ -43,7 +56,9 @@ export function useActualReadingTimeHeartbeat(bookId: string, intervalMs = 30_00
       // Recording a zero (or near-zero) interval is harmless -- it just
       // adds nothing -- so there's no need to gate this call, which would
       // otherwise make the unmount-flush timing-sensitive.
-      invoke("record_active_reading_time_command", { bookId, elapsedSeconds, excludedSeconds }).catch(() => {});
+      invoke("record_active_reading_time_command", { bookId, elapsedSeconds, excludedSeconds, day: localDay() }).catch(
+        () => {},
+      );
     }
 
     const interval = setInterval(tick, intervalMs);

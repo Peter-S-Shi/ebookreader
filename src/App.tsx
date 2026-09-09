@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { Reader } from "./Reader";
 import { PdfReader } from "./PdfReader";
 import { TxtReader } from "./TxtReader";
+import { Calendar } from "./Calendar";
 import "./App.css";
 
 interface BookSummary {
@@ -40,6 +41,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [globalNotes, setGlobalNotes] = useState<ReadingAssetDTO[]>([]);
   const [notesKindFilter, setNotesKindFilter] = useState<"" | "annotation" | "excerpt" | "note">("");
 
@@ -204,6 +206,13 @@ function App() {
             </ul>
           </div>
         )}
+      </section>
+
+      <section aria-label="Calendar">
+        <button type="button" onClick={() => setCalendarOpen((open) => !open)}>
+          {calendarOpen ? "Hide Calendar" : "Calendar"}
+        </button>
+        {calendarOpen && <Calendar />}
       </section>
 
       <section aria-label="Library">

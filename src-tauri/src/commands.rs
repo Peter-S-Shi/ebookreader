@@ -4,9 +4,12 @@
 
 use crate::db::{managed_books_dir, DbState};
 use crate::{OcrEngineState, ReadingSessionState};
-use ebookreader_domain::actual_reading_time::{load_actual_reading_time, save_actual_reading_time, ActualReadingTime};
+use ebookreader_domain::actual_reading_time::{
+    active_duration, load_actual_reading_time, save_actual_reading_time, ActualReadingTime,
+};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
+use ebookreader_domain::calendar::{self, DayDetail};
 use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
@@ -299,21 +302,66 @@ pub fn get_actual_reading_time_command(state: State<DbState>, book_id: String) -
 /// The caller (the Reader's heartbeat) supplies both durations, derived
 /// from real wall-clock elapsed time and the ReadingSession hook's
 /// excluded-time delta over the same interval -- never fabricated here.
+///
+/// `day` (the caller's local `YYYY-MM-DD`) is also folded into the
+/// Calendar's day-keyed aggregate (`[[calendar]]`), computed from the
+/// exact same `active_duration` figure this command already derives for
+/// the per-book ledger -- one fact, recorded into two groupings, never a
+/// second independently-computed source of "how much was read."
 #[tauri::command]
 pub fn record_active_reading_time_command(
     state: State<DbState>,
     book_id: String,
     elapsed_seconds: f64,
     excluded_seconds: f64,
+    day: String,
 ) -> Result<ActualReadingTime, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
-    let mut art = load_actual_reading_time(&conn, &book_id).map_err(|e| format!("{e}"))?;
-    art.record(
+    let active = active_duration(
         Duration::from_secs_f64(elapsed_seconds.max(0.0)),
         Duration::from_secs_f64(excluded_seconds.max(0.0)),
     );
+
+    let mut art = load_actual_reading_time(&conn, &book_id).map_err(|e| format!("{e}"))?;
+    art.record(active, Duration::ZERO);
     save_actual_reading_time(&conn, &book_id, &art).map_err(|e| format!("could not save Actual Reading Time: {e}"))?;
+
+    calendar::record_daily_reading_time(&conn, &day, active)
+        .map_err(|e| format!("could not record Calendar daily reading time: {e}"))?;
+
     Ok(art)
+}
+
+/// A Calendar day's actual reading total plus the lightweight goal that
+/// was in effect on that day (`[[calendar]]`).
+#[tauri::command]
+pub fn get_calendar_day_command(state: State<DbState>, day: String) -> Result<DayDetail, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    calendar::load_day_detail(&conn, &day).map_err(|e| format!("could not load Calendar day detail: {e}"))
+}
+
+/// Every day with recorded reading activity in `[start_day, end_day]`
+/// (inclusive `YYYY-MM-DD`), for painting a calendar month's activity
+/// dots in one round-trip.
+#[tauri::command]
+pub fn get_calendar_range_command(
+    state: State<DbState>,
+    start_day: String,
+    end_day: String,
+) -> Result<Vec<(String, f64)>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    calendar::load_reading_time_in_range(&conn, &start_day, &end_day)
+        .map_err(|e| format!("could not load Calendar range: {e}"))
+}
+
+/// Set the lightweight daily reading goal, effective from `effective_day`
+/// onward (ROADMAP.md M6 "lightweight goals" -- a single number, not a
+/// streak/badge system).
+#[tauri::command]
+pub fn set_daily_goal_command(state: State<DbState>, effective_day: String, seconds: f64) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    calendar::set_daily_goal(&conn, &effective_day, seconds.max(0.0))
+        .map_err(|e| format!("could not save the daily reading goal: {e}"))
 }
 
 /// Index (or re-index) one searchable text entry for a Book -- e.g. a

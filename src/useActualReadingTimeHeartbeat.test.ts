@@ -23,7 +23,7 @@ describe("useActualReadingTimeHeartbeat", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "record_active_reading_time_command",
-      expect.objectContaining({ bookId: "book-1" }),
+      expect.objectContaining({ bookId: "book-1", day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }),
     );
   });
 
