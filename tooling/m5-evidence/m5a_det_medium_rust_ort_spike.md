@@ -68,38 +68,68 @@ pinned near zero almost everywhere. This is **not yet confirmed
 detection output** -- it's evidence the pipeline runs, not evidence it
 works.
 
-The leading unresolved hypothesis, not yet tested: the reference
-implementation's preprocessing receives its input image as a raw array
-from its own frame-decoding pipeline, whose channel order (RGB vs. BGR)
-was not confirmed by reading the preprocessing function alone; this
-Rust harness currently assumes RGB (via the `image` crate's default
-decode). A channel-order mismatch is a well-known cause of exactly this
-kind of washed-out, low-discrimination CNN output, and is the concrete
-next step for whoever picks this checkpoint back up -- not a rabbit
-hole to keep pulling on speculatively in this same pass. The very long
-wall time on the small synthetic fixture (33s, vs. 781ms on the much
-larger real scan) is also worth carrying forward: it's the direct
-consequence of Finding 2's shorter-side upscale rule inflating a small
-image to 2880x640 -- CPU inference cost scales with resized pixel
+The very long wall time on the small synthetic fixture (33s, vs. 781ms
+on the much larger real scan) is worth carrying forward: it's the
+direct consequence of Finding 2's shorter-side upscale rule inflating a
+small image to 2880x640 -- CPU inference cost scales with resized pixel
 count, not input file size.
 
-## Status: not yet ACCEPT
+## Finding 4 — root cause was a double-sigmoid bug, not channel order
 
-This is real, positive evidence that:
+The channel-order hypothesis above was tested empirically, not assumed:
+a standalone Python cross-check (same model, same fixture, CPU
+provider, the reference implementation's exact preprocess/postprocess
+logic ported inline) ran the detector against both BGR (native
+`cv2.imread` order) and RGB (converted) input and found **bit-for-bit
+identical output** either way -- channel order is not a live hypothesis
+for this model.
+
+The actual bug: `fetch_name_0` is **already a sigmoid-activated [0,1]
+probability map**, not pre-sigmoid logits as Finding 1 assumed. Both
+this Rust harness and the first pass of the Python cross-check were
+applying sigmoid a second time, which compresses [0,1] into
+[0.5, 0.7310585] (`sigmoid(0)=0.5`, `sigmoid(1)=0.7310585`) -- an exact
+numeric match to the flat ~0.50-0.73 band observed on every fixture in
+Finding 3. Removing the redundant sigmoid in the Python cross-check
+produced a sane, spatially-varying map (min 0.000000, max 0.999886,
+mean 0.207557) with 142 plausible detection boxes (scores 0.759-0.926)
+on the real scanned-page fixture.
+
+Applying the same fix to this Rust harness (dropping the post-hoc
+sigmoid on `fetch_name_0`) and re-running against the same real fixture
+reproduced the Python result almost exactly from Rust `ort` directly:
+
+| | Python (`cv2`/`onnxruntime`, cross-check) | Rust `ort` (this harness) |
+|---|---|---|
+| output min | 0.000000 | 0.000000 |
+| output max | 0.999886 | 0.999886 |
+| output mean | 0.207557 | 0.207661 |
+| textness pixels (>0.3) | -- | 856,341 / 3,993,600 (21.4%) |
+
+The tiny mean delta (0.207557 vs 0.207661) is consistent with `cv2`'s
+vs. `image`-crate's resize interpolation differing slightly, not a
+remaining bug.
+
+## Status: ACCEPT (detection tensor stage only)
+
+This is now real, positive evidence that:
 - the reused model + `onnxruntime.dll` are mechanically viable from
   Rust `ort` (loads, runs, returns a correctly-shaped tensor);
-- this repo's own earlier preprocessing assumptions (both output name
-  and resize direction) were wrong and are now corrected against a
-  real, already-validated reference implementation, not guesswork.
+- this repo's own earlier preprocessing assumptions (output name and
+  resize direction) were wrong and are now corrected against a real,
+  already-validated reference implementation, not guesswork;
+- the earlier degenerate output was a double-sigmoid bug in this
+  harness, empirically root-caused (not channel order) and confirmed
+  fixed in both a Python cross-check and the Rust `ort` harness itself,
+  producing a plausible, spatially-varying textness map on a real
+  scanned-page fixture.
 
-It is **not** yet evidence of a working detector -- the channel-order
-question above needs to be resolved and the output visually/numerically
-validated against a known-good box before this can be called ACCEPTed.
-Postprocessing (contour extraction, polygon unclipping) has **no Rust
-port started yet at all** -- that dependency choice (an OpenCV-
-equivalent Rust crate vs. a hand-built contour/unclip step, vs. an
-FFI/subprocess bridge) is itself an open architecture question for the
-next M5 checkpoint, not resolved here. Recognition
+**ACCEPT is scoped to the raw detection tensor**: the model loads,
+preprocesses, and runs correctly from Rust and its output is no longer
+degenerate. Turning that tensor into actual text-region boxes still
+needs the postprocessing step (contour extraction, box scoring, polygon
+unclip) ported to Rust -- **not started yet**; see `README.md` in this
+directory for the crate-selection decision for that step. Recognition
 (`PP-OCRv6_rec_small.onnx`) and the text-orientation classifier
 (`ch_ppocr_mobile_v2.0_cls_mobile.onnx`) have not been exercised at all
 in this pass.
