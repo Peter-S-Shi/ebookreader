@@ -493,7 +493,7 @@ Progress, rereads, time, and workload remain explainable and non-destructive.
 
 # Milestone 4 — Reading Assets & Search
 
-**Status:** In Progress  
+**Status:** **Complete** (2026-09-09, commit `7f12173`) — Exit Gate evidence below.  
 **Risk:** Medium–High
 
 ## Goal
@@ -517,6 +517,10 @@ Deliver Annotation / Note / Excerpt, Book Notebook, Global Notes, jump-back, orp
 ## Exit Gate
 
 Search/indexing remains derived; user-authored reading assets remain canonical.
+
+**Satisfied.** `crates/domain/src/assets.rs`: a canonical `reading_asset` table (Annotation/Excerpt/Note, migration `user_version=5`) fully independent of the derived `search_index` FTS5 table -- `search::rebuild_index` proves this directly (a domain test drops and recreates `search_index` from `reading_asset`, then asserts the `reading_asset` rows are byte-for-byte unchanged and search still resolves against the rebuilt index). Orphan preservation (`mark_orphaned`) never deletes a row, only flags it, and is product-reachable: jump-back in `NotebookPanel` is the actual point an anchor is resolved, so a failed jump (foliate-js's `goTo` resolving to `undefined`, or a PDF page/TXT offset now out of bounds) is exactly where an asset is marked Orphaned/Detached, not silently dropped. Text-selection capture (`PRODUCT_SPEC.md` SS11) is real in all three Readers: EPUB via foliate-js's own `getCFI(index, range)`, PDF single-page mode via a real `pdfjs-dist` `TextLayer` overlay, TXT via Range-counting for an absolute character offset. `crates/domain/src/cjk_search.rs` is the production Rust port of the M0-corrective-pass-validated bigram adapter, closing M4's own named "CJK behavior meets accepted M0 architecture" evidence and the Architecture Amendment carried forward from M0. Library-wide Search and Global Notes both exist in `App.tsx`, and, per `PRODUCT_SPEC.md` SS12's explicit list of required sources, the index now covers supported book text (all three Readers index their own extracted text into the background on open, tagged `book_text`) alongside Note/Excerpt/Annotation content -- the one still-outstanding named source, corrected OCR text, structurally cannot exist before M5's OCR pipeline does. 82 domain tests + 63 frontend tests, CI green on every M4 commit.
+
+**Residuals explicitly carried forward, not silently dropped**: (1) neither Search nor Global Notes results can jump to the exact passage yet, only open the source Book -- `SearchHit` only carries `(book_id, kind, content)`, not the originating asset's anchor, so threading anchor data through search results is a follow-up, not this Milestone's Exit Gate condition (which is about the derived/canonical distinction, not UI completeness). (2) Continuous-mode PDF text selection is not implemented -- single-page mode is, and continuous mode's multi-page selection scoping is a materially separate problem, deferred rather than rushed. (3) The selection-capture UI (Highlight/Excerpt toolbars in all three Readers) has been verified by direct source-level reading of foliate-js's/pdfjs-dist's actual APIs plus clean typecheck/build/CI, not by a native-window mouse drag-select screenshot -- this sandbox's `SetForegroundWindow` residual (`[[feedback-native-gui-visual-verification]]`) makes that unreliable to script; a future session with reliable interactive GUI verification, or the user's own manual click-through, should close this gap. None of these residuals threaten the Exit Gate's own condition.
 
 ---
 

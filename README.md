@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** M4 — Reading Assets & Search (autonomous feature loop)  
-**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1, M2, and M3 complete**; M4 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, reproducible M0 evidence harness at `tooling/m0-evidence/`  
+**Phase:** M5 — Scanned PDF OCR (autonomous feature loop)  
+**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1, M2, M3, and M4 complete**; M5 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, reproducible M0 evidence harness at `tooling/m0-evidence/`  
 **V1 product/domain scope:** Frozen  
 **V1 UI baseline:** Frozen  
 **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)  

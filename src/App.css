@@ -128,6 +128,17 @@ button {
   padding: 16px 0;
 }
 
+/* Scanned-PDF degraded state (PRODUCT_SPEC.md SS13.1/SS13.2): truthful,
+   non-blocking -- visual reading still works underneath it. */
+.pdf-degraded-notice {
+  margin: 0;
+  padding: 0.5em 1em;
+  font-size: 0.9em;
+  text-align: center;
+  background-color: rgba(180, 130, 0, 0.12);
+  border-bottom: 1px solid rgba(180, 130, 0, 0.3);
+}
+
 /* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
    a minimal hand-ported subset of pdfjs-dist's own .textLayer rules
    (node_modules/pdfjs-dist/web/pdf_viewer.css) -- just enough to make

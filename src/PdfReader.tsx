@@ -46,7 +46,12 @@ type PdfViewMode = "single" | "continuous";
 // canvas; continuous mode's per-page selection scoping is a follow-up.
 // Whole-page text is also indexed into the M4 search index in the
 // background on open (SS12: "supported book text" is a required
-// Library-wide Search source).
+// Library-wide Search source). M5 (Scanned PDF OCR) begins here: the same
+// background pass that extracts text also detects a scanned PDF (no
+// extractable text on any page) and surfaces SS13.1/SS13.2's truthful
+// degraded state -- visual reading still works, text-dependent features
+// don't pretend to. The OCR pipeline itself (local ONNX inference via the
+// Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) is not built yet.
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +64,11 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; page: number } | null>(null);
+  // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
+  // any page) must display a truthful degraded state rather than pretend
+  // search/selection/excerpt work -- `null` until the whole-document text
+  // pass below has actually checked every page.
+  const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
@@ -83,6 +93,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       // "supported book text" is a required Library-wide Search source),
       // one entry per page so results stay reasonably scoped. Runs in the
       // background, sequentially, so it doesn't compete with rendering.
+      let anyPageHasText = false;
       for (let i = 1; i <= pdf.numPages; i++) {
         if (cancelled) return;
         const page = await pdf.getPage(i);
@@ -90,6 +101,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
         if (pageText.trim()) {
+          anyPageHasText = true;
           await invoke("index_search_text_command", {
             bookId,
             kind: "book_text",
@@ -98,6 +110,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           }).catch(() => {});
         }
       }
+      if (!cancelled) setHasExtractableText(anyPageHasText);
     })();
     return () => {
       cancelled = true;
@@ -139,8 +152,10 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       // Text layer: an invisible, selectable text overlay matched to the
       // canvas's rendered geometry, so PRODUCT_SPEC.md SS11's "text
       // selection exposes lightweight Highlight / Excerpt / Note actions"
-      // holds for Text PDF (not the pre-OCR scanned-PDF degraded state,
-      // SS13.2, which this reader does not otherwise attempt).
+      // holds for Text PDF. On a scanned page this renders empty (there is
+      // no text to lay out) -- combined with the hasExtractableText check
+      // above, that is exactly SS13.2's degraded state: nothing here
+      // pretends selection/search/excerpt work when there is no text.
       const textLayerDiv = textLayerRef.current;
       if (textLayerDiv) {
         textLayerDiv.replaceChildren();
@@ -331,6 +346,12 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {hasExtractableText === false && (
+        <p className="pdf-degraded-notice" role="status">
+          Scanned PDF -- no extractable text found. Visual reading works normally; search, text selection, and
+          Excerpt/Annotation are unavailable until OCR is run (not yet available in this version).
+        </p>
       )}
       {viewMode === "single" && selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
