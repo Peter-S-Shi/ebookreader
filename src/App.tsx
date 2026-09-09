@@ -50,6 +50,11 @@ interface ReadingAssetDTO {
   orphaned: boolean;
 }
 
+// Mirrors `commands::ImportBookResult`.
+type ImportBookResult =
+  | { kind: "imported"; book_id: string }
+  | { kind: "duplicate"; book_id: string; title: string };
+
 interface AlignmentPackageDTO {
   id: string;
   book_id_a: string;
@@ -86,6 +91,13 @@ function App() {
     { package: AlignmentPackageDTO; bookA: BookSummary; bookB: BookSummary } | null
   >(null);
   const [bilingualError, setBilingualError] = useState<string | null>(null);
+  // FC-A03: `import_book_command` refuses to silently resolve a fingerprint
+  // that already belongs to an active Library entry (`PRODUCT_SPEC.md`
+  // "Duplicate import") -- it reports the duplicate instead, and this state
+  // holds what the 3-choice dialog needs to act on the user's decision.
+  const [duplicateImport, setDuplicateImport] = useState<{ bookId: string; title: string; path: string } | null>(
+    null,
+  );
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
@@ -104,8 +116,35 @@ function App() {
     if (!path || Array.isArray(path)) {
       return;
     }
-    await invoke("import_book_command", { path, ownershipMode: "reference" });
+    const result = await invoke<ImportBookResult>("import_book_command", { path, ownershipMode: "reference" });
+    if (result.kind === "duplicate") {
+      setDuplicateImport({ bookId: result.book_id, title: result.title, path });
+      return;
+    }
     await refreshLibrary();
+  }
+
+  // FC-A03 / `PRODUCT_SPEC.md` "Duplicate import": open the already-in-Library
+  // Book as-is; the just-picked file is not imported.
+  function openExistingDuplicate() {
+    if (!duplicateImport) return;
+    openBookAtLocation(duplicateImport.bookId, null);
+    setDuplicateImport(null);
+  }
+
+  // Relink the existing Book to the just-picked file's path. Their
+  // fingerprints already match (that is why this dialog exists), so this
+  // always succeeds via the same relink path `list_library_command`'s
+  // "Needs Relink" repair uses.
+  async function relinkExistingDuplicate() {
+    if (!duplicateImport) return;
+    await invoke("relink_book_command", { bookId: duplicateImport.bookId, candidatePath: duplicateImport.path });
+    setDuplicateImport(null);
+    await refreshLibrary();
+  }
+
+  function cancelDuplicateImport() {
+    setDuplicateImport(null);
   }
 
   async function removeBook(bookId: string) {
@@ -375,6 +414,22 @@ function App() {
             Import Alignment Package
           </button>
           {bilingualError && <p role="alert">{bilingualError}</p>}
+
+          {duplicateImport && (
+            <div className="duplicate-import-dialog" role="dialog" aria-label="Duplicate Book">
+              <p>This book already exists.</p>
+              <p>{duplicateImport.title}</p>
+              <button type="button" onClick={openExistingDuplicate}>
+                Open Existing
+              </button>
+              <button type="button" onClick={relinkExistingDuplicate}>
+                Relink Existing Book
+              </button>
+              <button type="button" onClick={cancelDuplicateImport}>
+                Cancel
+              </button>
+            </div>
+          )}
 
           {books === null ? null : books.length === 0 ? (
             <p>Library is empty. Import a book to get started.</p>

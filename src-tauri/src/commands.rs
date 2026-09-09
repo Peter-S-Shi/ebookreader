@@ -23,7 +23,7 @@ use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
     delete_managed_copy_file, delete_reading_data, get_book, import_book, import_book_managed, list_books,
     relink_book_file, remove_book,
-    BookSummary, OwnershipMode, RelinkOutcome,
+    BookSummary, ImportOutcome, OwnershipMode, RelinkOutcome,
 };
 use serde::Serialize;
 use std::time::Duration;
@@ -32,20 +32,43 @@ use tauri::{AppHandle, State};
 use winreg::enums::HKEY_LOCAL_MACHINE;
 use winreg::RegKey;
 
+/// Result of `import_book_command`, serialized for the frontend as a
+/// tagged union so it can tell a completed import apart from a duplicate
+/// that needs the user's decision (`PRODUCT_SPEC.md` "Duplicate import").
+#[derive(Serialize)]
+#[serde(tag = "kind")]
+pub enum ImportBookResult {
+    #[serde(rename = "imported")]
+    Imported { book_id: String },
+    #[serde(rename = "duplicate")]
+    Duplicate { book_id: String, title: String },
+}
+
+impl From<ImportOutcome> for ImportBookResult {
+    fn from(outcome: ImportOutcome) -> Self {
+        match outcome {
+            ImportOutcome::Imported(book_id) => ImportBookResult::Imported { book_id },
+            ImportOutcome::DuplicateFound { book_id, title } => ImportBookResult::Duplicate { book_id, title },
+        }
+    }
+}
+
 /// Import a book file into the Library.
 ///
 /// `ownership_mode` must be `"reference"` or `"managed_copy"`
 /// (`PRODUCT_SPEC.md` "Reference" / "Managed Copy"; default V1 import mode
-/// is Reference). Returns the resulting `book_id`, which is the same
-/// existing id if this file's fingerprint is already in the Library
-/// (`PRODUCT_SPEC.md` "Duplicate import").
+/// is Reference). If this file's fingerprint already belongs to an active
+/// Library entry, returns `ImportBookResult::Duplicate` without mutating
+/// anything -- the frontend must offer Open Existing / Relink Existing
+/// Book (via `relink_book_command`) / Cancel rather than silently
+/// resolving it (`PRODUCT_SPEC.md` "Duplicate import").
 #[tauri::command]
 pub fn import_book_command(
     app: AppHandle,
     state: State<DbState>,
     path: String,
     ownership_mode: String,
-) -> Result<String, String> {
+) -> Result<ImportBookResult, String> {
     let file_path = Path::new(&path);
     let title = file_path
         .file_stem()
@@ -73,6 +96,7 @@ pub fn import_book_command(
             import_book_managed(&conn, file_path, &title, &format, mode, &managed_dir)
         }
     }
+    .map(ImportBookResult::from)
     .map_err(|e| format!("import failed: {e}"))
 }
 

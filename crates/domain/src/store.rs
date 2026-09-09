@@ -207,21 +207,51 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Outcome of attempting to import a book file.
+///
+/// `PRODUCT_SPEC.md` "Duplicate import": a fingerprint that already
+/// belongs to an active Library entry must not be silently imported (as a
+/// second Book, or as a silent metadata overwrite of the first) -- the
+/// caller must offer the user Open Existing / Relink Existing Book /
+/// Cancel. Re-importing a fingerprint whose Book was previously *removed*
+/// from the Library (`remove_from_library`) is a different, legitimate
+/// case -- restoring a Library entry the user chose to bring back -- and
+/// still resolves straight to `Imported`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportOutcome {
+    /// A new Book was created, or a previously-removed Book was restored
+    /// to the Library.
+    Imported(String),
+    /// This fingerprint already belongs to an *active* Library entry.
+    /// Nothing was mutated; the caller must ask the user how to proceed.
+    DuplicateFound { book_id: String, title: String },
+}
+
+impl ImportOutcome {
+    /// The `book_id` this outcome refers to, regardless of variant.
+    pub fn book_id(&self) -> &str {
+        match self {
+            ImportOutcome::Imported(id) => id,
+            ImportOutcome::DuplicateFound { book_id, .. } => book_id,
+        }
+    }
+}
+
 /// Import a Reference-mode book file into the Library.
 ///
-/// If a Library entry with the same fingerprint already exists, returns
-/// its existing `book_id` rather than creating a duplicate Book
-/// (`PRODUCT_SPEC.md` "Duplicate import"). Otherwise inserts a new Book +
-/// BookFile row, storing `file_path` as-is (`PRODUCT_SPEC.md` "Reference":
-/// the source file stays where the user owns it) and returns the new
-/// `book_id`.
+/// If a Library entry with the same fingerprint already exists and is
+/// active, returns [`ImportOutcome::DuplicateFound`] without mutating
+/// anything (`PRODUCT_SPEC.md` "Duplicate import"). Otherwise inserts a
+/// new Book + BookFile row, storing `file_path` as-is (`PRODUCT_SPEC.md`
+/// "Reference": the source file stays where the user owns it) and returns
+/// [`ImportOutcome::Imported`].
 pub fn import_book(
     conn: &Connection,
     file_path: &Path,
     title: &str,
     format: &str,
     ownership_mode: OwnershipMode,
-) -> rusqlite::Result<String> {
+) -> rusqlite::Result<ImportOutcome> {
     debug_assert_eq!(
         ownership_mode,
         OwnershipMode::Reference,
@@ -243,7 +273,7 @@ pub fn import_book_managed(
     format: &str,
     ownership_mode: OwnershipMode,
     managed_dir: &Path,
-) -> rusqlite::Result<String> {
+) -> rusqlite::Result<ImportOutcome> {
     import_book_internal(conn, file_path, title, format, ownership_mode, Some(managed_dir))
 }
 
@@ -254,25 +284,29 @@ fn import_book_internal(
     format: &str,
     ownership_mode: OwnershipMode,
     managed_dir: Option<&Path>,
-) -> rusqlite::Result<String> {
+) -> rusqlite::Result<ImportOutcome> {
     let fingerprint = compute_fingerprint(file_path)
         .map_err(|e| rusqlite::Error::InvalidPath(format!("{e}").into()))?;
 
     let existing_book = conn
         .query_row(
-            "SELECT book.id, book.library_status
+            "SELECT book.id, book.library_status, book.title
              FROM book JOIN book_file ON book_file.book_id = book.id
              WHERE book_file.fingerprint = ?1",
             [&fingerprint],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
         )
         .optional()?;
 
-    if let Some((book_id, library_status)) = &existing_book {
+    if let Some((book_id, library_status, existing_title)) = &existing_book {
         if library_status == "active" {
-            return Ok(book_id.clone());
+            return Ok(ImportOutcome::DuplicateFound {
+                book_id: book_id.clone(),
+                title: existing_title.clone(),
+            });
         }
     }
+    let existing_book = existing_book.map(|(book_id, _, _)| book_id);
 
     let stored_path: std::path::PathBuf = match (ownership_mode, managed_dir) {
         (OwnershipMode::ManagedCopy, Some(dir)) => {
@@ -292,7 +326,7 @@ fn import_book_internal(
         (OwnershipMode::Reference, _) => file_path.to_path_buf(),
     };
 
-    if let Some((book_id, _)) = existing_book {
+    if let Some(book_id) = existing_book {
         conn.execute("UPDATE book SET library_status = 'active', title = ?1 WHERE id = ?2", (title, &book_id))?;
         conn.execute(
             "UPDATE book_file SET path = ?1, format = ?2, ownership_mode = ?3 WHERE book_id = ?4",
@@ -303,7 +337,7 @@ fn import_book_internal(
                 &book_id,
             ),
         )?;
-        return Ok(book_id);
+        return Ok(ImportOutcome::Imported(book_id));
     }
 
     let book_id = format!("{fingerprint}"); // fingerprint doubles as a stable id for this minimal slice
@@ -322,7 +356,7 @@ fn import_book_internal(
         ),
     )?;
 
-    Ok(book_id)
+    Ok(ImportOutcome::Imported(book_id))
 }
 
 /// Outcome of attempting to relink a BookFile to a candidate path.
@@ -546,7 +580,7 @@ mod tests {
         run_migrations(&conn).unwrap();
         let path = temp_file("book.epub", b"unique book contents");
 
-        let book_id = import_book(&conn, &path, "A Test Book", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &path, "A Test Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
 
         let title: String = conn
             .query_row("SELECT title FROM book WHERE id = ?1", [&book_id], |r| r.get(0))
@@ -563,10 +597,33 @@ mod tests {
         let first = import_book(&conn, &path, "First Import", "epub", OwnershipMode::Reference).unwrap();
         let second = import_book(&conn, &path, "First Import", "epub", OwnershipMode::Reference).unwrap();
 
-        assert_eq!(first, second);
+        assert_eq!(
+            second,
+            ImportOutcome::DuplicateFound { book_id: first.book_id().to_string(), title: "First Import".to_string() },
+            "PRODUCT_SPEC.md 'Duplicate import': re-importing a fingerprint already active in the Library \
+             must report the duplicate, not silently resolve to a book_id"
+        );
 
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM book", [], |r| r.get(0)).unwrap();
         assert_eq!(count, 1, "duplicate import by fingerprint must not create a second Book row");
+    }
+
+    #[test]
+    fn reimporting_the_same_fingerprint_while_active_does_not_mutate_the_existing_book() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("book2b.epub", b"yet another unique book");
+
+        let first = import_book(&conn, &path, "Original Title", "epub", OwnershipMode::Reference).unwrap();
+        import_book(&conn, &path, "A Different Title Offered On Reimport", "epub", OwnershipMode::Reference).unwrap();
+
+        let title: String = conn
+            .query_row("SELECT title FROM book WHERE id = ?1", [first.book_id()], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            title, "Original Title",
+            "a duplicate import must not silently overwrite the existing Book's title before the user chooses"
+        );
     }
 
     #[test]
@@ -575,7 +632,7 @@ mod tests {
         run_migrations(&conn).unwrap();
         let source = temp_file("ref.epub", b"reference-mode book contents");
 
-        let book_id = import_book(&conn, &source, "Ref Book", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &source, "Ref Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
 
         let stored_path: String = conn
             .query_row(
@@ -603,7 +660,9 @@ mod tests {
             OwnershipMode::ManagedCopy,
             &managed_dir,
         )
-        .unwrap();
+        .unwrap()
+        .book_id()
+        .to_string();
 
         let stored_path: String = conn
             .query_row(
@@ -633,7 +692,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         let original = temp_file("moved.epub", b"a book that gets moved");
-        let book_id = import_book(&conn, &original, "Moved Book", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &original, "Moved Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
 
         // Simulate the user moving the file: same bytes, new location.
         let new_location = temp_file("moved-elsewhere.epub", b"a book that gets moved");
@@ -652,7 +711,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         let original = temp_file("orig.epub", b"the original book contents");
-        let book_id = import_book(&conn, &original, "Original Book", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &original, "Original Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
 
         // A different file happens to occupy the path the user pointed at.
         let different_file = temp_file("different.epub", b"completely different contents");
@@ -690,7 +749,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         let path = temp_file("lookup.epub", b"a book to look up");
-        let book_id = import_book(&conn, &path, "Lookup Book", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &path, "Lookup Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
 
         let found = get_book(&conn, &book_id).unwrap();
         assert_eq!(found.map(|b| b.title), Some("Lookup Book".to_string()));
@@ -734,7 +793,7 @@ mod tests {
 
         let reference_source = temp_file("separated-reference.epub", b"reference book contents");
         let reference_book_id =
-            import_book(&conn, &reference_source, "Reference To Keep", "epub", OwnershipMode::Reference).unwrap();
+            import_book(&conn, &reference_source, "Reference To Keep", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
         conn.execute(
             "INSERT INTO reading_asset (id, book_id, kind, text, anchor_json, orphaned) VALUES ('asset-1', ?1, 'note', 'kept note', NULL, 0)",
             [&reference_book_id],
@@ -773,7 +832,9 @@ mod tests {
             OwnershipMode::ManagedCopy,
             &managed_dir,
         )
-        .unwrap();
+        .unwrap()
+        .book_id()
+        .to_string();
         let managed_stored_path: String = conn
             .query_row("SELECT path FROM book_file WHERE book_id = ?1", [&managed_book_id], |r| r.get(0))
             .unwrap();
@@ -808,7 +869,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
         let source = temp_file("removed-then-reimported.epub", b"same fingerprint");
-        let book_id = import_book(&conn, &source, "Original Title", "epub", OwnershipMode::Reference).unwrap();
+        let book_id = import_book(&conn, &source, "Original Title", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
         conn.execute(
             "INSERT INTO reading_asset (id, book_id, kind, text, anchor_json, orphaned) VALUES ('asset-reimport', ?1, 'note', 'still here', NULL, 0)",
             [&book_id],
@@ -818,9 +879,14 @@ mod tests {
         remove_from_library(&conn, &book_id).unwrap();
         assert!(list_books(&conn).unwrap().is_empty());
 
-        let restored_id = import_book(&conn, &source, "Restored Title", "epub", OwnershipMode::Reference).unwrap();
+        let restored = import_book(&conn, &source, "Restored Title", "epub", OwnershipMode::Reference).unwrap();
 
-        assert_eq!(restored_id, book_id);
+        assert_eq!(
+            restored,
+            ImportOutcome::Imported(book_id.clone()),
+            "re-importing a fingerprint whose Book was removed from the Library restores it directly; \
+             it is not the 'already active' duplicate case FC-A03 governs"
+        );
         let books = list_books(&conn).unwrap();
         assert_eq!(books.len(), 1);
         assert_eq!(books[0].title, "Restored Title");

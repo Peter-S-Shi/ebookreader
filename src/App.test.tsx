@@ -86,7 +86,7 @@ describe("Library", () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([]); // initial list on mount
     openMock.mockResolvedValueOnce("C:/books/new-book.epub");
-    invokeMock.mockResolvedValueOnce("new-book-id"); // import_book_command
+    invokeMock.mockResolvedValueOnce({ kind: "imported", book_id: "new-book-id" }); // import_book_command
     invokeMock.mockResolvedValueOnce([
       { book_id: "new-book-id", title: "new-book", path: "C:/books/new-book.epub", format: "epub", ownership_mode: "reference", available: true },
     ]); // refreshed list
@@ -197,6 +197,92 @@ describe("Library", () => {
 
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Reference source files are never deleted"));
     expect(invokeMock).toHaveBeenCalledWith("delete_managed_copy_file_command", { bookId: "managed" });
+  });
+
+  describe("Duplicate Fingerprint (PRODUCT_SPEC.md 'Duplicate import'; FC-A03)", () => {
+    it("offers Open Existing / Relink Existing Book / Cancel instead of silently resolving a duplicate", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([]); // initial list
+      openMock.mockResolvedValueOnce("C:/books/dup-source.epub");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "existing-id", title: "Existing Book" }); // import_book_command
+
+      render(<App />);
+      await screen.findByText(/library is empty/i);
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+
+      expect(await screen.findByText("This book already exists.")).toBeInTheDocument();
+      const dialog = screen.getByRole("dialog", { name: "Duplicate Book" });
+      expect(within(dialog).getByText("Existing Book")).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Open Existing" })).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Relink Existing Book" })).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+      // The duplicate report must not itself have refreshed/mutated the Library
+      // beyond the one load on mount.
+      expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
+    });
+
+    it("Open Existing opens the already-in-Library book without importing the picked file", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([
+        { book_id: "existing-id", title: "Existing Book", path: "C:/books/existing.epub", format: "epub", ownership_mode: "reference", available: true },
+      ]); // initial list
+      openMock.mockResolvedValueOnce("C:/books/dup-source.epub");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "existing-id", title: "Existing Book" }); // import_book_command
+
+      render(<App />);
+      await screen.findByText("Existing Book");
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+      await screen.findByRole("dialog", { name: "Duplicate Book" });
+      await user.click(screen.getByRole("button", { name: "Open Existing" }));
+
+      expect(await screen.findByText("Reading: Existing Book (existing-id)")).toBeInTheDocument();
+      expect(invokeMock).not.toHaveBeenCalledWith("relink_book_command", expect.anything());
+    });
+
+    it("Relink Existing Book relinks the existing Book to the picked file's path", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([]); // initial list
+      openMock.mockResolvedValueOnce("C:/books/moved-copy.epub");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "existing-id", title: "Existing Book" }); // import_book_command
+      invokeMock.mockResolvedValueOnce("relinked"); // relink_book_command
+      invokeMock.mockResolvedValueOnce([
+        { book_id: "existing-id", title: "Existing Book", path: "C:/books/moved-copy.epub", format: "epub", ownership_mode: "reference", available: true },
+      ]); // refreshed list
+
+      render(<App />);
+      await screen.findByText(/library is empty/i);
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+      await screen.findByRole("dialog", { name: "Duplicate Book" });
+      await user.click(screen.getByRole("button", { name: "Relink Existing Book" }));
+
+      expect(invokeMock).toHaveBeenCalledWith("relink_book_command", {
+        bookId: "existing-id",
+        candidatePath: "C:/books/moved-copy.epub",
+      });
+      expect(await screen.findByText("Existing Book")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: "Duplicate Book" })).not.toBeInTheDocument();
+    });
+
+    it("Cancel dismisses the dialog without opening, relinking, or refreshing", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([]); // initial list
+      openMock.mockResolvedValueOnce("C:/books/dup-source.epub");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "existing-id", title: "Existing Book" }); // import_book_command
+
+      render(<App />);
+      await screen.findByText(/library is empty/i);
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+      await screen.findByRole("dialog", { name: "Duplicate Book" });
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog", { name: "Duplicate Book" })).not.toBeInTheDocument();
+      expect(invokeMock).not.toHaveBeenCalledWith("relink_book_command", expect.anything());
+      expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
+    });
   });
 });
 
