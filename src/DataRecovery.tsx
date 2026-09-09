@@ -16,6 +16,15 @@ interface BackupPreviewDTO {
   missing: string[];
 }
 
+interface BookSummaryDTO {
+  book_id: string;
+  title: string;
+}
+
+interface ReadingProgressDTO {
+  completed_read_count: number;
+}
+
 const REPO_OWNER = "Peter-S-Shi";
 const REPO_NAME = "ebookreader";
 const CURRENT_VERSION = "0.1.0";
@@ -32,6 +41,8 @@ export function DataRecovery() {
   const [preview, setPreview] = useState<{ path: string; data: BackupPreviewDTO } | null>(null);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [bookDataBooks, setBookDataBooks] = useState<BookSummaryDTO[] | null>(null);
+  const [completedReadInputs, setCompletedReadInputs] = useState<Record<string, string>>({});
 
   async function createAppDataBackup() {
     const dest = await save({
@@ -106,6 +117,28 @@ export function DataRecovery() {
     setCheckingUpdate(false);
   }
 
+  async function loadBookData() {
+    const books = await invoke<BookSummaryDTO[]>("list_library_command");
+    setBookDataBooks(books);
+    setCompletedReadInputs(Object.fromEntries(books.map((book) => [book.book_id, "0"])));
+  }
+
+  async function overrideCompletedReads(book: BookSummaryDTO) {
+    const completedReadCount = Number.parseInt(completedReadInputs[book.book_id] ?? "0", 10);
+    const safeCount = Number.isFinite(completedReadCount) && completedReadCount >= 0 ? completedReadCount : 0;
+    const proceed = await confirm(
+      "Manual completed-read override clears active progress. Actual Reading Time stays unchanged. ReadingSession history stays unchanged. Continue?",
+      { title: "Confirm Completed-Read Override", kind: "warning" },
+    );
+    if (!proceed) return;
+
+    const progress = await invoke<ReadingProgressDTO>("override_completed_reads_command", {
+      bookId: book.book_id,
+      completedReadCount: safeCount,
+    });
+    setStatusMessage(`${book.title} completed reads set to ${progress.completed_read_count}.`);
+  }
+
   return (
     <section className="data-recovery" aria-label="Data and Recovery">
       <div className="data-recovery-group">
@@ -149,6 +182,44 @@ export function DataRecovery() {
         )}
 
         {statusMessage && <p role="status">{statusMessage}</p>}
+      </div>
+
+      <div className="data-recovery-group">
+        <h3>Book Data</h3>
+        <button type="button" onClick={loadBookData}>
+          Load Book Data
+        </button>
+        {bookDataBooks && (
+          bookDataBooks.length === 0 ? (
+            <p>No Books in Library.</p>
+          ) : (
+            <ul>
+              {bookDataBooks.map((book) => (
+                <li key={book.book_id}>
+                  <label>
+                    Completed reads for {book.title}
+                    <input
+                      aria-label={`Completed reads for ${book.title}`}
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={completedReadInputs[book.book_id] ?? "0"}
+                      onChange={(e) =>
+                        setCompletedReadInputs((current) => ({
+                          ...current,
+                          [book.book_id]: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <button type="button" onClick={() => overrideCompletedReads(book)}>
+                    Set completed reads for {book.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
       </div>
 
       <div className="data-recovery-group">

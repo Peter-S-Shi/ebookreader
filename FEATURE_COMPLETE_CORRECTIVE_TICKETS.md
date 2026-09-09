@@ -9,7 +9,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | CLOSED (nav shell + Appearance) — remaining FC-C05 setting groups tracked under tickets 9-16 | — |
 | 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | CLOSED | — |
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | CLOSED (`22afafc`, CI run 34402533583 success) | — |
-| 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | OPEN | 1 (lives under Data) |
+| 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | CLOSED (implementation commit; CI required before proceeding) | 1 (lives under Data) |
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | OPEN | — |
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | OPEN | — |
 | 7 | FC-A02 — Metadata editing UI + user-correction precedence | OPEN | — |
@@ -87,3 +87,18 @@ Evidence:
 - Frontend verification: `npm test` passed (19 files, 111 tests); App tests cover labels, confirmations, cancellation, and Managed-Copy-only file deletion affordance.
 - Static/build verification: `npm run typecheck`, `npm run build`, and `cargo build --manifest-path src-tauri\Cargo.toml` passed.
 - GitHub Actions: CI run 34402533583 passed on `22afafc` (Frontend and Rust jobs green).
+
+## Ticket 4 (FC-C03) — closed 2026-09-09
+
+Failure Attribution: earliest-wrong layer was **Frontend integration / user reachability**. The domain model and Tauri command already existed: `ReadingProgress::manual_override` sets `completed_read_count`, clears active progress, and has no path to ReadingSession or Actual Reading Time; `override_completed_reads_command` loads/saves that progress only. The gap was that Data -> Book Data had no UI call site and no required warning copy.
+
+Landed:
+- `src/DataRecovery.tsx`: added a Book Data section under the canonical Data/Recovery surface. It loads Library books via `list_library_command`, exposes one non-negative completed-read input per Book, and calls `override_completed_reads_command` only after warning confirmation.
+- Confirmation text names the required consequences: active progress is cleared; Actual Reading Time stays unchanged; ReadingSession history stays unchanged.
+- The command result is surfaced as a status message, so the user can see the applied completed-read count.
+
+Evidence:
+- TDD red signal: `npm test -- DataRecovery.test.tsx` initially failed because `Load Book Data` / override UI did not exist.
+- Frontend verification: `npm test -- DataRecovery.test.tsx` passed (8 tests), then `npm test` passed (19 files, 113 tests).
+- Domain verification: `cargo test -p ebookreader-domain` passed (161 passed, 2 ignored), including existing manual-override domain tests.
+- Static/build verification: `npm run typecheck`, `npm run build`, and `cargo build --manifest-path src-tauri\Cargo.toml` passed.

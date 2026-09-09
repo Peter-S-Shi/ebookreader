@@ -21,6 +21,68 @@ beforeEach(() => {
 });
 
 describe("DataRecovery", () => {
+  it("allows Data Book Data to override completed reads only after the required warning confirmation", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_library_command") {
+        return Promise.resolve([
+          { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+        ]);
+      }
+      if (cmd === "override_completed_reads_command") {
+        return Promise.resolve({
+          completed_read_count: 3,
+          active_read_in_progress: false,
+          active_pass_progress: 0,
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    confirmMock.mockResolvedValue(true);
+
+    render(<DataRecovery />);
+
+    await user.click(screen.getByRole("button", { name: "Load Book Data" }));
+    await screen.findByLabelText("Completed reads for Book One");
+    await user.clear(screen.getByLabelText("Completed reads for Book One"));
+    await user.type(screen.getByLabelText("Completed reads for Book One"), "3");
+    await user.click(screen.getByRole("button", { name: "Set completed reads for Book One" }));
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.stringContaining("Actual Reading Time stays unchanged"),
+      expect.objectContaining({ title: "Confirm Completed-Read Override", kind: "warning" }),
+    );
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("override_completed_reads_command", {
+        bookId: "book-1",
+        completedReadCount: 3,
+      }),
+    );
+    expect(await screen.findByText("Book One completed reads set to 3.")).toBeInTheDocument();
+  });
+
+  it("does not override completed reads when the warning confirmation is declined", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "list_library_command") {
+        return Promise.resolve([
+          { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+        ]);
+      }
+      return Promise.resolve(undefined);
+    });
+    confirmMock.mockResolvedValue(false);
+
+    render(<DataRecovery />);
+
+    await user.click(screen.getByRole("button", { name: "Load Book Data" }));
+    await screen.findByRole("button", { name: "Set completed reads for Book One" });
+    await user.click(screen.getByRole("button", { name: "Set completed reads for Book One" }));
+
+    expect(confirmMock).toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalledWith("override_completed_reads_command", expect.anything());
+  });
+
   it("creating an App Data Backup calls the command with the chosen path and reports the book count", async () => {
     const user = userEvent.setup();
     saveMock.mockResolvedValue("C:/backups/app-data.zip");
