@@ -218,6 +218,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
             <NotebookPanel
               key={notebookRefreshKey}
               bookId={bookId}
+              bookTitle={title}
               onClose={() => setNotebookOpen(false)}
               onJumpTo={(asset) => {
                 const container = containerRef.current;

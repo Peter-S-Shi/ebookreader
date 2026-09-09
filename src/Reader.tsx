@@ -323,6 +323,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
             <NotebookPanel
               key={notebookRefreshKey}
               bookId={bookId}
+              bookTitle={title}
               onClose={() => setOpenPanel(null)}
               onJumpTo={async (asset) => {
                 if (!asset.anchor || !viewRef.current) return false;

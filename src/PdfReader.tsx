@@ -412,6 +412,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           <NotebookPanel
             key={notebookRefreshKey}
             bookId={bookId}
+            bookTitle={title}
             onClose={() => setNotebookOpen(false)}
             onJumpTo={(asset) => {
               if (!asset.anchor) return false;

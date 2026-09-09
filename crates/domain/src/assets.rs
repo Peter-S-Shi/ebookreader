@@ -47,6 +47,14 @@ impl AssetKind {
             _ => None,
         }
     }
+
+    fn display_label(self) -> &'static str {
+        match self {
+            AssetKind::Annotation => "Annotation",
+            AssetKind::Excerpt => "Excerpt",
+            AssetKind::Note => "Note",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -142,6 +150,29 @@ pub fn list_all_assets(conn: &Connection, kind: Option<AssetKind>) -> rusqlite::
 pub fn mark_orphaned(conn: &Connection, asset_id: &str) -> rusqlite::Result<()> {
     conn.execute("UPDATE reading_asset SET orphaned = 1 WHERE id = ?1", [asset_id])?;
     Ok(())
+}
+
+/// Renders a Book's Notebook (`assets`, already filtered to that Book) as
+/// reader-friendly Markdown (`PRODUCT_SPEC.md` SS11: "Notebook export
+/// should support reader-friendly Markdown at minimum ... source
+/// Book/location included as designed"). Pure/no I/O so it can be tested
+/// directly; the caller owns writing the result to disk.
+pub fn export_notebook_markdown(book_title: &str, assets: &[ReadingAsset]) -> String {
+    let mut out = format!("# Notebook — {book_title}\n");
+    if assets.is_empty() {
+        out.push_str("\n_No Annotations, Excerpts, or Notes yet._\n");
+        return out;
+    }
+    for asset in assets {
+        out.push_str(&format!("\n## {}\n\n{}\n", asset.kind.display_label(), asset.text));
+        if let Some(anchor) = &asset.anchor {
+            out.push_str(&format!("\n_Location: {}_\n", anchor.primary_anchor));
+        }
+        if asset.orphaned {
+            out.push_str("\n_(Orphaned — original location no longer resolvable)_\n");
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -299,5 +330,64 @@ mod tests {
     fn getting_an_unknown_asset_returns_none() {
         let conn = conn_with_book("book-1");
         assert_eq!(get_asset(&conn, "does-not-exist").unwrap(), None);
+    }
+
+    #[test]
+    fn markdown_export_of_an_empty_notebook_says_so_rather_than_rendering_nothing() {
+        let markdown = export_notebook_markdown("Empty Book", &[]);
+        assert!(markdown.contains("# Notebook — Empty Book"));
+        assert!(markdown.contains("No Annotations, Excerpts, or Notes yet"));
+    }
+
+    #[test]
+    fn markdown_export_includes_kind_text_and_source_location() {
+        let asset = ReadingAsset {
+            id: "a1".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Excerpt,
+            text: "a collected passage worth remembering".into(),
+            anchor: Some(sample_anchor("book-1")),
+            orphaned: false,
+        };
+
+        let markdown = export_notebook_markdown("Alice in Wonderland", &[asset]);
+
+        assert!(markdown.contains("# Notebook — Alice in Wonderland"));
+        assert!(markdown.contains("## Excerpt"));
+        assert!(markdown.contains("a collected passage worth remembering"));
+        assert!(
+            markdown.contains("epubcfi(/6/4!/4/2/1:0)"),
+            "PRODUCT_SPEC.md SS11: export must include the source location, not just the text"
+        );
+    }
+
+    #[test]
+    fn markdown_export_marks_orphaned_assets_and_omits_location_for_free_standing_notes() {
+        let orphaned = ReadingAsset {
+            id: "a1".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Annotation,
+            text: "a highlight whose location is gone".into(),
+            anchor: Some(sample_anchor("book-1")),
+            orphaned: true,
+        };
+        let free_standing = ReadingAsset {
+            id: "a2".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Note,
+            text: "a free-standing thought".into(),
+            anchor: None,
+            orphaned: false,
+        };
+
+        let markdown = export_notebook_markdown("A Book", &[orphaned, free_standing]);
+
+        assert!(markdown.contains("Orphaned"));
+        assert!(markdown.contains("a free-standing thought"));
+        let free_standing_section = markdown.split("## Note").nth(1).unwrap();
+        assert!(
+            !free_standing_section.contains("_Location:"),
+            "a free-standing Note has no source location to report"
+        );
     }
 }

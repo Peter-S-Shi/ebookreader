@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 
 export type AssetKind = "annotation" | "excerpt" | "note";
 
@@ -23,6 +24,7 @@ export interface ReadingAssetDTO {
 
 interface NotebookPanelProps {
   bookId: string;
+  bookTitle: string;
   onClose: () => void;
   /** Jump the Reader to a source-bound asset's anchor; resolves to whether
    * the anchor actually resolved. Omitted (or the asset having no anchor /
@@ -47,10 +49,11 @@ const KIND_LABELS: Record<AssetKind, string> = {
 // selection events, pdf.js text-layer selection, TXT selection) and is a
 // follow-up checkpoint, not silently folded in here (DESIGN.md's own
 // non-goal: "turn Notebook into a Notion clone" -- keep this minimal).
-export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps) {
+export function NotebookPanel({ bookId, bookTitle, onClose, onJumpTo }: NotebookPanelProps) {
   const [assets, setAssets] = useState<ReadingAssetDTO[]>([]);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
 
   function refresh() {
     invoke<ReadingAssetDTO[]>("list_reading_assets_command", { bookId })
@@ -74,6 +77,20 @@ export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps)
     }
   }
 
+  async function exportMarkdown() {
+    const dest = await save({
+      defaultPath: `${bookTitle}-notebook.md`,
+      filters: [{ name: "Markdown", extensions: ["md"] }],
+    });
+    if (!dest) return;
+    try {
+      await invoke("export_notebook_markdown_command", { bookId, destPath: dest });
+      setExportStatus(`Notebook exported to ${dest}`);
+    } catch (e) {
+      setExportStatus(`Export failed: ${e}`);
+    }
+  }
+
   async function handleAddNote() {
     const text = draft.trim();
     if (!text) return;
@@ -91,10 +108,14 @@ export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps)
     <div className="notebook-panel" role="dialog" aria-label="Notebook">
       <div className="notebook-panel-header">
         <span>Notebook</span>
+        <button type="button" onClick={exportMarkdown}>
+          Export as Markdown
+        </button>
         <button type="button" onClick={onClose}>
           Close
         </button>
       </div>
+      {exportStatus && <p role="status">{exportStatus}</p>}
 
       <div className="notebook-panel-compose">
         <textarea

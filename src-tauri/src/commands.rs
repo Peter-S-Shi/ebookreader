@@ -713,6 +713,20 @@ pub fn list_reading_assets_command(state: State<DbState>, book_id: String) -> Re
     assets::list_assets_for_book(&conn, &book_id).map_err(|e| format!("could not list reading assets: {e}"))
 }
 
+/// Export a Book's Notebook as reader-friendly Markdown (`PRODUCT_SPEC.md`
+/// SS11) to `dest_path`.
+#[tauri::command]
+pub fn export_notebook_markdown_command(state: State<DbState>, book_id: String, dest_path: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let book = get_book(&conn, &book_id)
+        .map_err(|e| format!("could not load book: {e}"))?
+        .ok_or_else(|| "book not found".to_string())?;
+    let notebook_assets =
+        assets::list_assets_for_book(&conn, &book_id).map_err(|e| format!("could not list reading assets: {e}"))?;
+    let markdown = assets::export_notebook_markdown(&book.title, &notebook_assets);
+    std::fs::write(&dest_path, markdown).map_err(|e| format!("could not write Notebook export: {e}"))
+}
+
 /// Global Notes: cross-book asset listing, optionally filtered by kind.
 #[tauri::command]
 pub fn list_all_reading_assets_command(state: State<DbState>, kind: Option<String>) -> Result<Vec<ReadingAsset>, String> {
