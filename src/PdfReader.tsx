@@ -60,6 +60,7 @@ type PdfViewMode = "single" | "continuous";
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const ocrTextRef = useRef<HTMLParagraphElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const [status, setStatus] = useState("Loading…");
@@ -371,18 +372,25 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
   // Single-page mode only this checkpoint -- continuous mode would need
   // per-page-div selection scoping across many simultaneously mounted text
-  // layers, a follow-up, not folded in here.
+  // layers, a follow-up, not folded in here. Also covers the OCR result
+  // paragraph (`ocrTextRef`) once a scanned page has real OCR text -- it is
+  // plain selectable DOM text, so the same selectionchange listener applies
+  // without a separate pdf.js TextLayer (SS13's "search/excerpt/annotation
+  // jump-back usability" for OCR'd pages, not just extractable-text pages).
   useEffect(() => {
     if (viewMode !== "single") return;
     function handleSelectionChange() {
       const layer = textLayerRef.current;
+      const ocrLayer = ocrTextRef.current;
       const sel = document.getSelection();
-      if (!layer || !sel || sel.isCollapsed || sel.rangeCount === 0) {
+      if ((!layer && !ocrLayer) || !sel || sel.isCollapsed || sel.rangeCount === 0) {
         setSelection(null);
         return;
       }
       const range = sel.getRangeAt(0);
-      if (!layer.contains(range.commonAncestorContainer)) {
+      const inLayer = layer?.contains(range.commonAncestorContainer);
+      const inOcrLayer = ocrLayer?.contains(range.commonAncestorContainer);
+      if (!inLayer && !inOcrLayer) {
         setSelection(null);
         return;
       }
@@ -395,7 +403,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [viewMode, pageNumber]);
+  }, [viewMode, pageNumber, ocrText]);
 
   async function handleCaptureSelection(kind: "annotation" | "excerpt") {
     if (!selection) return;
@@ -628,7 +636,9 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           )}
           {ocrPhase === "succeeded" && ocrText !== null && !ocrEditing && (
             <div className="pdf-ocr-result">
-              <p className="pdf-ocr-result-text">{ocrText || "(no text recognized on this page)"}</p>
+              <p ref={ocrTextRef} className="pdf-ocr-result-text">
+                {ocrText || "(no text recognized on this page)"}
+              </p>
               <button
                 type="button"
                 onClick={() => {
