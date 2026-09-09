@@ -200,6 +200,31 @@ button {
   margin-left: auto;
 }
 
+.ocr-workspace-section {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  padding: 0.75em 1em 0;
+}
+
+.ocr-workspace-section h2 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.ocr-workspace-hint {
+  font-size: 0.85em;
+  opacity: 0.65;
+}
+
+.ocr-workspace-tools {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.75em 1em;
+  flex-wrap: wrap;
+}
+
 .ocr-workspace-body {
   display: flex;
   flex: 1;
@@ -298,12 +323,29 @@ button {
   font-size: 1.1em;
 }
 
-.ocr-workspace-text {
-  white-space: pre-wrap;
-  font-size: 0.95em;
+.ocr-workspace-complete-detail {
+  font-weight: 400;
+  font-size: 0.85em;
+  opacity: 0.8;
 }
 
-.ocr-workspace-correction textarea {
+.ocr-workspace-page-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.ocr-workspace-page-text h3 {
+  margin: 0;
+  font-size: 1em;
+}
+
+.ocr-workspace-page-text-meta {
+  font-size: 0.85em;
+  opacity: 0.65;
+}
+
+.ocr-workspace-page-text textarea {
   width: 100%;
   font-family: inherit;
   font-size: 0.95em;

@@ -73,8 +73,6 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
   const [jobId, setJobId] = useState<string | null>(null);
   const [targetPages, setTargetPages] = useState<number[]>([]);
   const [pagesPrepared, setPagesPrepared] = useState(0);
-  const [pageText, setPageText] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
   // Thumbnail grid: rendered lazily and sequentially at a small scale so it
@@ -104,7 +102,9 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
     let cancelled = false;
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber: viewedPage })
       .then((text) => {
-        if (!cancelled) setPageText(text);
+        if (!cancelled) {
+          setDraft(text ?? "");
+        }
       })
       .catch(() => {});
     return () => {
@@ -152,7 +152,7 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
     setPhase("complete");
     onOcrUpdated();
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber: viewedPage })
-      .then(setPageText)
+      .then((text) => setDraft(text ?? ""))
       .catch(() => {});
   }
 
@@ -221,8 +221,6 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
 
   async function handleSaveCorrection() {
     await invoke("save_ocr_correction_command", { bookId, pageNumber: viewedPage, correctedText: draft }).catch(() => {});
-    setPageText(draft);
-    setEditing(false);
     onOcrUpdated();
   }
 
@@ -232,6 +230,15 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
     <div className="ocr-workspace" role="dialog" aria-label="OCR Workspace">
       <div className="ocr-workspace-toolbar">
         <span className="ocr-workspace-title">OCR Workspace</span>
+        <button type="button" onClick={onClose} className="ocr-workspace-close">
+          Close
+        </button>
+      </div>
+      <div className="ocr-workspace-section">
+        <h2>Pages</h2>
+        <span className="ocr-workspace-hint">Choose exactly what should be recognized.</span>
+      </div>
+      <div className="ocr-workspace-tools">
         <label>
           <input type="radio" name="ocr-ws-scope" checked={scope === "current"} onChange={() => setScope("current")} disabled={busy} />
           Current page
@@ -254,9 +261,6 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
           <input type="radio" name="ocr-ws-scope" checked={scope === "entire"} onChange={() => setScope("entire")} disabled={busy} />
           Entire book
         </label>
-        <button type="button" onClick={onClose} className="ocr-workspace-close">
-          Close
-        </button>
       </div>
       <div className="ocr-workspace-body">
         <div className="ocr-workspace-thumbnails" role="list" aria-label="Page thumbnails">
@@ -337,40 +341,25 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
               <p className="ocr-workspace-complete" role="status">
                 <span className="ocr-complete-icon" aria-hidden="true">
                   ✓
-                </span>{" "}
-                OCR complete
+                </span>
+                <span>
+                  OCR complete
+                  <br />
+                  <span className="ocr-workspace-complete-detail">Pages processed successfully · corrections can be reviewed</span>
+                </span>
               </p>
             )}
           </div>
           <div className="ocr-workspace-page-text">
-            <h4>Page {viewedPage}</h4>
-            {!editing && (
-              <>
-                <p className="ocr-workspace-text">{pageText ?? "(no OCR text yet for this page)"}</p>
-                {pageText !== null && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDraft(pageText);
-                      setEditing(true);
-                    }}
-                  >
-                    Review Corrections
-                  </button>
-                )}
-              </>
-            )}
-            {editing && (
-              <div className="ocr-workspace-correction">
-                <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={8} aria-label="Correct OCR text" />
-                <button type="button" onClick={handleSaveCorrection}>
-                  Save correction
-                </button>
-                <button type="button" onClick={() => setEditing(false)}>
-                  Cancel
-                </button>
-              </div>
-            )}
+            <h3>Page correction</h3>
+            <div className="ocr-workspace-page-text-meta">
+              Page {viewedPage} · OCR text preview
+            </div>
+            <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={8} aria-label="Correct OCR text" />
+            <button type="button" onClick={handleSaveCorrection}>
+              Save correction
+            </button>
+            <div className="ocr-workspace-hint">Manual corrections are preserved as user data; raw OCR can be rebuilt.</div>
           </div>
         </div>
       </div>
