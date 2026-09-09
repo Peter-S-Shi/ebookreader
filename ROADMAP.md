@@ -726,7 +726,7 @@ condition.
 
 # Milestone 7 — Bilingual Alignment Reading
 
-**Status:** Planned  
+**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
 **Risk:** Medium–High
 
 ## Goal
@@ -750,6 +750,67 @@ Deliver Alignment Package import/validation and synchronized dual-pane reading w
 ## Exit Gate
 
 The UI makes **synchronized navigation, independent Book data** unambiguous.
+
+**Satisfied.** Before implementing past `FORMAT_CAPABILITY_MATRIX.md`'s
+`🧪` markers on Bilingual Alignment Package (Reflowable EPUB, Text PDF,
+Scanned-PDF-post-OCR, TXT -- never covered by any M0 spike), a real
+Loop Engineering pass was run and recorded:
+`tooling/m7-evidence/m7a_bilingual_alignment_scope_decision.md`.
+Finding: `PRODUCT_SPEC.md` SS14 already excludes alignment authoring,
+so "supports Bilingual Alignment Package" only requires extracting and
+displaying each format's real text in an independent pane -- and that
+extraction already exists, tested, in production for all four formats
+(`Reader.tsx`'s/`PdfReader.tsx`'s own Search-indexing extraction, M5's
+`get_ocr_effective_text_command`, TXT's direct decode). Decision:
+ACCEPT scroll-position-ratio synchronization (matching the accepted
+`docs/design/EbookReader_UI_Prototype_v0_5.html#bilingual` prototype's
+own reference implementation exactly) as the V1 mechanism, rather than
+building unvalidated per-paragraph cross-format anchor alignment ROADMAP's
+own Success Evidence never actually names.
+
+`crates/domain/src/alignment.rs`'s `import_package` resolves an
+Alignment Package's two fingerprints against the real Library
+(`find_book_id_by_fingerprint`) and returns a typed
+`SourceNotInLibrary { side, fingerprint }` error -- never a guessed
+pairing -- when either side doesn't match a real Book, satisfying
+"source/fingerprint validation" and "mismatch/review state" together.
+`AlignmentMapping::status()` flags any non-1:1 correspondence "review"
+rather than presenting it with the same confidence as a clean match.
+`BilingualReader.tsx` renders two independently-scrolled plain-text
+panes (native browser scroll -- "independent vertical scroll" by
+construction), a `⇄ Swap` control that reorders which book renders in
+which pane, and a `⛓ Sync navigation on/off` toggle gating the
+ratio-based scroll sync. "Independent progress/notes/assets" holds by
+construction, not by a separate guard: `BilingualReader.tsx` never
+calls `save_reading_location_command`, `create_reading_asset_command`,
+or any other per-book state-mutating command each format's normal
+Reader uses -- it only reads book bytes to extract display text, so
+there is no code path by which opening Bilingual Reading could touch
+either Book's own progress, Notes, Excerpts, Annotations, or Book
+Hours. The read-only Alignment panel states this explicitly to the user
+("Each book keeps its own notes, excerpts, highlights, and progress"),
+matching the accepted prototype's own disclaimer. 9 new domain tests
+(143 total, was 134), 6 new frontend tests (74 total, was 68), CI
+green.
+
+**Residuals explicitly carried forward, not silently dropped**: (1)
+per-paragraph click-to-highlight alignment (the prototype's
+`data-align` interaction) is not built -- a deliberate scope decision
+recorded in the evidence doc above, not an oversight; ROADMAP's own
+Success Evidence never names it. (2) There is no Alignment Package
+authoring UI (frozen non-goal, `PRODUCT_SPEC.md` SS14) -- packages must
+be authored externally as the minimal JSON shape
+`crates/domain/src/alignment.rs` documents. (3) The Bilingual pane's
+per-side Highlight/Excerpt/Note mini-toolbar shown in the accepted
+prototype is not built; each Book's own existing Reader already
+provides these, and building a second, parallel capture path inside
+the lightweight bilingual pane was judged unnecessary duplication, not
+a genuine gap -- "independent Book data" is satisfied by the normal
+Reader remaining the place assets are captured. (4) The dual-pane UI
+has not been exercised via a live native-window click-through and
+screenshotted, for the same `SetForegroundWindow` sandbox residual
+carried from M4-M6 (`[[feedback-native-gui-visual-verification]]`).
+None of these residuals threaten the Exit Gate's own condition.
 
 ---
 

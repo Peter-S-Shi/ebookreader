@@ -164,6 +164,24 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 8 {
+        conn.execute_batch(
+            "
+            CREATE TABLE alignment_package (
+                id TEXT PRIMARY KEY,
+                book_id_a TEXT NOT NULL REFERENCES book(id),
+                book_id_b TEXT NOT NULL REFERENCES book(id),
+                lang_a TEXT NOT NULL,
+                lang_b TEXT NOT NULL,
+                mappings_json TEXT NOT NULL
+            );
+            CREATE INDEX idx_alignment_package_book_a ON alignment_package(book_id_a);
+            CREATE INDEX idx_alignment_package_book_b ON alignment_package(book_id_b);
+            PRAGMA user_version = 8;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -392,6 +410,16 @@ pub fn get_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<Boo
     .optional()
 }
 
+/// Resolve a real Library `book_id` from a file fingerprint, or `None` if
+/// no imported Book has that fingerprint. Used by `[[alignment]]` to
+/// validate an Alignment Package's referenced sources against the
+/// actual Library rather than trusting the package's own book-id claims
+/// (`PRODUCT_SPEC.md` SS14 "source/fingerprint validation").
+pub fn find_book_id_by_fingerprint(conn: &Connection, fingerprint: &str) -> rusqlite::Result<Option<String>> {
+    let existing = existing_entries(conn)?;
+    Ok(find_duplicate(&existing, fingerprint).map(|entry| entry.book_id.clone()))
+}
+
 fn existing_entries(conn: &Connection) -> rusqlite::Result<Vec<LibraryEntry>> {
     let mut stmt = conn.prepare(
         "SELECT book.id, book.title, book_file.fingerprint FROM book JOIN book_file ON book_file.book_id = book.id",
@@ -426,7 +454,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 
     #[test]

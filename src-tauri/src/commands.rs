@@ -7,6 +7,7 @@ use crate::{OcrEngineState, ReadingSessionState};
 use ebookreader_domain::actual_reading_time::{
     active_duration, load_actual_reading_time, save_actual_reading_time, ActualReadingTime,
 };
+use ebookreader_domain::alignment::{self, AlignmentPackage};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
 use ebookreader_domain::calendar::{self, DayDetail};
@@ -362,6 +363,31 @@ pub fn set_daily_goal_command(state: State<DbState>, effective_day: String, seco
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     calendar::set_daily_goal(&conn, &effective_day, seconds.max(0.0))
         .map_err(|e| format!("could not save the daily reading goal: {e}"))
+}
+
+/// Import an Alignment Package file (`PRODUCT_SPEC.md` SS14): validates
+/// both referenced sources' fingerprints against the real Library
+/// (`[[alignment]]`'s `import_package`) rather than trusting the
+/// package's own claims, and returns a typed mismatch if either side
+/// isn't actually in the Library.
+#[tauri::command]
+pub fn import_alignment_package_command(state: State<DbState>, path: String) -> Result<AlignmentPackage, String> {
+    let json = std::fs::read_to_string(&path).map_err(|e| format!("could not read Alignment Package file: {e}"))?;
+    let file = alignment::parse_package_file(&json).map_err(|e| e.to_string())?;
+
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::import_package(&conn, &uuid::Uuid::new_v4().to_string(), &file).map_err(|e| e.to_string())
+}
+
+/// The Alignment Package pairing `book_id` with another Book, if any
+/// has been imported for it.
+#[tauri::command]
+pub fn get_alignment_package_command(
+    state: State<DbState>,
+    book_id: String,
+) -> Result<Option<AlignmentPackage>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::find_package_for_book(&conn, &book_id).map_err(|e| format!("could not load Alignment Package: {e}"))
 }
 
 /// Index (or re-index) one searchable text entry for a Book -- e.g. a
