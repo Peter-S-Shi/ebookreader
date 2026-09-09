@@ -292,6 +292,38 @@ mod tests {
         }
     }
 
+    /// M0-carried residual evidence gathering: runs the real pipeline
+    /// against `ia_200.jpg` (see `tooling/m0-evidence/fixtures/ocr_real/SOURCE.md`)
+    /// -- a real, degraded, public-domain page with vertical classical
+    /// Chinese columns above an English translation and two-column English
+    /// commentary. Prints the assembled text with `--nocapture` for manual
+    /// inspection; the reading-order limits this documents are recorded in
+    /// `tooling/m5-evidence/m5e_multi_column_cjk_evidence.md`, not asserted
+    /// here (this test's job is to produce real output to look at, not to
+    /// assert a correctness bar `reading_order_text` doesn't claim to meet).
+    #[test]
+    #[ignore]
+    fn processes_a_real_multi_column_cjk_page_and_surfaces_its_text() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ocr-assets");
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tooling/m0-evidence/fixtures/ocr_real/ia_200.jpg");
+
+        let mut engine = OcrEngine::load(
+            &root.join("onnxruntime.dll"),
+            &root.join("PP-OCRv6_det_medium.onnx"),
+            &root.join("ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
+            &root.join("PP-OCRv6_rec_small.onnx"),
+        )
+        .expect("failed to load OCR engine -- populate ocr-assets/ per tooling/m5-evidence/README.md");
+
+        let img = image::open(&fixture).expect("failed to open fixture image");
+        let lines = engine.process_page(&img).expect("process_page failed");
+        assert!(!lines.is_empty(), "expected at least one detected/recognized line on a real scanned page");
+
+        let text = reading_order_text(&lines);
+        println!("--- ia_200.jpg: {} lines detected ---", lines.len());
+        println!("{text}");
+    }
+
     fn line_at(text: &str, x_min: f64, y_min: f64, w: f64, h: f64) -> RecognizedLine {
         RecognizedLine {
             points: [(x_min, y_min), (x_min + w, y_min), (x_min + w, y_min + h), (x_min, y_min + h)],
