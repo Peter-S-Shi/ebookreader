@@ -230,6 +230,15 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 12 {
+        conn.execute_batch(
+            "
+            ALTER TABLE book ADD COLUMN title_user_edited INTEGER NOT NULL DEFAULT 0;
+            PRAGMA user_version = 12;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -316,15 +325,22 @@ fn import_book_internal(
 
     let existing_book = conn
         .query_row(
-            "SELECT book.id, book.library_status, book.title
+            "SELECT book.id, book.library_status, book.title, book.title_user_edited
              FROM book JOIN book_file ON book_file.book_id = book.id
              WHERE book_file.fingerprint = ?1",
             [&fingerprint],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, bool>(3)?,
+                ))
+            },
         )
         .optional()?;
 
-    if let Some((book_id, library_status, existing_title)) = &existing_book {
+    if let Some((book_id, library_status, existing_title, _)) = &existing_book {
         if library_status == "active" {
             return Ok(ImportOutcome::DuplicateFound {
                 book_id: book_id.clone(),
@@ -332,7 +348,7 @@ fn import_book_internal(
             });
         }
     }
-    let existing_book = existing_book.map(|(book_id, _, _)| book_id);
+    let existing_book = existing_book.map(|(book_id, _, _, title_user_edited)| (book_id, title_user_edited));
 
     let stored_path: std::path::PathBuf = match (ownership_mode, managed_dir) {
         (OwnershipMode::ManagedCopy, Some(dir)) => {
@@ -352,8 +368,15 @@ fn import_book_internal(
         (OwnershipMode::Reference, _) => file_path.to_path_buf(),
     };
 
-    if let Some(book_id) = existing_book {
-        conn.execute("UPDATE book SET library_status = 'active', title = ?1 WHERE id = ?2", (title, &book_id))?;
+    if let Some((book_id, title_user_edited)) = existing_book {
+        // `PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins": restoring a
+        // removed Book must not silently reintroduce the freshly-detected
+        // filename-derived title over one the user already corrected.
+        if title_user_edited {
+            conn.execute("UPDATE book SET library_status = 'active' WHERE id = ?1", [&book_id])?;
+        } else {
+            conn.execute("UPDATE book SET library_status = 'active', title = ?1 WHERE id = ?2", (title, &book_id))?;
+        }
         conn.execute(
             "UPDATE book_file SET path = ?1, format = ?2, ownership_mode = ?3 WHERE book_id = ?4",
             (
@@ -490,6 +513,18 @@ pub fn remove_book(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
     remove_from_library(conn, book_id)
 }
 
+/// Applies a user-authored title correction to `book_id` and marks it as
+/// user-edited so it is never again silently overwritten by
+/// automatically-detected metadata (`PRODUCT_SPEC.md` SS3.4
+/// "user-corrected metadata wins").
+pub fn update_book_title(conn: &Connection, book_id: &str, title: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE book SET title = ?1, title_user_edited = 1 WHERE id = ?2",
+        (title, book_id),
+    )?;
+    Ok(())
+}
+
 /// Delete user reading data for a Book without removing the Book's Library
 /// entry or touching any Reference/Managed-Copy file bytes.
 pub fn delete_reading_data(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
@@ -597,7 +632,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 11);
+        assert_eq!(version, 12);
     }
 
     #[test]
@@ -920,5 +955,57 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM reading_asset WHERE book_id = ?1", [&book_id], |r| r.get(0))
             .unwrap();
         assert_eq!(asset_count, 1, "Remove from Library preserves data that a later re-import can recover");
+    }
+
+    #[test]
+    fn update_book_title_persists_the_users_correction() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("edit-title.epub", b"a book whose title gets corrected");
+        let book_id = import_book(&conn, &path, "Detected Title", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
+
+        update_book_title(&conn, &book_id, "Corrected Title").unwrap();
+
+        let title: String = conn.query_row("SELECT title FROM book WHERE id = ?1", [&book_id], |r| r.get(0)).unwrap();
+        assert_eq!(title, "Corrected Title");
+    }
+
+    #[test]
+    fn a_user_corrected_title_survives_remove_and_reimport() {
+        // PRODUCT_SPEC.md SS3.4 "user-corrected metadata wins": the
+        // remove-from-library/reimport restore path (see
+        // `reimporting_a_removed_book_restores_the_existing_library_entry`)
+        // unconditionally re-wrote title from the freshly-detected
+        // filename-derived value before FC-A02 -- the one place a user
+        // correction could actually have been silently overwritten.
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let source = temp_file("corrected-then-reimported.epub", b"same fingerprint, corrected title");
+        let book_id = import_book(&conn, &source, "Detected Title", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
+        update_book_title(&conn, &book_id, "My Corrected Title").unwrap();
+
+        remove_from_library(&conn, &book_id).unwrap();
+        import_book(&conn, &source, "Detected Title Again", "epub", OwnershipMode::Reference).unwrap();
+
+        let title: String = conn.query_row("SELECT title FROM book WHERE id = ?1", [&book_id], |r| r.get(0)).unwrap();
+        assert_eq!(
+            title, "My Corrected Title",
+            "a user-corrected title must survive a remove-then-reimport cycle, not be silently \
+             overwritten by the freshly-detected filename-derived title"
+        );
+    }
+
+    #[test]
+    fn a_book_without_a_user_correction_still_picks_up_the_freshly_detected_title_on_reimport() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let source = temp_file("uncorrected-then-reimported.epub", b"same fingerprint, no correction");
+        let book_id = import_book(&conn, &source, "First Detected Title", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
+
+        remove_from_library(&conn, &book_id).unwrap();
+        import_book(&conn, &source, "Second Detected Title", "epub", OwnershipMode::Reference).unwrap();
+
+        let title: String = conn.query_row("SELECT title FROM book WHERE id = ?1", [&book_id], |r| r.get(0)).unwrap();
+        assert_eq!(title, "Second Detected Title");
     }
 }

@@ -21,7 +21,7 @@ use commands::{
     restore_backup_command, run_ocr_job_command, save_ocr_correction_command,
     save_ocr_page_result_command, save_reading_location_command, save_workload_config_command,
     rebuild_search_index_command, search_in_book_command, search_library_command, set_daily_goal_command,
-    set_ocr_job_status_command, set_setting_command, start_next_read_command,
+    set_ocr_job_status_command, set_setting_command, start_next_read_command, update_book_title_command,
 };
 use ebookreader_domain::ocr_engine::OcrEngine;
 use ebookreader_domain::reading_session::ReadingSession;
@@ -57,6 +57,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             import_book_command,
             list_library_command,
+            update_book_title_command,
             create_collection_command,
             rename_collection_command,
             delete_collection_command,

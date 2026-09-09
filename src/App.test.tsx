@@ -322,6 +322,50 @@ describe("Library", () => {
   });
 });
 
+describe("Metadata editing (PRODUCT_SPEC.md SS3.4 'user-corrected metadata wins'; FC-A02)", () => {
+  it("edits a Book's title and refreshes the Library with the correction", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "Detected Title", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]); // initial list
+    invokeMock.mockResolvedValueOnce(undefined); // update_book_title_command
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "Corrected Title", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]); // refreshed list
+
+    render(<App />);
+    await screen.findByText("Detected Title");
+
+    await user.click(screen.getByRole("button", { name: "Edit Title" }));
+    const titleInput = screen.getByLabelText("Title");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Corrected Title");
+    await user.click(screen.getByRole("button", { name: "Save Title" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("update_book_title_command", { bookId: "b1", title: "Corrected Title" });
+    expect(await screen.findByText("Corrected Title")).toBeInTheDocument();
+  });
+
+  it("Cancel discards the draft title without calling the update command", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "Original Title", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    await screen.findByText("Original Title");
+
+    await user.click(screen.getByRole("button", { name: "Edit Title" }));
+    const titleInput = screen.getByLabelText("Title");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Discarded Draft");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByText("Original Title")).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("update_book_title_command", expect.anything());
+  });
+});
+
 describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
   it("creates a Collection and lists it as a filter option", async () => {
     const user = userEvent.setup();

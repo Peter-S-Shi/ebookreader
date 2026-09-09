@@ -118,6 +118,10 @@ function App() {
   const [organizeBookTags, setOrganizeBookTags] = useState<string[]>([]);
   const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
   const [newTagName, setNewTagName] = useState("");
+  // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
+  // Book's title is currently being edited inline, and the draft value.
+  const [renamingBookId, setRenamingBookId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
@@ -243,6 +247,23 @@ function App() {
 
   function cancelDuplicateImport() {
     setDuplicateImport(null);
+  }
+
+  function startRenamingBook(book: BookSummary) {
+    setRenamingBookId(book.book_id);
+    setRenameDraft(book.title);
+  }
+
+  function cancelRenamingBook() {
+    setRenamingBookId(null);
+  }
+
+  async function saveRenamedBook(bookId: string) {
+    const title = renameDraft.trim();
+    if (!title) return;
+    await invoke("update_book_title_command", { bookId, title });
+    setRenamingBookId(null);
+    await refreshLibrary();
   }
 
   async function removeBook(bookId: string) {
@@ -583,18 +604,42 @@ function App() {
                   const canOpen = book.available && READABLE_FORMATS.has(book.format);
                   return (
                     <li key={book.book_id}>
-                      {canOpen ? (
-                        <button type="button" onClick={() => setOpenBook(book)}>
-                          {book.title}
-                        </button>
+                      {renamingBookId === book.book_id ? (
+                        <span className="rename-book-form">
+                          <label>
+                            Title
+                            <input
+                              type="text"
+                              value={renameDraft}
+                              onChange={(e) => setRenameDraft(e.target.value)}
+                            />
+                          </label>
+                          <button type="button" onClick={() => saveRenamedBook(book.book_id)}>
+                            Save Title
+                          </button>
+                          <button type="button" onClick={cancelRenamingBook}>
+                            Cancel
+                          </button>
+                        </span>
                       ) : (
-                        book.title
-                      )}
-                      {!book.available && <span> — Needs Relink</span>}
-                      {canOpen && (
-                        <button type="button" onClick={() => openBilingualForBook(book)}>
-                          Bilingual
-                        </button>
+                        <>
+                          {canOpen ? (
+                            <button type="button" onClick={() => setOpenBook(book)}>
+                              {book.title}
+                            </button>
+                          ) : (
+                            book.title
+                          )}
+                          {!book.available && <span> — Needs Relink</span>}
+                          {canOpen && (
+                            <button type="button" onClick={() => openBilingualForBook(book)}>
+                              Bilingual
+                            </button>
+                          )}
+                          <button type="button" onClick={() => startRenamingBook(book)}>
+                            Edit Title
+                          </button>
+                        </>
                       )}
                       <button type="button" onClick={() => toggleOrganizePanel(book.book_id)}>
                         Organize

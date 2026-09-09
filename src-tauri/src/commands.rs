@@ -23,7 +23,7 @@ use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
     delete_managed_copy_file, delete_reading_data, get_book, import_book, import_book_managed, list_books,
-    relink_book_file, remove_book,
+    relink_book_file, remove_book, update_book_title,
     BookSummary, ImportOutcome, OwnershipMode, RelinkOutcome,
 };
 use serde::Serialize;
@@ -106,6 +106,17 @@ pub fn import_book_command(
 pub fn list_library_command(state: State<DbState>) -> Result<Vec<BookSummary>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     list_books(&conn).map_err(|e| format!("could not list Library: {e}"))
+}
+
+/// Applies a user-authored title correction to `book_id`
+/// (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"). Marks the
+/// title as user-edited so it is never again silently overwritten by
+/// automatically-detected metadata (e.g. a later remove-then-reimport
+/// cycle).
+#[tauri::command]
+pub fn update_book_title_command(state: State<DbState>, book_id: String, title: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    update_book_title(&conn, &book_id, &title).map_err(|e| format!("could not update book title: {e}"))
 }
 
 /// Create a Collection (`PRODUCT_SPEC.md` SS4.3: "a user-controlled
