@@ -36,6 +36,8 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [typographyOpen, setTypographyOpen] = useState(false);
   const [notebookOpen, setNotebookOpen] = useState(false);
+  const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
+  const [selection, setSelection] = useState<{ text: string; startOffset: number } | null>(null);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   useActualReadingTimeHeartbeat(bookId);
 
@@ -63,6 +65,53 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
       }
     })();
   }, [text, bookId]);
+
+  // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
+  // The absolute character offset is computed the same way regardless of
+  // DOM node structure: count the rendered text from the container's
+  // start up to the selection's start.
+  useEffect(() => {
+    function handleSelectionChange() {
+      const container = containerRef.current;
+      const sel = document.getSelection();
+      if (!container || !sel || sel.isCollapsed || sel.rangeCount === 0) {
+        setSelection(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!container.contains(range.commonAncestorContainer)) {
+        setSelection(null);
+        return;
+      }
+      const selectedText = sel.toString();
+      if (!selectedText.trim()) {
+        setSelection(null);
+        return;
+      }
+      const startRange = document.createRange();
+      startRange.selectNodeContents(container);
+      startRange.setEnd(range.startContainer, range.startOffset);
+      setSelection({ text: selectedText, startOffset: startRange.toString().length });
+    }
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, []);
+
+  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+    if (!selection || text === null) return;
+    const anchor: DocumentLocationDTO = {
+      book_id: bookId,
+      format: "txt",
+      progression_hint: text.length > 0 ? selection.startOffset / text.length : 0,
+      primary_anchor: String(selection.startOffset),
+      fallback_anchors: [],
+      context_selector: selection.text.slice(0, 80),
+    };
+    await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+    document.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
+  }
 
   function handleScroll() {
     const container = containerRef.current;
@@ -115,6 +164,7 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
           )}
           {notebookOpen && (
             <NotebookPanel
+              key={notebookRefreshKey}
               bookId={bookId}
               onClose={() => setNotebookOpen(false)}
               onJumpTo={(anchor) => {
@@ -133,6 +183,16 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {selection && (
+        <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <button type="button" onClick={() => handleCaptureSelection("annotation")}>
+            Highlight
+          </button>
+          <button type="button" onClick={() => handleCaptureSelection("excerpt")}>
+            Excerpt
+          </button>
+        </div>
       )}
       <div ref={containerRef} className="reader-surface txt-surface" onScroll={handleScroll}>
         <pre style={textStyle}>{text ?? "Loading…"}</pre>

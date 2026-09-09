@@ -40,13 +40,21 @@ interface FoliateBook {
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
   goTo(target: string): Promise<void>;
-  lastLocation?: { cfi?: string };
+  getCFI(index: number, range: Range): string;
+  lastLocation?: { cfi?: string; fraction?: number };
   isFixedLayout?: boolean;
   renderer?: FoliateRenderer;
   book?: FoliateBook;
 }
 
 type OpenPanel = "typography" | "toc" | "notebook" | null;
+
+interface ActiveSelection {
+  doc: Document;
+  range: Range;
+  text: string;
+  index: number;
+}
 
 // Minimal EPUB reading surface: opens the Book via foliate-js and keeps
 // its DocumentLocation (ARCHITECTURE.md SS5) durable across reopens by
@@ -65,6 +73,8 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("paginated-double");
+  const [selection, setSelection] = useState<ActiveSelection | null>(null);
+  const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const playPageTurnRef = useRef(playPageTurn);
   useEffect(() => {
@@ -109,6 +119,29 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
         await view.goTo(saved.primary_anchor).catch(() => {});
       }
 
+      // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11:
+      // "text selection exposes lightweight Highlight / Excerpt / Note
+      // actions"). foliate-js renders each section into its own document
+      // (an iframe under the shadow root), so selection must be tracked
+      // per-document as sections load, not once on the top-level view.
+      view.addEventListener("load", (event: Event) => {
+        const detail = (event as CustomEvent).detail ?? {};
+        const doc: Document | undefined = detail.doc;
+        const index: number = detail.index;
+        if (!doc) return;
+        doc.addEventListener("selectionchange", () => {
+          const sel = doc.getSelection?.();
+          if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            const text = sel.toString();
+            if (text.trim()) {
+              setSelection({ doc, range: sel.getRangeAt(0).cloneRange(), text, index });
+              return;
+            }
+          }
+          setSelection(null);
+        });
+      });
+
       view.addEventListener("relocate", (event: Event) => {
         const detail = (event as CustomEvent).detail ?? {};
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
@@ -141,6 +174,27 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
   function handleTocNavigate(href: string) {
     viewRef.current?.goTo(href).catch(() => {});
     setOpenPanel(null);
+  }
+
+  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+    const active = selection;
+    const view = viewRef.current;
+    if (!active || !view) return;
+
+    const cfi = view.getCFI(active.index, active.range);
+    const anchor: DocumentLocationDTO = {
+      book_id: bookId,
+      format: "epub",
+      progression_hint: view.lastLocation?.fraction ?? 0,
+      primary_anchor: cfi,
+      fallback_anchors: [],
+      context_selector: active.text.slice(0, 80),
+    };
+
+    await invoke("create_reading_asset_command", { bookId, kind, text: active.text, anchor }).catch(() => {});
+    active.doc.getSelection?.()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
   }
 
   function handleViewModeChange(next: ViewMode) {
@@ -201,6 +255,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
           )}
           {openPanel === "notebook" && (
             <NotebookPanel
+              key={notebookRefreshKey}
               bookId={bookId}
               onClose={() => setOpenPanel(null)}
               onJumpTo={(anchor) => {
@@ -214,6 +269,16 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {selection && (
+        <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <button type="button" onClick={() => handleCaptureSelection("annotation")}>
+            Highlight
+          </button>
+          <button type="button" onClick={() => handleCaptureSelection("excerpt")}>
+            Excerpt
+          </button>
+        </div>
       )}
       <div ref={hostRef} className="reader-surface" />
     </ReaderShell>

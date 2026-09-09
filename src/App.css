@@ -103,6 +103,41 @@ button {
   padding: 16px 0;
 }
 
+/* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
+   a minimal hand-ported subset of pdfjs-dist's own .textLayer rules
+   (node_modules/pdfjs-dist/web/pdf_viewer.css) -- just enough to make
+   pdfjs-dist's TextLayer output invisible-but-selectable and correctly
+   positioned; the full pdf_viewer.css ships ~6000 unrelated lines (its own
+   toolbar/dialog/XFA-form chrome) this app's minimal custom UI does not
+   want (DESIGN.md's own non-goal: don't grow developer-console-style
+   chrome). PRODUCT_SPEC.md SS11 "text selection exposes lightweight
+   Highlight / Excerpt / Note actions". */
+.pdf-page {
+  position: relative;
+}
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  transform-origin: 0 0;
+}
+
+.pdf-text-layer span,
+.pdf-text-layer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.pdf-text-layer ::selection {
+  background: rgba(0, 100, 255, 0.3);
+}
+
 /* Focus Reading (DESIGN.md SS6): minimal reader chrome, subtle surface
    contrast -- only the Focus/Exit Focus toggle remains in the toolbar. */
 .focus-toggle {
@@ -223,6 +258,30 @@ button {
   padding: 0.25em 0;
   text-align: left;
   width: 100%;
+}
+
+/* Selection toolbar (PRODUCT_SPEC.md SS11: "text selection exposes
+   lightweight Highlight / Excerpt / Note actions"): a small floating bar
+   shown while there is an active text selection in the reading surface. */
+.selection-toolbar {
+  position: absolute;
+  top: 3em;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: flex;
+  gap: 0.5em;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: #f6f6f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .selection-toolbar {
+    background-color: #2f2f2f;
+  }
 }
 
 /* Notebook panel (DESIGN.md SS5 "Notebook · optional"): anchored under the

@@ -40,10 +40,13 @@ type PdfViewMode = "single" | "continuous";
 // (100s of pages) documents' rendering performance are later-checkpoint
 // residuals: continuous mode here renders every page eagerly, which is
 // fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Zoom/fit, text selection, and
-// search remain later M2/M4 checkpoints, not this one.
+// virtualization for much longer documents. Zoom/fit and search remain
+// later checkpoints. Text selection -> Highlight/Excerpt (M4, SS11) is
+// implemented for single-page mode via a pdf.js TextLayer overlaid on the
+// canvas; continuous mode's per-page selection scoping is a follow-up.
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const [status, setStatus] = useState("Loading…");
@@ -51,6 +54,8 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const [pageCount, setPageCount] = useState(0);
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const [notebookOpen, setNotebookOpen] = useState(false);
+  const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
+  const [selection, setSelection] = useState<{ text: string; page: number } | null>(null);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
@@ -107,6 +112,24 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       canvas.height = viewport.height;
       await page.render({ canvasContext: context, viewport, canvas }).promise;
       if (cancelled) return;
+
+      // Text layer: an invisible, selectable text overlay matched to the
+      // canvas's rendered geometry, so PRODUCT_SPEC.md SS11's "text
+      // selection exposes lightweight Highlight / Excerpt / Note actions"
+      // holds for Text PDF (not the pre-OCR scanned-PDF degraded state,
+      // SS13.2, which this reader does not otherwise attempt).
+      const textLayerDiv = textLayerRef.current;
+      if (textLayerDiv) {
+        textLayerDiv.replaceChildren();
+        textLayerDiv.style.width = `${viewport.width}px`;
+        textLayerDiv.style.height = `${viewport.height}px`;
+        textLayerDiv.style.setProperty("--total-scale-factor", String(viewport.scale));
+        const textContent = await page.streamTextContent();
+        if (cancelled) return;
+        await new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport }).render();
+      }
+      if (cancelled) return;
+
       setStatus("Ready");
       saveLocation(pageNumber, pdf.numPages);
     })();
@@ -115,6 +138,51 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       cancelled = true;
     };
   }, [viewMode, pageNumber, bookId]);
+
+  // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
+  // Single-page mode only this checkpoint -- continuous mode would need
+  // per-page-div selection scoping across many simultaneously mounted text
+  // layers, a follow-up, not folded in here.
+  useEffect(() => {
+    if (viewMode !== "single") return;
+    function handleSelectionChange() {
+      const layer = textLayerRef.current;
+      const sel = document.getSelection();
+      if (!layer || !sel || sel.isCollapsed || sel.rangeCount === 0) {
+        setSelection(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!layer.contains(range.commonAncestorContainer)) {
+        setSelection(null);
+        return;
+      }
+      const text = sel.toString();
+      if (!text.trim()) {
+        setSelection(null);
+        return;
+      }
+      setSelection({ text, page: pageNumber });
+    }
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [viewMode, pageNumber]);
+
+  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+    if (!selection) return;
+    const anchor: DocumentLocationDTO = {
+      book_id: bookId,
+      format: "pdf",
+      progression_hint: pageCount > 0 ? selection.page / pageCount : 0,
+      primary_anchor: String(selection.page),
+      fallback_anchors: [],
+      context_selector: selection.text.slice(0, 80),
+    };
+    await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+    document.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
+  }
 
   // Continuous mode: render every page into a scrollable stack, and jump
   // to the saved page once on entry.
@@ -223,6 +291,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       overlay={
         notebookOpen && (
           <NotebookPanel
+            key={notebookRefreshKey}
             bookId={bookId}
             onClose={() => setNotebookOpen(false)}
             onJumpTo={(anchor) => {
@@ -240,9 +309,22 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
       )}
+      {viewMode === "single" && selection && (
+        <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <button type="button" onClick={() => handleCaptureSelection("annotation")}>
+            Highlight
+          </button>
+          <button type="button" onClick={() => handleCaptureSelection("excerpt")}>
+            Excerpt
+          </button>
+        </div>
+      )}
       {viewMode === "single" ? (
         <div className="reader-surface">
-          <canvas ref={canvasRef} />
+          <div className="pdf-page">
+            <canvas ref={canvasRef} />
+            <div ref={textLayerRef} className="pdf-text-layer" />
+          </div>
         </div>
       ) : (
         <div
