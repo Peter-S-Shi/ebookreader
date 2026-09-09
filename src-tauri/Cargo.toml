@@ -27,6 +27,7 @@ ebookreader-domain = { path = "../crates/domain" }
 rusqlite = { version = "0.32", features = ["bundled"] }
 winreg = "0.52"
 uuid = { version = "1", features = ["v4"] }
+image = "0.25"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [

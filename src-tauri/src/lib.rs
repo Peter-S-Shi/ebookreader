@@ -10,16 +10,23 @@ use commands::{
     index_search_text_command, list_all_reading_assets_command, list_library_command, list_reading_assets_command,
     list_system_fonts_command, load_reading_location_command, mark_reading_asset_orphaned_command,
     override_completed_reads_command, read_book_file_command, reading_session_status_command,
-    record_active_reading_time_command, relink_book_command, remove_book_command, save_ocr_correction_command,
-    save_ocr_page_result_command, save_reading_location_command, save_workload_config_command,
-    rebuild_search_index_command, search_in_book_command, search_library_command, set_ocr_job_status_command,
-    start_next_read_command,
+    record_active_reading_time_command, relink_book_command, remove_book_command, run_ocr_job_command,
+    save_ocr_correction_command, save_ocr_page_result_command, save_reading_location_command,
+    save_workload_config_command, rebuild_search_index_command, search_in_book_command, search_library_command,
+    set_ocr_job_status_command, start_next_read_command,
 };
+use ebookreader_domain::ocr_engine::OcrEngine;
 use ebookreader_domain::reading_session::ReadingSession;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 pub struct ReadingSessionState(pub Arc<Mutex<ReadingSession>>);
+
+/// The loaded OCR engine, if any -- `None` until the first OCR job actually
+/// runs (loading three ONNX sessions is expensive and unnecessary for users
+/// who never use OCR). See `commands::find_ocr_assets_dir` for how the
+/// model files are located.
+pub struct OcrEngineState(pub Mutex<Option<OcrEngine>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,6 +42,7 @@ pub fn run() {
             reading_session_hook::install(reading_session.clone())
                 .map_err(|e| format!("could not install session-lock hook: {e}"))?;
             app.manage(ReadingSessionState(reading_session));
+            app.manage(OcrEngineState(Mutex::new(None)));
 
             Ok(())
         })
@@ -71,7 +79,8 @@ pub fn run() {
             save_ocr_page_result_command,
             save_ocr_correction_command,
             get_ocr_effective_text_command,
-            clear_ocr_cache_command
+            clear_ocr_cache_command,
+            run_ocr_job_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

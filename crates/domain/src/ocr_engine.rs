@@ -205,6 +205,61 @@ impl OcrEngine {
     }
 }
 
+/// Assembles recognized lines into page text using a single-column
+/// top-to-bottom, left-to-right reading order: lines are bucketed into
+/// "rows" by their vertical center (bucket size = the median line height,
+/// so near-equal y-centers on the same printed line group together despite
+/// small detection jitter), rows are ordered top to bottom, and lines
+/// within a row are ordered left to right by their left edge.
+///
+/// This is a deliberately simple heuristic scoped to single-column body
+/// text. It does **not** solve multi-column splicing (a line from the left
+/// column and a line from the right column at the same height will be
+/// merged into one row and ordered left-to-right, which is *accidentally*
+/// correct for two columns read left-then-right but wrong for column
+/// layouts that should be read one column fully before the next) or
+/// vertical CJK reading order -- both remain open M0-carried residuals
+/// owned by M5 (`PROJECT_STATUS.md` "M0's carried-forward OCR residuals").
+pub fn reading_order_text(lines: &[RecognizedLine]) -> String {
+    if lines.is_empty() {
+        return String::new();
+    }
+
+    struct Positioned {
+        index: usize,
+        y_center: f64,
+        x_min: f64,
+        height: f64,
+    }
+
+    let mut positioned: Vec<Positioned> = lines
+        .iter()
+        .enumerate()
+        .map(|(index, l)| {
+            let ys: Vec<f64> = l.points.iter().map(|p| p.1).collect();
+            let xs: Vec<f64> = l.points.iter().map(|p| p.0).collect();
+            let y_min = ys.iter().cloned().fold(f64::INFINITY, f64::min);
+            let y_max = ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let x_min = xs.iter().cloned().fold(f64::INFINITY, f64::min);
+            Positioned { index, y_center: (y_min + y_max) / 2.0, x_min, height: (y_max - y_min).max(1.0) }
+        })
+        .collect();
+
+    let median_height = {
+        let mut heights: Vec<f64> = positioned.iter().map(|p| p.height).collect();
+        heights.sort_by(|a, b| a.total_cmp(b));
+        heights[heights.len() / 2].max(1.0)
+    };
+
+    positioned.sort_by(|a, b| {
+        let row_a = (a.y_center / median_height).round() as i64;
+        let row_b = (b.y_center / median_height).round() as i64;
+        row_a.cmp(&row_b).then_with(|| a.x_min.total_cmp(&b.x_min))
+    });
+
+    positioned.iter().map(|p| lines[p.index].text.as_str()).collect::<Vec<_>>().join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,5 +290,51 @@ mod tests {
         for line in &lines {
             assert!(line.det_score > 0.0);
         }
+    }
+
+    fn line_at(text: &str, x_min: f64, y_min: f64, w: f64, h: f64) -> RecognizedLine {
+        RecognizedLine {
+            points: [(x_min, y_min), (x_min + w, y_min), (x_min + w, y_min + h), (x_min, y_min + h)],
+            det_score: 0.9,
+            text: text.to_string(),
+            rec_confidence: 0.9,
+            rotated_180: false,
+        }
+    }
+
+    #[test]
+    fn reading_order_text_orders_rows_top_to_bottom() {
+        let lines = vec![
+            line_at("second", 0.0, 100.0, 200.0, 20.0),
+            line_at("first", 0.0, 0.0, 200.0, 20.0),
+            line_at("third", 0.0, 200.0, 200.0, 20.0),
+        ];
+        assert_eq!(reading_order_text(&lines), "first\nsecond\nthird");
+    }
+
+    #[test]
+    fn reading_order_text_orders_same_row_left_to_right() {
+        let lines = vec![
+            line_at("right", 300.0, 0.0, 100.0, 20.0),
+            line_at("left", 0.0, 0.0, 100.0, 20.0),
+        ];
+        assert_eq!(reading_order_text(&lines), "left\nright");
+    }
+
+    #[test]
+    fn reading_order_text_tolerates_small_y_jitter_within_the_same_line() {
+        // Real detector output rarely produces exactly-equal y-centers for
+        // two boxes on the same printed line; a few pixels of jitter must
+        // still be treated as the same row.
+        let lines = vec![
+            line_at("right", 300.0, 2.0, 100.0, 20.0),
+            line_at("left", 0.0, 0.0, 100.0, 20.0),
+        ];
+        assert_eq!(reading_order_text(&lines), "left\nright");
+    }
+
+    #[test]
+    fn reading_order_text_of_an_empty_page_is_empty() {
+        assert_eq!(reading_order_text(&[]), "");
     }
 }

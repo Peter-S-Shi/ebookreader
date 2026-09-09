@@ -3,7 +3,7 @@
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
 use crate::db::{managed_books_dir, DbState};
-use crate::ReadingSessionState;
+use crate::{OcrEngineState, ReadingSessionState};
 use ebookreader_domain::actual_reading_time::{load_actual_reading_time, save_actual_reading_time, ActualReadingTime};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
@@ -11,6 +11,7 @@ use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
 use ebookreader_domain::ocr::{self, OcrJob, OcrJobStatus, OcrScope};
+use ebookreader_domain::ocr_engine::{reading_order_text, OcrEngine};
 use ebookreader_domain::progress_store::{load_progress, save_progress};
 use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::search::{self, SearchHit};
@@ -477,4 +478,109 @@ pub fn get_ocr_effective_text_command(state: State<DbState>, book_id: String, pa
 pub fn clear_ocr_cache_command(state: State<DbState>, book_id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     ocr::clear_page_results(&conn, &book_id).map_err(|e| format!("could not clear OCR cache: {e}"))
+}
+
+/// Searches this machine for the local, gitignored `ocr-assets/` dev
+/// convention (`tooling/m5-evidence/README.md`): the current working
+/// directory and the running executable's directory, each searched up
+/// through a few parent levels for a folder containing `onnxruntime.dll`.
+///
+/// This is a dev-only convenience, not a release distribution strategy --
+/// per that same evidence doc, the final self-contained model/runtime
+/// packaging decision is explicitly deferred to later release evidence
+/// work, not resolved here.
+fn find_ocr_assets_dir() -> Option<std::path::PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        roots.push(cwd);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            roots.push(dir.to_path_buf());
+        }
+    }
+    for root in roots {
+        let mut dir = root.as_path();
+        for _ in 0..6 {
+            let candidate = dir.join("ocr-assets");
+            if candidate.join("onnxruntime.dll").is_file() {
+                return Some(candidate);
+            }
+            match dir.parent() {
+                Some(parent) => dir = parent,
+                None => break,
+            }
+        }
+    }
+    None
+}
+
+/// Runs the real OCR pipeline (detect -> classify orientation -> recognize
+/// -> reading-order assembly) over the given page images and saves each
+/// page's result via `ocr::save_page_result` -- the rebuildable cache a
+/// user's correction (`save_ocr_correction_command`) always takes priority
+/// over (`ROADMAP.md` M5 Exit Gate).
+///
+/// Synchronous for now: this call blocks until every page in `pages` is
+/// processed (real 3-model inference is not fast -- seconds per page).
+/// Real mid-run pause/cancel and incremental progress reporting are not
+/// wired here; `OcrJobStatus::Running` is set for the duration and
+/// `Succeeded`/`Failed` at the end. Wiring actual pause/cancel/progress
+/// into this call is scoped to the frontend job-trigger/progress UI
+/// checkpoint, not this one.
+#[tauri::command]
+pub fn run_ocr_job_command(
+    state: State<DbState>,
+    ocr_state: State<OcrEngineState>,
+    job_id: String,
+    book_id: String,
+    pages: Vec<(u32, String)>,
+) -> Result<(), String> {
+    {
+        let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+        ocr::set_job_status(&conn, &job_id, OcrJobStatus::Running)
+            .map_err(|e| format!("could not start OCR job: {e}"))?;
+    }
+
+    let mut engine_guard = ocr_state.0.lock().map_err(|e| format!("OCR engine lock poisoned: {e}"))?;
+    if engine_guard.is_none() {
+        let assets_dir = find_ocr_assets_dir()
+            .ok_or_else(|| "OCR is unavailable on this machine (no local OCR model assets found)".to_string())?;
+        let engine = OcrEngine::load(
+            &assets_dir.join("onnxruntime.dll"),
+            &assets_dir.join("PP-OCRv6_det_medium.onnx"),
+            &assets_dir.join("ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
+            &assets_dir.join("PP-OCRv6_rec_small.onnx"),
+        )
+        .map_err(|e| format!("failed to load OCR engine: {e}"))?;
+        *engine_guard = Some(engine);
+    }
+    let engine = engine_guard.as_mut().expect("just set to Some above");
+
+    for (page_number, image_path) in pages {
+        let img = match image::open(&image_path) {
+            Ok(img) => img,
+            Err(e) => {
+                let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+                ocr::set_job_status(&conn, &job_id, OcrJobStatus::Failed).ok();
+                return Err(format!("could not open page {page_number} image at {image_path}: {e}"));
+            }
+        };
+        let lines = match engine.process_page(&img) {
+            Ok(lines) => lines,
+            Err(e) => {
+                let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+                ocr::set_job_status(&conn, &job_id, OcrJobStatus::Failed).ok();
+                return Err(format!("OCR failed on page {page_number}: {e}"));
+            }
+        };
+        let text = reading_order_text(&lines);
+        let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+        ocr::save_page_result(&conn, &book_id, page_number, &text)
+            .map_err(|e| format!("could not save OCR page result: {e}"))?;
+    }
+
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::set_job_status(&conn, &job_id, OcrJobStatus::Succeeded)
+        .map_err(|e| format!("could not finish OCR job: {e}"))
 }

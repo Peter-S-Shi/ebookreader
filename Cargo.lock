@@ -1111,6 +1111,7 @@ name = "ebookreader"
 version = "0.1.0"
 dependencies = [
  "ebookreader-domain",
+ "image",
  "rusqlite",
  "serde",
  "serde_json",
