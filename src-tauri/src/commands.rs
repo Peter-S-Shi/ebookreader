@@ -5,6 +5,7 @@
 use crate::db::{managed_books_dir, DbState};
 use crate::ReadingSessionState;
 use ebookreader_domain::actual_reading_time::{load_actual_reading_time, save_actual_reading_time, ActualReadingTime};
+use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
 use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
@@ -342,4 +343,65 @@ pub fn search_library_command(state: State<DbState>, query: String) -> Result<Ve
 pub fn search_in_book_command(state: State<DbState>, query: String, book_id: String) -> Result<Vec<SearchHit>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     search::search_in_book(&conn, &query, &book_id).map_err(|e| format!("search failed: {e}"))
+}
+
+fn parse_asset_kind(kind: &str) -> Result<AssetKind, String> {
+    match kind {
+        "annotation" => Ok(AssetKind::Annotation),
+        "excerpt" => Ok(AssetKind::Excerpt),
+        "note" => Ok(AssetKind::Note),
+        other => Err(format!("unknown asset kind: {other}")),
+    }
+}
+
+/// Create a Notebook asset (Annotation/Note/Excerpt, `PRODUCT_SPEC.md`
+/// SS4.7-4.9). `anchor` is `None` for a free-standing Note. Also indexes
+/// the asset's text into the search index (`ROADMAP.md` M4: "global search
+/// covers required sources" includes "Note content", "Excerpt content",
+/// "user-authored annotation text/metadata").
+#[tauri::command]
+pub fn create_reading_asset_command(
+    state: State<DbState>,
+    book_id: String,
+    kind: String,
+    text: String,
+    anchor: Option<DocumentLocation>,
+) -> Result<ReadingAsset, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let asset = ReadingAsset {
+        id: uuid::Uuid::new_v4().to_string(),
+        book_id,
+        kind: parse_asset_kind(&kind)?,
+        text,
+        anchor,
+        orphaned: false,
+    };
+    assets::create_asset(&conn, &asset).map_err(|e| format!("could not create reading asset: {e}"))?;
+    search::index_text(&conn, &asset.book_id, &kind, &asset.id, &asset.text)
+        .map_err(|e| format!("could not index reading asset text: {e}"))?;
+    Ok(asset)
+}
+
+/// A Book's Notebook: all its Annotation/Note/Excerpt assets.
+#[tauri::command]
+pub fn list_reading_assets_command(state: State<DbState>, book_id: String) -> Result<Vec<ReadingAsset>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    assets::list_assets_for_book(&conn, &book_id).map_err(|e| format!("could not list reading assets: {e}"))
+}
+
+/// Global Notes: cross-book asset listing, optionally filtered by kind.
+#[tauri::command]
+pub fn list_all_reading_assets_command(state: State<DbState>, kind: Option<String>) -> Result<Vec<ReadingAsset>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let kind = kind.map(|k| parse_asset_kind(&k)).transpose()?;
+    assets::list_all_assets(&conn, kind).map_err(|e| format!("could not list reading assets: {e}"))
+}
+
+/// Mark an asset Orphaned/Detached because its source anchor became
+/// unrecoverable (e.g. a relink to a file that no longer contains it).
+/// Per `PRODUCT_SPEC.md` SS11, this never deletes the asset's text.
+#[tauri::command]
+pub fn mark_reading_asset_orphaned_command(state: State<DbState>, asset_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    assets::mark_orphaned(&conn, &asset_id).map_err(|e| format!("could not mark asset orphaned: {e}"))
 }

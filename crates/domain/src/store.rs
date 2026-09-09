@@ -104,6 +104,23 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 5 {
+        conn.execute_batch(
+            "
+            CREATE TABLE reading_asset (
+                id TEXT PRIMARY KEY,
+                book_id TEXT NOT NULL REFERENCES book(id),
+                kind TEXT NOT NULL,
+                text TEXT NOT NULL,
+                anchor_json TEXT,
+                orphaned INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX idx_reading_asset_book ON reading_asset(book_id);
+            PRAGMA user_version = 5;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -366,7 +383,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 
     #[test]
