@@ -69,26 +69,70 @@ substring is then placed into a left-to-right column sequence that should
 have been right-to-left. The real output (e.g. `也尹楚遂南楚城是以告`) does
 not form a coherent classical-Chinese sentence in the order produced.
 
-## Architecture Implication
+## Architecture Implication (Finding 2)
 
-`reading_order_text`'s current heuristic (row-bucket by median line
-height, then left-to-right) is confirmed -- not just suspected -- to be
-insufficient for both multi-column layouts and vertical CJK script. A
-real fix needs, at minimum: (a) column detection/grouping (cluster boxes
-into columns by x-position before ordering, and fully order one column
-before starting the next, rather than interleaving by row) and (b) a
-script-direction-aware ordering mode (right-to-left column order, and
-top-to-bottom-within-column, for vertical CJK), likely gated on some
-signal of "this page/region is vertical text" -- PP-OCR's own family
-includes layout-analysis and text-direction models that were not part of
-this session's reused asset set and are a real, scoped follow-up
-decision, not assumed here.
+`reading_order_text`'s original heuristic (row-bucket by median line
+height, then left-to-right) was confirmed -- not just suspected -- to be
+insufficient for multi-column layouts: two side-by-side columns'
+lines at the same height get interleaved row-by-row instead of each
+column being read to completion.
 
-## Status: residual explicitly confirmed with evidence, not yet closed
+## Fix (Finding 2) — column-aware ordering, validated against the real fixture
 
-This checkpoint does not close M0's multi-column/vertical-CJK residual --
-it replaces an assumed failure mode with a concretely demonstrated one on
-the real fixture M0 originally used, with the exact defect pattern
-identified for whoever picks up the layout-analysis work next. Single-
-column body text (the majority case for most books) is unaffected by
-either finding.
+Replaced the flat row-bucket ordering with a two-level one: `assign_columns`
+clusters lines into columns by looking for gaps in the *sorted sequence of
+line horizontal centers* wider than 3x the page's median line height (a
+real column gutter reliably produces a much bigger jump than ordinary
+within-column spacing or paragraph indents). Lines are then ordered by
+column (left to right), and within a column by row (top to bottom, then
+left to right for same-row jitter) -- each column is read to completion
+before the next starts.
+
+This specifically avoids a simpler but riskier approach (clustering by
+extending each column's x-range/bounding-box envelope): a stray full-width
+line -- a header, footer, or page number spanning most of the page --
+would make that approach merge two real columns into one by "swallowing"
+the gap between them. Clustering by sorted-center gaps instead means a
+full-width line only affects its own position, never merges two real
+columns; a synthetic regression test
+(`a_full_width_header_does_not_merge_two_real_columns`) locks this in.
+
+Re-ran the real pipeline against `ia_200.jpg` with the fix in place. The
+two-column commentary block that previously spliced now reads as two
+coherent, continuous paragraphs, each read to completion:
+
+> Par.1.Seetheaccountoftheformationof TheChuenheresays:-'Thedisbandingofthe
+> the3dorarmyofthecentreunderIX.xi.1. armyofthecentrewastoreduce[still]lower
+> theducalHouse.Thedisbandingwas[pro-]posed]atthehouseoftheShefamily,and
+> determinedonatthatoftheTsang.'Formerly,whenthearnyofthecentrewas
+> firstconstituted,theducalIlousewas[asit were]dividedintothreeparts,...
+
+(word-spacing loss is the separate, already-known Finding 1 defect, not a
+new one) -- and the second column separately, also coherent, starting
+"disbandingofthemiddlearmy.Wehavedis-...". A synthetic two-column
+regression test (`column_clustering_separates_two_side_by_side_columns`)
+covers this in CI without needing model assets. **Multi-column English
+splicing: fixed and validated, not just theorized.**
+
+## Fix status for Finding 3 (vertical CJK) — still open
+
+Column clustering does not address script direction: columns are still
+read left-to-right, top-to-bottom-within-column, which remains wrong for
+vertical classical Chinese (should be right-to-left column order). The
+real output for that block is unchanged by this fix and still does not
+form a coherent sequence. A real fix needs a script-direction-aware
+ordering mode, likely gated on some signal of "this page/region is
+vertical text" -- PP-OCR's own family includes layout-analysis and
+text-direction models that were not part of this session's reused asset
+set, and remains a real, scoped follow-up decision, not assumed or
+attempted here.
+
+## Status: Finding 2 (multi-column) closed with validated evidence; Finding 3 (vertical CJK) remains an explicitly open residual
+
+Single-column body text (the majority case for most books) and now
+side-by-side multi-column layouts (a common case for commentary/notes,
+dictionaries, and academic texts) both produce coherent reading order.
+Vertical CJK script direction is the one reading-order defect mode from
+M0's original finding that is not yet closed -- carried forward
+explicitly, with the exact defect pattern and a concrete next step named,
+not silently dropped.
