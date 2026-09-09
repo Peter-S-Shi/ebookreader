@@ -461,7 +461,11 @@ pub fn save_ocr_page_result_command(state: State<DbState>, book_id: String, page
 pub fn save_ocr_correction_command(state: State<DbState>, book_id: String, page_number: u32, corrected_text: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     ocr::save_correction(&conn, &book_id, page_number, &corrected_text)
-        .map_err(|e| format!("could not save OCR correction: {e}"))
+        .map_err(|e| format!("could not save OCR correction: {e}"))?;
+    // Keep Library-wide Search current with the user's correction, not the
+    // stale raw OCR text (PRODUCT_SPEC.md SS12's "corrected OCR text").
+    search::index_text(&conn, &book_id, "book_text", &page_number.to_string(), &corrected_text).ok();
+    Ok(())
 }
 
 /// The text a Reader/search should actually use for a page: the user's
@@ -564,6 +568,22 @@ pub fn run_ocr_job_command(
     let engine = engine_guard.as_mut().expect("just set to Some above");
 
     for (page_number, image_bytes) in pages {
+        // Real pause/cancel (SS13.1: "jobs can pause/resume/cancel"): this
+        // call is otherwise a single blocking loop, so mid-run pause/cancel
+        // can only work by having a *concurrent* set_ocr_job_status_command
+        // call update the job row while this loop is running, and this loop
+        // noticing it between pages. Resume is the frontend's job: it
+        // re-derives which pages still lack a saved result and issues a
+        // fresh run_ocr_job_command for only those.
+        {
+            let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+            if let Ok(Some(job)) = ocr::get_job(&conn, &job_id) {
+                if matches!(job.status, OcrJobStatus::Paused | OcrJobStatus::Cancelled) {
+                    return Ok(());
+                }
+            }
+        }
+
         let img = match image::load_from_memory(&image_bytes) {
             Ok(img) => img,
             Err(e) => {
@@ -584,6 +604,11 @@ pub fn run_ocr_job_command(
         let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
         ocr::save_page_result(&conn, &book_id, page_number, &text)
             .map_err(|e| format!("could not save OCR page result: {e}"))?;
+        // PRODUCT_SPEC.md SS12's required Library-wide Search source list
+        // names "corrected OCR text" -- index the raw result now so it's
+        // searchable immediately; save_ocr_correction_command re-indexes
+        // with the corrected text when/if the user edits it.
+        search::index_text(&conn, &book_id, "book_text", &page_number.to_string(), &text).ok();
     }
 
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;

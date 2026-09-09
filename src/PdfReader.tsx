@@ -83,7 +83,15 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   // an honest "running, this may take a while" (SS13.2's "no pretending").
   const [ocrScope, setOcrScope] = useState<"current" | "selected" | "entire">("current");
   const [ocrPageRangeInput, setOcrPageRangeInput] = useState("");
-  const [ocrPhase, setOcrPhase] = useState<"idle" | "rendering" | "inferring" | "succeeded" | "failed">("idle");
+  const [ocrPhase, setOcrPhase] = useState<"idle" | "rendering" | "inferring" | "paused" | "cancelled" | "succeeded" | "failed">(
+    "idle",
+  );
+  // job id + originally-requested page list, kept so Pause/Resume/Cancel
+  // can act on the in-flight job and Resume can re-derive which of the
+  // originally-requested pages still need OCR (real SS13.1 pause/resume/
+  // cancel, not just the data-model shape for it).
+  const [ocrJobId, setOcrJobId] = useState<string | null>(null);
+  const [ocrTargetPages, setOcrTargetPages] = useState<number[]>([]);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [ocrPagesRun, setOcrPagesRun] = useState<number | null>(null);
@@ -190,6 +198,41 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
     return Array.from(atob(base64), (c) => c.charCodeAt(0));
   }
 
+  // Sends `pagesToRun` through one run_ocr_job_command call, then checks the
+  // job's actual final status (it may have been paused/cancelled mid-run by
+  // a concurrent set_ocr_job_status_command call -- see commands.rs) rather
+  // than assuming the call finishing means "succeeded".
+  async function runPagesForJob(jobId: string, pagesToRun: number[]) {
+    setOcrPhase("rendering");
+    const pages: [number, number[]][] = [];
+    for (const p of pagesToRun) {
+      pages.push([p, await renderPageToPngBytes(p)]);
+    }
+
+    setOcrPhase("inferring");
+    await invoke("run_ocr_job_command", { jobId, bookId, pages });
+
+    const job = await invoke<{ status: string } | null>("get_ocr_job_command", { jobId });
+    if (job?.status === "cancelled") {
+      setOcrPhase("cancelled");
+      return;
+    }
+    if (job?.status === "paused") {
+      setOcrPhase("paused");
+      return;
+    }
+    if (ocrScope === "current") {
+      const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber });
+      setOcrText(text ?? "");
+    } else {
+      // Multi-page: no single page's text to show here -- navigate to a
+      // page to see its saved result via the effective-text loader above.
+      setOcrText(null);
+    }
+    setOcrPagesRun(ocrTargetPages.length);
+    setOcrPhase("succeeded");
+  }
+
   async function handleRunOcr() {
     const pdf = pdfRef.current;
     if (!pdf) return;
@@ -201,9 +244,9 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           : parsePageRangeInput(ocrPageRangeInput, pdf.numPages);
     if (targetPages.length === 0) return;
 
-    setOcrPhase("rendering");
     setOcrError(null);
     setOcrPagesRun(null);
+    setOcrTargetPages(targetPages);
     try {
       const job = await invoke<{ id: string }>("create_ocr_job_command", {
         bookId,
@@ -214,25 +257,45 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
               ? { kind: "entire_book" }
               : { kind: "selected_pages", pages: targetPages },
       });
+      setOcrJobId(job.id);
+      await runPagesForJob(job.id, targetPages);
+    } catch (e) {
+      setOcrError(String(e));
+      setOcrPhase("failed");
+    }
+  }
 
-      const pages: [number, number[]][] = [];
-      for (const p of targetPages) {
-        pages.push([p, await renderPageToPngBytes(p)]);
+  // Pause/Cancel are fire-and-forget concurrent calls: Tauri commands run
+  // independently, so this reaches the DB while run_ocr_job_command's loop
+  // is still awaiting inference on the current page -- the loop notices the
+  // status change before starting the *next* page (commands.rs), it cannot
+  // interrupt a page already in flight.
+  async function handlePauseOcr() {
+    if (!ocrJobId) return;
+    await invoke("set_ocr_job_status_command", { jobId: ocrJobId, status: "paused" }).catch(() => {});
+  }
+
+  async function handleCancelOcr() {
+    if (!ocrJobId) return;
+    await invoke("set_ocr_job_status_command", { jobId: ocrJobId, status: "cancelled" }).catch(() => {});
+  }
+
+  async function handleResumeOcr() {
+    if (!ocrJobId) return;
+    setOcrError(null);
+    try {
+      await invoke("set_ocr_job_status_command", { jobId: ocrJobId, status: "running" });
+      const remaining: number[] = [];
+      for (const p of ocrTargetPages) {
+        const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber: p });
+        if (text === null) remaining.push(p);
       }
-
-      setOcrPhase("inferring");
-      await invoke("run_ocr_job_command", { jobId: job.id, bookId, pages });
-
-      if (ocrScope === "current") {
-        const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber });
-        setOcrText(text ?? "");
-      } else {
-        // Multi-page: no single page's text to show here -- navigate to a
-        // page to see its saved result via the effective-text loader above.
-        setOcrText(null);
+      if (remaining.length === 0) {
+        setOcrPagesRun(ocrTargetPages.length);
+        setOcrPhase("succeeded");
+        return;
       }
-      setOcrPagesRun(targetPages.length);
-      setOcrPhase("succeeded");
+      await runPagesForJob(ocrJobId, remaining);
     } catch (e) {
       setOcrError(String(e));
       setOcrPhase("failed");
@@ -521,18 +584,37 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
               </label>
             </div>
           )}
-          {ocrPhase !== "succeeded" && (
-            <button
-              type="button"
-              onClick={handleRunOcr}
-              disabled={ocrPhase === "rendering" || ocrPhase === "inferring"}
-            >
-              {ocrPhase === "rendering"
-                ? "Preparing pages…"
-                : ocrPhase === "inferring"
-                  ? "Running OCR (this may take a while for many pages)…"
-                  : "Run OCR"}
+          {ocrPhase !== "succeeded" && ocrPhase !== "inferring" && ocrPhase !== "paused" && (
+            <button type="button" onClick={handleRunOcr} disabled={ocrPhase === "rendering"}>
+              {ocrPhase === "rendering" ? "Preparing pages…" : ocrPhase === "cancelled" ? "Run OCR again" : "Run OCR"}
             </button>
+          )}
+          {ocrPhase === "inferring" && (
+            <div className="pdf-ocr-scope">
+              <span role="status">Running OCR (this may take a while for many pages)…</span>
+              <button type="button" onClick={handlePauseOcr}>
+                Pause
+              </button>
+              <button type="button" onClick={handleCancelOcr}>
+                Cancel
+              </button>
+            </div>
+          )}
+          {ocrPhase === "paused" && (
+            <div className="pdf-ocr-scope">
+              <span role="status">OCR paused.</span>
+              <button type="button" onClick={handleResumeOcr}>
+                Resume
+              </button>
+              <button type="button" onClick={handleCancelOcr}>
+                Cancel
+              </button>
+            </div>
+          )}
+          {ocrPhase === "cancelled" && (
+            <p className="pdf-ocr-result-text" role="status">
+              OCR cancelled. Pages already processed before cancelling were saved.
+            </p>
           )}
           {ocrPhase === "failed" && ocrError && (
             <p className="pdf-ocr-error" role="alert">
