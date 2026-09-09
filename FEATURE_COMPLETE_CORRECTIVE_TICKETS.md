@@ -14,7 +14,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | CLOSED (`c54ea86`, CI run 34412338912 success) | — |
 | 7 | FC-A02 — Metadata editing UI + user-correction precedence | CLOSED (`df4e570`, CI run 34413175475 success) | — |
 | 8 | FC-A04 — Notebook Markdown export | CLOSED (`dc4eb4d`, CI run 34414007149 success) | — |
-| 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | OPEN | 1 (lives under Data) |
+| 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | CLOSED (`c3b02eb`, CI run 34414736330 success) | 1 (lives under Data) |
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | OPEN | 1 (preference lives in Settings) |
 | 11 | FC-A05 — Book Hours configuration UI + revision history | OPEN | 1 |
 | 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | OPEN | 1 |
@@ -165,3 +165,17 @@ Evidence:
 - `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 125 tests -- 2 new tests in `NotebookPanel.test.tsx`'s new "Markdown export" describe block: export writes to the chosen destination and reports it; cancelling the destination picker performs no export). `npx vite build` passed.
 - GitHub Actions: CI run 34414007149 passed on `dc4eb4d` (Frontend and Rust jobs green).
+
+## Ticket 9 (FC-C07) — closed 2026-09-09 (`c3b02eb`, CI run 34414736330 success)
+
+Failure Attribution: earliest-wrong layer was **Frontend integration**, cleanly -- the domain layer was already complete and correct. `crates/domain/src/backup.rs`'s `create_full_library_backup(..., extra_reference_files: &[PathBuf], ...)` already namespaces explicitly-passed Reference files under `reference/` in the archive, and `restore()` already correctly never extracts a `reference/` entry back over the user's file (SS16.4 "never silently overwrite reference source files"). The entire gap was `src/DataRecovery.tsx:60-64` (per the original audit) hardcoding `extraReferenceFiles: []` -- the capability existed but had zero UI entry point.
+
+Landed:
+- `src/DataRecovery.tsx`: "Choose Reference Files to Include…" loads the Library's Reference-mode Books (Managed-Copy books excluded from this list -- their files are already unconditionally included) and lets the user check which to include; Create Full Library Backup passes the checked paths.
+- `crates/domain/src/backup.rs`: added 3 tests the correct-but-unproven domain function was missing -- exclusion by default, inclusion of only explicitly-selected files (with a real byte round-trip through the archive), and confirmation that restore never overwrites the original Reference file at its own path.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (179 passed, 2 ignored; was 176 after Ticket 8).
+- `cargo build` and `cargo test` in `src-tauri` passed (no backend changes this ticket -- the command surface already threaded `extra_reference_files` through correctly).
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 127 tests -- 2 new tests in `DataRecovery.test.tsx`'s new "Full Library Backup Reference-file opt-in" describe block: default-exclusion, opt-in-only-what-was-checked). `npx vite build` passed.
+- GitHub Actions: CI run 34414736330 passed on `c3b02eb` (Frontend and Rust jobs green).

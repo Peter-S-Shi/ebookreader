@@ -17,7 +17,7 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 | FC-C04 | Destructive semantics separation | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | Domain/data semantics are split first: `remove_from_library` hides a Book from Library without deleting reading data or file bytes; `delete_reading_data` clears book-scoped reading/user data while keeping the Book and file binding; `delete_managed_copy_file` deletes only app-managed bytes and rejects Reference-mode Books. UI exposes truthful labels and confirmations: `Remove from Library`, `Delete Reading Data`, and Managed-Copy-only `Delete Managed-Copy File` | — (closed) |
 | FC-C05 | Canonical Settings surface | **IMPLEMENTED_PARTIAL** (updated 2026-09-09) | `src/Settings.tsx` + `crates/domain/src/settings.rs` (`app_setting` table, migration v9): Appearance (theme mode, accent color) is real, persisted, user-reachable. Reading-time policy toggles, Reading Checkpoint, typography defaults, sound/motion, default import mode, update-awareness preference, and About & Updates are still not in this surface -- each is owned by ticket 9-16 per `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` and lands inside this same `Settings.tsx`, not a second location | FC-C05 (Appearance slice closed; remainder tracked under tickets 9-16) |
 | FC-C06 | Top-level management IA (Library/Notes/Calendar/Data/Settings) | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `src/App.tsx`: real `<nav aria-label="Main">` with 5 destinations, `aria-current="page"` on the active one, Library default; Search is a persistent topbar section independent of destination; Reader/Bilingual remain contextual overlays (no nav entry). Verified by dedicated tests in `App.test.tsx` ("Top-level navigation" describe block) | — (closed) |
-| FC-C07 | Full Library Backup Reference-file opt-in | **IMPLEMENTED_BACKEND_ONLY** | `backup.rs:117-150` / `commands.rs:417-436` support it; `src/DataRecovery.tsx:60-64` hard-codes `extraReferenceFiles: []` | FC-C07 |
+| FC-C07 | Full Library Backup Reference-file opt-in | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `backup.rs` domain function was already correct; `src/DataRecovery.tsx` now offers "Choose Reference Files to Include…" (Library's Reference-mode Books, checkbox opt-in) and threads the selection into `create_full_library_backup_command` | — (closed) |
 | FC-C08 | Startup Update Awareness + preference | **IMPLEMENTED_PARTIAL** | `updateAwareness.ts:47-66` correct logic; no startup call site, no preference to disable it (nothing to disable) | FC-C08 |
 
 ## Audit-discovered defects (not previously confirmed, found by this pass)
@@ -46,8 +46,9 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 - Updated 2026-09-09 (Ticket 6): `FC-A01` closed.
 - Updated 2026-09-09 (Ticket 7): `FC-A02` closed.
 - Updated 2026-09-09 (Ticket 8): `FC-A04` closed.
+- Updated 2026-09-09 (Ticket 9): `FC-C07` closed. 6 of the 8 confirmed (`FC-C01`-`FC-C08`) items are now fully closed.
 - 2 items (`FC-A12`, `FC-A13`) were already genuinely closed — no ticket needed.
-- 9 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
+- 8 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
 - No item required a `NEEDS_HUMAN_CONFLICT_DECISION` — every gap found is a coverage/implementation gap against an already-frozen, non-conflicting authority, not a contract conflict.
 - No item is `LEGITIMATE_DEFERRED_NON_GOAL` — nothing found is marked deferred by the authorities themselves.
 
