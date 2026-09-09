@@ -526,8 +526,26 @@ Search/indexing remains derived; user-authored reading assets remain canonical.
 
 # Milestone 5 — Scanned PDF OCR
 
-**Status:** **Complete** (2026-09-09, commit `51e506e`) — Exit Gate evidence below.
+**Status:** **Complete** (2026-09-09, commit `67d32c5`) — Exit Gate evidence below.
 **Risk:** High
+
+**Self-correction note:** this Milestone was first marked Complete at
+commit `51e506e` based on the Exit Gate/Success Evidence bullets alone,
+without cross-checking `DESIGN.md`'s separate frozen UI-authority section
+(`ER-OCR-001` / SS10, the "OCR Workspace" canonical surface). That check
+was done immediately after, while reading `DESIGN.md` for M6 context, and
+found the implementation at `51e506e` was OCR scope/job controls folded
+into `PdfReader.tsx`'s own page view rather than the dedicated
+"Toolbar/scope -> thumbnail grid + job/status/correction side region"
+composition SS10 requires. This was not a backend/Exit-Gate defect --
+the two persistence-survival tests below were and remain valid -- it was
+a UI-composition-fidelity gap caught by self-review, not by the user or
+CI. It is closed as of commit `67d32c5`: a dedicated `OcrWorkspace.tsx`
+surface was built matching SS10's structure and the accepted
+`docs/design/EbookReader_UI_Prototype_v0_5.html` prototype's exact OCR
+Workspace markup (Pages heading/hint, thumbnail grid, job status card,
+always-visible "Page correction" card, OCR-complete success line), CI
+green. Recorded here rather than silently amending the original claim.
 
 ## Goal
 
@@ -621,10 +639,11 @@ honest "running, this may take a while" rather than a fake progress bar).
 (`tooling/m5-evidence/m5d_ocr_engine_production_port.md`) has not been
 re-measured for its specific accuracy impact, only shipped as a
 principled correction over the reference implementation's batching-only
-cap. (4) Thumbnail-based page selection (`PRODUCT_SPEC.md` SS13.1 names
-both "page-range input and thumbnail selection") -- only text-based
-page-range input was built; thumbnails are a UI enhancement on the same
-already-real `run_ocr_job_command` plumbing. (5) The selection-driven
+cap. (4) ~~Thumbnail-based page selection~~ -- closed at commit `67d32c5`:
+`OcrWorkspace.tsx` now renders a real per-page thumbnail grid (click to
+view/select) alongside the text-based page-range input, matching
+`PRODUCT_SPEC.md` SS13.1's "page-range input and thumbnail selection" and
+`DESIGN.md` SS10's canonical composition. (5) The selection-driven
 Highlight/Excerpt UI (carried from M4) and this Milestone's own OCR
 trigger/scope/pause/correction UI have not been exercised via a live
 native-window click-through and screenshotted -- this sandbox's
