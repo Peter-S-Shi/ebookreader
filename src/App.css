@@ -141,7 +141,8 @@ button {
 
 @media (prefers-reduced-motion: no-preference) {
   .typography-panel,
-  .toc-panel {
+  .toc-panel,
+  .notebook-panel {
     animation: panel-reveal 0.18s ease-out;
   }
 }
@@ -224,6 +225,79 @@ button {
   width: 100%;
 }
 
+/* Notebook panel (DESIGN.md SS5 "Notebook · optional"): anchored under the
+   toolbar on the right, like Typography (the two are mutually exclusive in
+   the current single-overlay-slot chrome). */
+.notebook-panel {
+  position: absolute;
+  top: 3em;
+  right: 1em;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 1em;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: #f6f6f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 260px;
+  max-height: 70vh;
+  overflow: auto;
+  text-align: left;
+}
+
+.notebook-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 500;
+}
+
+.notebook-panel-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.notebook-panel-compose textarea {
+  min-height: 4em;
+  resize: vertical;
+  font: inherit;
+}
+
+.notebook-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.notebook-panel-list li {
+  padding: 0.5em;
+  border-radius: 6px;
+  border: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.notebook-panel-list p {
+  margin: 0.25em 0 0;
+}
+
+.notebook-asset-kind {
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.notebook-asset-orphaned {
+  margin-left: 0.5em;
+  font-size: 0.75em;
+  color: #b45309;
+}
+
 /* Completion prompt (PRODUCT_SPEC.md SS8.1): centered, above the reading
    surface -- deliberately not hidden by Focus mode, since finishing a
    Book is a real event the user needs to see regardless of chrome state. */
@@ -253,6 +327,7 @@ button {
 @media (prefers-color-scheme: dark) {
   .typography-panel,
   .toc-panel,
+  .notebook-panel,
   .completion-prompt {
     background-color: #2f2f2f;
   }

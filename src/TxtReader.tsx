@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
+import { NotebookPanel } from "./NotebookPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
@@ -34,6 +35,7 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
   const restoredRef = useRef(false);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [typographyOpen, setTypographyOpen] = useState(false);
+  const [notebookOpen, setNotebookOpen] = useState(false);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   useActualReadingTimeHeartbeat(bookId);
 
@@ -93,18 +95,26 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
       title={title}
       onBack={onBack}
       toolbarExtra={
-        <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
-          Aa
-        </button>
+        <>
+          <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
+            Aa
+          </button>
+          <button type="button" onClick={() => setNotebookOpen((open) => !open)}>
+            Notebook
+          </button>
+        </>
       }
       overlay={
-        typographyOpen && (
-          <TypographyPanel
-            settings={typography}
-            onChange={setTypography}
-            onClose={() => setTypographyOpen(false)}
-          />
-        )
+        <>
+          {typographyOpen && (
+            <TypographyPanel
+              settings={typography}
+              onChange={setTypography}
+              onClose={() => setTypographyOpen(false)}
+            />
+          )}
+          {notebookOpen && <NotebookPanel bookId={bookId} onClose={() => setNotebookOpen(false)} />}
+        </>
       }
     >
       {showCompletionPrompt && (

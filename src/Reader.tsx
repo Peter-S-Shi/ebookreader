@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { TocPanel, type TocItem } from "./TocPanel";
+import { NotebookPanel } from "./NotebookPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 import { useSoundToggle } from "./useSoundToggle";
@@ -45,7 +46,7 @@ interface FoliateView extends HTMLElement {
   book?: FoliateBook;
 }
 
-type OpenPanel = "typography" | "toc" | null;
+type OpenPanel = "typography" | "toc" | "notebook" | null;
 
 // Minimal EPUB reading surface: opens the Book via foliate-js and keeps
 // its DocumentLocation (ARCHITECTURE.md SS5) durable across reopens by
@@ -181,6 +182,9 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
           <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
             {soundEnabled ? "Sound: On" : "Sound: Off"}
           </button>
+          <button type="button" onClick={() => setOpenPanel((p) => (p === "notebook" ? null : "notebook"))}>
+            Notebook
+          </button>
         </>
       }
       overlay={
@@ -195,6 +199,7 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
               onClose={() => setOpenPanel(null)}
             />
           )}
+          {openPanel === "notebook" && <NotebookPanel bookId={bookId} onClose={() => setOpenPanel(null)} />}
         </>
       }
     >

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
+import { NotebookPanel } from "./NotebookPanel";
 import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
@@ -49,6 +50,7 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
+  const [notebookOpen, setNotebookOpen] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
@@ -213,8 +215,12 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
             {soundEnabled ? "Sound: On" : "Sound: Off"}
           </button>
+          <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
+            Notebook
+          </button>
         </>
       }
+      overlay={notebookOpen && <NotebookPanel bookId={bookId} onClose={() => setNotebookOpen(false)} />}
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
