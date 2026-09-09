@@ -516,10 +516,16 @@ fn find_ocr_assets_dir() -> Option<std::path::PathBuf> {
 }
 
 /// Runs the real OCR pipeline (detect -> classify orientation -> recognize
-/// -> reading-order assembly) over the given page images and saves each
-/// page's result via `ocr::save_page_result` -- the rebuildable cache a
-/// user's correction (`save_ocr_correction_command`) always takes priority
-/// over (`ROADMAP.md` M5 Exit Gate).
+/// -> reading-order assembly) over the given pages and saves each page's
+/// result via `ocr::save_page_result` -- the rebuildable cache a user's
+/// correction (`save_ocr_correction_command`) always takes priority over
+/// (`ROADMAP.md` M5 Exit Gate).
+///
+/// Pages are passed as **PNG-encoded image bytes**, not file paths: a
+/// scanned PDF page only ever exists as an in-memory `<canvas>` render in
+/// `PdfReader.tsx` (`pdfjs-dist` renders directly to canvas; there is no
+/// per-page image file on disk to point a path at). The frontend calls
+/// `canvas.toDataURL('image/png')` and sends the bytes directly.
 ///
 /// Synchronous for now: this call blocks until every page in `pages` is
 /// processed (real 3-model inference is not fast -- seconds per page).
@@ -534,7 +540,7 @@ pub fn run_ocr_job_command(
     ocr_state: State<OcrEngineState>,
     job_id: String,
     book_id: String,
-    pages: Vec<(u32, String)>,
+    pages: Vec<(u32, Vec<u8>)>,
 ) -> Result<(), String> {
     {
         let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
@@ -557,13 +563,13 @@ pub fn run_ocr_job_command(
     }
     let engine = engine_guard.as_mut().expect("just set to Some above");
 
-    for (page_number, image_path) in pages {
-        let img = match image::open(&image_path) {
+    for (page_number, image_bytes) in pages {
+        let img = match image::load_from_memory(&image_bytes) {
             Ok(img) => img,
             Err(e) => {
                 let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
                 ocr::set_job_status(&conn, &job_id, OcrJobStatus::Failed).ok();
-                return Err(format!("could not open page {page_number} image at {image_path}: {e}"));
+                return Err(format!("could not decode page {page_number} image: {e}"));
             }
         };
         let lines = match engine.process_page(&img) {

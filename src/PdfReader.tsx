@@ -51,7 +51,9 @@ type PdfViewMode = "single" | "continuous";
 // extractable text on any page) and surfaces SS13.1/SS13.2's truthful
 // degraded state -- visual reading still works, text-dependent features
 // don't pretend to. The OCR pipeline itself (local ONNX inference via the
-// Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) is not built yet.
+// Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) now runs for real
+// via run_ocr_job_command, scoped to Current Page only this checkpoint --
+// Selected Pages/Entire Book scope selection in this UI is a follow-up.
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,14 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   // search/selection/excerpt work -- `null` until the whole-document text
   // pass below has actually checked every page.
   const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
+  // SS13.1: real OCR job state for the current page (scoped to Current Page
+  // only this checkpoint -- Selected Pages/Entire Book scope selection is a
+  // follow-up on top of the same run_ocr_job_command).
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "running" | "succeeded" | "failed">("idle");
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [ocrDraft, setOcrDraft] = useState("");
+  const [ocrEditing, setOcrEditing] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
@@ -116,6 +126,59 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       cancelled = true;
     };
   }, [bookId]);
+
+  // Once a scanned page has been established, check for an already-saved
+  // OCR result/correction so a returning reader doesn't have to re-run OCR
+  // every visit (`get_ocr_effective_text_command`: correction > raw result
+  // > null).
+  useEffect(() => {
+    if (hasExtractableText !== false) return;
+    let cancelled = false;
+    invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber })
+      .then((text) => {
+        if (!cancelled) {
+          setOcrText(text);
+          setOcrStatus(text !== null ? "succeeded" : "idle");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId, pageNumber, hasExtractableText]);
+
+  async function handleRunOcrCurrentPage() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setOcrStatus("running");
+    setOcrError(null);
+    try {
+      const job = await invoke<{ id: string }>("create_ocr_job_command", {
+        bookId,
+        scope: { kind: "current_page", page: pageNumber },
+      });
+      const dataUrl = canvas.toDataURL("image/png");
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      const bytes = Array.from(atob(base64), (c) => c.charCodeAt(0));
+      await invoke("run_ocr_job_command", {
+        jobId: job.id,
+        bookId,
+        pages: [[pageNumber, bytes]],
+      });
+      const text = await invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber });
+      setOcrText(text ?? "");
+      setOcrStatus("succeeded");
+    } catch (e) {
+      setOcrError(String(e));
+      setOcrStatus("failed");
+    }
+  }
+
+  async function handleSaveOcrCorrection() {
+    await invoke("save_ocr_correction_command", { bookId, pageNumber, correctedText: ocrDraft }).catch(() => {});
+    setOcrText(ocrDraft);
+    setOcrEditing(false);
+  }
 
   function saveLocation(page: number, count: number) {
     const fraction = count > 0 ? page / count : 0;
@@ -347,11 +410,56 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
       )}
-      {hasExtractableText === false && (
-        <p className="pdf-degraded-notice" role="status">
-          Scanned PDF -- no extractable text found. Visual reading works normally; search, text selection, and
-          Excerpt/Annotation are unavailable until OCR is run (not yet available in this version).
-        </p>
+      {hasExtractableText === false && viewMode === "single" && (
+        <div className="pdf-ocr-panel">
+          <p className="pdf-degraded-notice" role="status">
+            Scanned PDF -- no extractable text found on this page. Visual reading works normally; search, text
+            selection, and Excerpt/Annotation are unavailable for this page until OCR is run.
+          </p>
+          {ocrStatus !== "succeeded" && (
+            <button type="button" onClick={handleRunOcrCurrentPage} disabled={ocrStatus === "running"}>
+              {ocrStatus === "running" ? "Running OCR…" : "Run OCR on this page"}
+            </button>
+          )}
+          {ocrStatus === "failed" && ocrError && (
+            <p className="pdf-ocr-error" role="alert">
+              OCR failed: {ocrError}
+            </p>
+          )}
+          {ocrStatus === "succeeded" && ocrText !== null && !ocrEditing && (
+            <div className="pdf-ocr-result">
+              <p className="pdf-ocr-result-text">{ocrText || "(no text recognized on this page)"}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setOcrDraft(ocrText);
+                  setOcrEditing(true);
+                }}
+              >
+                Correct text
+              </button>
+              <button type="button" onClick={handleRunOcrCurrentPage}>
+                Re-run OCR
+              </button>
+            </div>
+          )}
+          {ocrEditing && (
+            <div className="pdf-ocr-correction">
+              <textarea
+                value={ocrDraft}
+                onChange={(e) => setOcrDraft(e.target.value)}
+                rows={6}
+                aria-label="Correct OCR text"
+              />
+              <button type="button" onClick={handleSaveOcrCorrection}>
+                Save correction
+              </button>
+              <button type="button" onClick={() => setOcrEditing(false)}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       )}
       {viewMode === "single" && selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">

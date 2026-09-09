@@ -139,6 +139,33 @@ button {
   border-bottom: 1px solid rgba(180, 130, 0, 0.3);
 }
 
+.pdf-ocr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.5em 1em;
+  background-color: rgba(180, 130, 0, 0.06);
+  border-bottom: 1px solid rgba(180, 130, 0, 0.2);
+}
+
+.pdf-ocr-error {
+  margin: 0;
+  color: #a33;
+  font-size: 0.9em;
+}
+
+.pdf-ocr-result-text {
+  white-space: pre-wrap;
+  font-size: 0.95em;
+  margin: 0 0 0.5em;
+}
+
+.pdf-ocr-correction textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.95em;
+}
+
 /* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
    a minimal hand-ported subset of pdfjs-dist's own .textLayer rules
    (node_modules/pdfjs-dist/web/pdf_viewer.css) -- just enough to make
