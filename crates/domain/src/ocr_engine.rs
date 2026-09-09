@@ -1,8 +1,9 @@
-//! Real ONNX inference engine: wraps the reused PP-OCRv6 detector and
-//! recognizer models via the Rust `ort` crate, composing
-//! [`crate::ocr_preprocess`], [`crate::ocr_detect`], and
-//! [`crate::ocr_recognize`] into one page-level `detect -> crop -> recognize
-//! -> decode` pipeline.
+//! Real ONNX inference engine: wraps the reused PP-OCRv6 detector,
+//! recognizer, and text-orientation classifier models via the Rust `ort`
+//! crate, composing [`crate::ocr_preprocess`], [`crate::ocr_detect`],
+//! [`crate::ocr_classify`], and [`crate::ocr_recognize`] into one
+//! page-level `detect -> crop -> classify orientation -> recognize ->
+//! decode` pipeline.
 //!
 //! Requires a local `onnxruntime.dll` and the model files at runtime (dev
 //! convention: `<repo-root>/ocr-assets/`, gitignored -- see
@@ -13,10 +14,11 @@
 //! assets. The `#[ignore]`d integration test below is meant to be run
 //! locally against `ocr-assets/`.
 
+use crate::ocr_classify::{should_rotate_180, DEFAULT_CLS_THRESH};
 use crate::ocr_detect::detect_boxes;
 use crate::ocr_preprocess::{det_preprocess, rec_preprocess};
 use crate::ocr_recognize::ctc_greedy_decode;
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, RgbImage};
 use ort::session::Session;
 use ort::value::Tensor;
 use std::path::Path;
@@ -29,13 +31,15 @@ use std::sync::Once;
 static ORT_INIT: Once = Once::new();
 
 /// One recognized text line: its detected box, detector confidence,
-/// recognized text, and recognizer confidence.
+/// recognized text, recognizer confidence, and whether the classifier
+/// judged (and this pipeline acted on) a 180° rotation before recognition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecognizedLine {
     pub points: [(f64, f64); 4],
     pub det_score: f32,
     pub text: String,
     pub rec_confidence: f32,
+    pub rotated_180: bool,
 }
 
 #[derive(Debug)]
@@ -70,22 +74,26 @@ impl From<ort::Error> for OcrEngineError {
 /// lifetime of an OCR job (or the app), not one per page.
 pub struct OcrEngine {
     det_session: Session,
+    cls_session: Session,
     rec_session: Session,
     rec_dict: Vec<String>,
 }
 
 const REC_IMG_H: u32 = 48;
 const REC_MAX_W: u32 = 4000;
+const CLS_IMG_H: u32 = 48;
+const CLS_MAX_W: u32 = 192;
 
 impl OcrEngine {
-    /// Loads the ONNX Runtime dylib (once per process) and the detector +
-    /// recognizer model files. The recognizer's character dictionary is
-    /// read from its own embedded ONNX metadata (`character` key) -- not
-    /// hardcoded or downloaded separately; see
+    /// Loads the ONNX Runtime dylib (once per process) and the detector,
+    /// classifier, and recognizer model files. The recognizer's character
+    /// dictionary is read from its own embedded ONNX metadata (`character`
+    /// key) -- not hardcoded or downloaded separately; see
     /// `tooling/m5-evidence/m5c_recognition_spike.md` Finding 1.
     pub fn load(
         dylib_path: &Path,
         det_model_path: &Path,
+        cls_model_path: &Path,
         rec_model_path: &Path,
     ) -> Result<Self, OcrEngineError> {
         let mut init_error: Option<String> = None;
@@ -100,6 +108,7 @@ impl OcrEngine {
         }
 
         let det_session = Session::builder()?.commit_from_file(det_model_path)?;
+        let cls_session = Session::builder()?.commit_from_file(cls_model_path)?;
         let rec_session = Session::builder()?.commit_from_file(rec_model_path)?;
 
         let dict_str = rec_session
@@ -108,7 +117,18 @@ impl OcrEngine {
             .ok_or(OcrEngineError::MissingCharacterMetadata)?;
         let rec_dict: Vec<String> = dict_str.split('\n').map(|s| s.to_string()).collect();
 
-        Ok(OcrEngine { det_session, rec_session, rec_dict })
+        Ok(OcrEngine { det_session, cls_session, rec_session, rec_dict })
+    }
+
+    /// Runs the orientation classifier on one already-cropped text-line
+    /// image and returns its raw `[p_0deg, p_180deg]` output.
+    fn classify(&mut self, cropped: &RgbImage) -> Result<[f32; 2], OcrEngineError> {
+        let (cls_chw, resized_w) = rec_preprocess(cropped, CLS_IMG_H, CLS_MAX_W);
+        let cls_shape = vec![1i64, 3, CLS_IMG_H as i64, resized_w as i64];
+        let cls_input = Tensor::from_array((cls_shape, cls_chw))?;
+        let cls_outputs = self.cls_session.run(ort::inputs!["x" => cls_input])?;
+        let (_shape, raw) = cls_outputs["save_infer_model/scale_0.tmp_1"].try_extract_tensor::<f32>()?;
+        Ok([raw[0], raw[1]])
     }
 
     /// Runs the full pipeline on one page image: detect text-region boxes,
@@ -121,11 +141,13 @@ impl OcrEngine {
         let (det_chw, target_w, target_h, ratio) = det_preprocess(img);
         let det_shape = vec![1i64, 3, target_h as i64, target_w as i64];
         let det_input = Tensor::from_array((det_shape, det_chw))?;
-        let det_outputs = self.det_session.run(ort::inputs!["x" => det_input])?;
-        let (det_out_shape, det_raw) = det_outputs["fetch_name_0"].try_extract_tensor::<f32>()?;
-        let pred_h = det_out_shape[2] as usize;
-        let pred_w = det_out_shape[3] as usize;
-        let pred: Vec<f32> = det_raw.to_vec();
+        let (pred, pred_w, pred_h) = {
+            let det_outputs = self.det_session.run(ort::inputs!["x" => det_input])?;
+            let (det_out_shape, det_raw) = det_outputs["fetch_name_0"].try_extract_tensor::<f32>()?;
+            let pred_h = det_out_shape[2] as usize;
+            let pred_w = det_out_shape[3] as usize;
+            (det_raw.to_vec(), pred_w, pred_h)
+        };
 
         let mut boxes = detect_boxes(&pred, pred_w, pred_h);
         for b in &mut boxes {
@@ -150,17 +172,33 @@ impl OcrEngine {
             let crop_h = ymax - ymin;
             let cropped = image::imageops::crop_imm(&rgb_full, xmin, ymin, crop_w, crop_h).to_image();
 
-            let (rec_chw, resized_w) = rec_preprocess(&cropped, REC_IMG_H, REC_MAX_W);
+            let cls_probs = self.classify(&cropped)?;
+            let rotated_180 = should_rotate_180(cls_probs, DEFAULT_CLS_THRESH);
+            let rec_source = if rotated_180 {
+                image::imageops::rotate180(&cropped)
+            } else {
+                cropped
+            };
+
+            let (rec_chw, resized_w) = rec_preprocess(&rec_source, REC_IMG_H, REC_MAX_W);
             let rec_shape = vec![1i64, 3, REC_IMG_H as i64, resized_w as i64];
             let rec_input = Tensor::from_array((rec_shape, rec_chw))?;
-            let rec_outputs = self.rec_session.run(ort::inputs!["x" => rec_input])?;
-            let (rec_out_shape, rec_raw) = rec_outputs["fetch_name_0"].try_extract_tensor::<f32>()?;
-            let seq_len = rec_out_shape[1] as usize;
-            let num_classes = rec_out_shape[2] as usize;
-            let rec_logits: Vec<f32> = rec_raw.to_vec();
+            let (rec_logits, seq_len, num_classes) = {
+                let rec_outputs = self.rec_session.run(ort::inputs!["x" => rec_input])?;
+                let (rec_out_shape, rec_raw) = rec_outputs["fetch_name_0"].try_extract_tensor::<f32>()?;
+                let seq_len = rec_out_shape[1] as usize;
+                let num_classes = rec_out_shape[2] as usize;
+                (rec_raw.to_vec(), seq_len, num_classes)
+            };
             let (text, conf) = ctc_greedy_decode(&rec_logits, seq_len, num_classes, &self.rec_dict);
 
-            results.push(RecognizedLine { points: b.points, det_score: b.score, text, rec_confidence: conf });
+            results.push(RecognizedLine {
+                points: b.points,
+                det_score: b.score,
+                text,
+                rec_confidence: conf,
+                rotated_180,
+            });
         }
 
         Ok(results)
@@ -185,6 +223,7 @@ mod tests {
         let mut engine = OcrEngine::load(
             &root.join("onnxruntime.dll"),
             &root.join("PP-OCRv6_det_medium.onnx"),
+            &root.join("ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
             &root.join("PP-OCRv6_rec_small.onnx"),
         )
         .expect("failed to load OCR engine -- populate ocr-assets/ per tooling/m5-evidence/README.md");

@@ -16,6 +16,7 @@ pub mod completion;
 pub mod document_location;
 pub mod fonts;
 pub mod ocr;
+pub mod ocr_classify;
 pub mod ocr_detect;
 pub mod ocr_engine;
 pub mod ocr_preprocess;

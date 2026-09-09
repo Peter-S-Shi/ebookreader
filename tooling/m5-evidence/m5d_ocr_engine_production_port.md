@@ -45,6 +45,23 @@ processes_a_real_scanned_page_end_to_end` against the real fixture
 score -- the production code path (not the throwaway spike) runs real
 Rust `ort` inference end-to-end.
 
+## Orientation classifier added (`ch_ppocr_mobile_v2.0_cls_mobile.onnx`)
+
+The third reused model -- untouched until this checkpoint -- was wired
+in the same session. Its output (`save_infer_model/scale_0.tmp_1`,
+shape `[batch, 2]`) is, like the other two reused models, already
+softmax-activated (confirmed empirically: random-input probe sums to
+1.0). `crates/domain/src/ocr_classify.rs` holds the pure
+`should_rotate_180(probs, thresh)` decision (PaddleOCR's own convention:
+only act on a confident >=0.9 180°-leaning prediction), 4 unit tests, no
+model dependency. `OcrEngine::process_page` now runs classify -> (rotate
+180° via `image::imageops::rotate180` if confident) -> recognize per
+crop, and `RecognizedLine` carries a `rotated_180` flag. Re-ran the same
+`#[ignore]`d integration test with all three sessions loaded: passes,
+102.76s wall time (real 3-model inference per line, on the real
+fixture). 117 domain tests total (was 113) plus the 1 ignored
+integration test.
+
 ## Residual
 
 The uncapped recognition width has not yet been measured against the
