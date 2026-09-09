@@ -285,6 +285,29 @@ pub fn prune_old_snapshots(snapshot_dir: &Path, keep_last: usize) -> std::io::Re
     Ok(())
 }
 
+/// Copies `db_path` into `snapshot_dir` as `{label}-{unique}.sqlite3`,
+/// then prunes to the last `keep_last` snapshots (`PRODUCT_SPEC.md`
+/// SS16.1: "Automatic Recovery Snapshot ... created before high-risk
+/// app-data operations such as: schema migration ... major destructive
+/// library mutation"). A no-op if `db_path` doesn't exist yet -- there is
+/// nothing to protect on a fresh install, before any destructive
+/// operation has ever had data to destroy.
+pub fn create_recovery_snapshot(
+    db_path: &Path,
+    snapshot_dir: &Path,
+    label: &str,
+    unique: &str,
+    keep_last: usize,
+) -> std::io::Result<()> {
+    if !db_path.exists() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(snapshot_dir)?;
+    let snapshot_path = snapshot_dir.join(format!("{label}-{unique}.sqlite3"));
+    std::fs::copy(db_path, &snapshot_path)?;
+    prune_old_snapshots(snapshot_dir, keep_last)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,5 +638,65 @@ mod tests {
 
         let remaining: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
         assert_eq!(remaining.len(), 1);
+    }
+
+    #[test]
+    fn create_recovery_snapshot_copies_the_database_and_prunes_old_ones() {
+        // FC-A07 (`PRODUCT_SPEC.md` SS16.1): "Automatic Recovery Snapshot
+        // ... created before high-risk app-data operations such as:
+        // schema migration ... major destructive library mutation."
+        let dir = scratch_dir("recovery-snapshot-before-mutation");
+        let db_path = dir.join("library.sqlite3");
+        std::fs::write(&db_path, b"the live database's current bytes").unwrap();
+        let snapshot_dir = dir.join("recovery-snapshots");
+
+        create_recovery_snapshot(&db_path, &snapshot_dir, "pre-migration", "1", 5).unwrap();
+
+        let entries: Vec<String> =
+            std::fs::read_dir(&snapshot_dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+        assert_eq!(entries, vec!["pre-migration-1.sqlite3".to_string()]);
+        assert_eq!(
+            std::fs::read(snapshot_dir.join("pre-migration-1.sqlite3")).unwrap(),
+            b"the live database's current bytes"
+        );
+
+        // Mutating the "live" file afterward must not retroactively alter
+        // the already-taken snapshot -- it is a real copy, not a link.
+        std::fs::write(&db_path, b"the live database after a destructive mutation").unwrap();
+        assert_eq!(
+            std::fs::read(snapshot_dir.join("pre-migration-1.sqlite3")).unwrap(),
+            b"the live database's current bytes"
+        );
+    }
+
+    #[test]
+    fn create_recovery_snapshot_respects_the_retention_limit_across_repeated_calls() {
+        let dir = scratch_dir("recovery-snapshot-retention");
+        let db_path = dir.join("library.sqlite3");
+        std::fs::write(&db_path, b"v1").unwrap();
+        let snapshot_dir = dir.join("recovery-snapshots");
+
+        for unique in ["1", "2", "3"] {
+            create_recovery_snapshot(&db_path, &snapshot_dir, "pre-destructive-mutation", unique, 2).unwrap();
+        }
+
+        let mut remaining: Vec<String> =
+            std::fs::read_dir(&snapshot_dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+        remaining.sort();
+        assert_eq!(
+            remaining,
+            vec!["pre-destructive-mutation-2.sqlite3".to_string(), "pre-destructive-mutation-3.sqlite3".to_string()]
+        );
+    }
+
+    #[test]
+    fn create_recovery_snapshot_is_a_no_op_on_a_fresh_install_with_no_database_yet() {
+        let dir = scratch_dir("recovery-snapshot-fresh-install");
+        let db_path = dir.join("library.sqlite3"); // never created
+        let snapshot_dir = dir.join("recovery-snapshots");
+
+        create_recovery_snapshot(&db_path, &snapshot_dir, "pre-migration", "1", 5).unwrap();
+
+        assert!(!snapshot_dir.exists(), "nothing to protect yet, so no snapshot directory should even be created");
     }
 }

@@ -32,11 +32,37 @@ pub fn recovery_snapshots_dir(app: &AppHandle) -> Result<std::path::PathBuf, Str
     Ok(dir)
 }
 
+/// Copies the live database file into `recovery_snapshots_dir` before a
+/// high-risk operation (`PRODUCT_SPEC.md` SS16.1: "Automatic Recovery
+/// Snapshot ... created before high-risk app-data operations such as:
+/// schema migration; restore; major destructive library mutation"; the
+/// restore case has its own dedicated snapshot inside
+/// `backup::restore`). `label` becomes part of the snapshot filename
+/// (e.g. `"pre-migration"`, `"pre-destructive-mutation"`) so its cause is
+/// visible without inspecting contents. A no-op if the database file
+/// does not exist yet -- nothing to protect on a fresh install.
+pub fn create_recovery_snapshot(app: &AppHandle, label: &str) -> Result<(), String> {
+    let db_path = db_path(app)?;
+    let snapshot_dir = recovery_snapshots_dir(app)?;
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    ebookreader_domain::backup::create_recovery_snapshot(&db_path, &snapshot_dir, label, &millis.to_string(), 5)
+        .map_err(|e| format!("could not create recovery snapshot: {e}"))
+}
+
 pub fn open_app_db(app: &AppHandle) -> Result<DbState, String> {
     let db_path = db_path(app)?;
     let data_dir = db_path.parent().expect("db_path always has a parent");
     std::fs::create_dir_all(data_dir)
         .map_err(|e| format!("could not create app data directory {data_dir:?}: {e}"))?;
+
+    // The snapshot must happen before the database file is opened/created
+    // by this process, both so a brand-new install (no file yet) is
+    // correctly treated as "nothing to protect" and so the copy reads a
+    // file no connection in this process is touching.
+    create_recovery_snapshot(app, "pre-migration")?;
 
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("could not open library database at {db_path:?}: {e}"))?;

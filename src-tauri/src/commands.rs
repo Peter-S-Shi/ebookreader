@@ -2,6 +2,7 @@
 //! duplicate/persistence decisions live in `ebookreader_domain::store`,
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
+use crate::db;
 use crate::db::{db_path, managed_books_dir, recovery_snapshots_dir, DbState};
 use crate::{OcrEngineState, ReadingSessionState};
 use ebookreader_domain::actual_reading_time::{
@@ -232,17 +233,23 @@ pub fn remove_book_command(state: State<DbState>, book_id: String) -> Result<(),
 }
 
 /// Delete user reading data for `book_id` while keeping the Library entry
-/// and any source/Managed-Copy file bytes.
+/// and any source/Managed-Copy file bytes. A genuinely destructive,
+/// irreversible app-data mutation (`PRODUCT_SPEC.md` SS16.1), so a
+/// recovery snapshot is taken first.
 #[tauri::command]
-pub fn delete_reading_data_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+pub fn delete_reading_data_command(app: AppHandle, state: State<DbState>, book_id: String) -> Result<(), String> {
+    db::create_recovery_snapshot(&app, "pre-destructive-mutation")?;
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     delete_reading_data(&conn, &book_id).map_err(|e| format!("delete reading data failed: {e}"))
 }
 
 /// Delete the app-managed file bytes for a Managed-Copy Book. This rejects
 /// Reference-mode Books because their source files are user-owned.
+/// Irreversible, so a recovery snapshot is taken first (`PRODUCT_SPEC.md`
+/// SS16.1).
 #[tauri::command]
-pub fn delete_managed_copy_file_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+pub fn delete_managed_copy_file_command(app: AppHandle, state: State<DbState>, book_id: String) -> Result<(), String> {
+    db::create_recovery_snapshot(&app, "pre-destructive-mutation")?;
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     delete_managed_copy_file(&conn, &book_id).map_err(|e| format!("delete managed-copy file failed: {e}"))
 }
