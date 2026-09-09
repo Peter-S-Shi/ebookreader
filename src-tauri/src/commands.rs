@@ -10,7 +10,10 @@ use ebookreader_domain::actual_reading_time::{
 use ebookreader_domain::alignment::{self, AlignmentPackage};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::backup::{self, BackupManifest, BackupPreview};
-use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
+use ebookreader_domain::book_hours::{
+    cumulative_book_hours, list_workload_config_revisions, load_workload_config, save_workload_config,
+    WorkloadConfig, WorkloadConfigRevision,
+};
 use ebookreader_domain::calendar::{self, DayDetail};
 use ebookreader_domain::collections;
 use ebookreader_domain::completion::ReadingProgress;
@@ -422,9 +425,10 @@ pub fn set_setting_command(state: State<DbState>, key: String, value: String) ->
     ebookreader_domain::settings::set_setting(&conn, &key, &value).map_err(|e| format!("{e}"))
 }
 
-/// Set/update a Book's workload config (SS9.1 inputs). Per SS9.3, this
-/// only changes the current estimate -- it cannot touch Actual Reading
-/// Time, which this command has no access to.
+/// Set/update a Book's workload config (SS9.1 inputs) and append a
+/// revision record. Per SS9.3, this only changes the current estimate --
+/// it cannot touch Actual Reading Time, which this command has no access
+/// to.
 #[tauri::command]
 pub fn save_workload_config_command(
     state: State<DbState>,
@@ -432,11 +436,24 @@ pub fn save_workload_config_command(
     quantity: f64,
     baseline_speed: f64,
     difficulty_coefficient: f64,
+    recorded_at: String,
 ) -> Result<WorkloadConfig, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     let config = WorkloadConfig { quantity, baseline_speed, difficulty_coefficient };
-    save_workload_config(&conn, &book_id, &config).map_err(|e| format!("could not save workload config: {e}"))?;
+    save_workload_config(&conn, &book_id, &config, &recorded_at)
+        .map_err(|e| format!("could not save workload config: {e}"))?;
     Ok(config)
+}
+
+/// A Book's full workload-config revision history, most recent first
+/// (SS9.3 "versioned/explainable").
+#[tauri::command]
+pub fn list_workload_config_revisions_command(
+    state: State<DbState>,
+    book_id: String,
+) -> Result<Vec<WorkloadConfigRevision>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    list_workload_config_revisions(&conn, &book_id).map_err(|e| format!("could not list workload config revisions: {e}"))
 }
 
 /// `PRODUCT_SPEC.md` SS10: a Book's accumulated Actual Reading Time.

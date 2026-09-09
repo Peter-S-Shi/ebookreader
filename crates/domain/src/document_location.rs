@@ -189,6 +189,7 @@ mod tests {
             &conn,
             "book-1",
             &crate::book_hours::WorkloadConfig { quantity: 1000.0, baseline_speed: 200.0, difficulty_coefficient: 1.0 },
+            "2026-09-09T00:00:00Z",
         )
         .unwrap();
 

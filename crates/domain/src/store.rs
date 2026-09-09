@@ -239,6 +239,23 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 13 {
+        conn.execute_batch(
+            "
+            CREATE TABLE workload_config_revision (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id TEXT NOT NULL REFERENCES book(id),
+                quantity REAL NOT NULL,
+                baseline_speed REAL NOT NULL,
+                difficulty_coefficient REAL NOT NULL,
+                recorded_at TEXT NOT NULL
+            );
+            CREATE INDEX idx_workload_config_revision_book ON workload_config_revision(book_id);
+            PRAGMA user_version = 13;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -531,6 +548,7 @@ pub fn delete_reading_data(conn: &Connection, book_id: &str) -> rusqlite::Result
     conn.execute("DELETE FROM document_location WHERE book_id = ?1", [book_id])?;
     conn.execute("DELETE FROM reading_progress WHERE book_id = ?1", [book_id])?;
     conn.execute("DELETE FROM workload_config WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM workload_config_revision WHERE book_id = ?1", [book_id])?;
     conn.execute("DELETE FROM actual_reading_time WHERE book_id = ?1", [book_id])?;
     conn.execute("DELETE FROM reading_asset WHERE book_id = ?1", [book_id])?;
     conn.execute("DELETE FROM ocr_job WHERE book_id = ?1", [book_id])?;
@@ -632,7 +650,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 12);
+        assert_eq!(version, 13);
     }
 
     #[test]

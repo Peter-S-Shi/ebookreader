@@ -58,6 +58,21 @@ interface CollectionDTO {
   name: string;
 }
 
+// Mirrors `commands::BookHours`.
+interface BookHoursDTO {
+  base_hours: number;
+  cumulative_hours: number;
+  cumulative_reading_percent: number;
+}
+
+// Mirrors `ebookreader_domain::book_hours::WorkloadConfigRevision`.
+interface WorkloadConfigRevisionDTO {
+  quantity: number;
+  baseline_speed: number;
+  difficulty_coefficient: number;
+  recorded_at: string;
+}
+
 // Mirrors `commands::ImportBookResult`.
 type ImportBookResult =
   | { kind: "imported"; book_id: string }
@@ -118,6 +133,15 @@ function App() {
   const [organizeBookId, setOrganizeBookId] = useState<string | null>(null);
   const [organizeBookCollections, setOrganizeBookCollections] = useState<CollectionDTO[]>([]);
   const [organizeBookTags, setOrganizeBookTags] = useState<string[]>([]);
+  // FC-A05 (`PRODUCT_SPEC.md` SS9): Book Hours estimate + its editable
+  // inputs, plus the durable revision history (SS9.3
+  // "versioned/explainable"), loaded lazily alongside Collections/Tags
+  // when the Organize panel opens.
+  const [organizeBookHours, setOrganizeBookHours] = useState<BookHoursDTO | null>(null);
+  const [organizeWorkloadRevisions, setOrganizeWorkloadRevisions] = useState<WorkloadConfigRevisionDTO[]>([]);
+  const [workloadQuantity, setWorkloadQuantity] = useState("");
+  const [workloadBaselineSpeed, setWorkloadBaselineSpeed] = useState("");
+  const [workloadDifficultyCoefficient, setWorkloadDifficultyCoefficient] = useState("1");
   const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
   const [newTagName, setNewTagName] = useState("");
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
@@ -196,12 +220,41 @@ function App() {
     setOrganizeBookId(bookId);
     setAddToCollectionChoice("");
     setNewTagName("");
-    const [bookCollections, bookTags] = await Promise.all([
+    const [bookCollections, bookTags, bookHours, revisions] = await Promise.all([
       invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }),
       invoke<string[]>("list_tags_for_book_command", { bookId }),
+      invoke<BookHoursDTO | null>("get_book_hours_command", { bookId }),
+      invoke<WorkloadConfigRevisionDTO[]>("list_workload_config_revisions_command", { bookId }),
     ]);
     setOrganizeBookCollections(bookCollections);
     setOrganizeBookTags(bookTags);
+    setOrganizeBookHours(bookHours);
+    setOrganizeWorkloadRevisions(revisions);
+    const latest = revisions[0];
+    setWorkloadQuantity(latest ? String(latest.quantity) : "");
+    setWorkloadBaselineSpeed(latest ? String(latest.baseline_speed) : "");
+    setWorkloadDifficultyCoefficient(latest ? String(latest.difficulty_coefficient) : "1");
+  }
+
+  async function saveWorkloadConfig(bookId: string) {
+    const quantity = Number.parseFloat(workloadQuantity);
+    const baselineSpeed = Number.parseFloat(workloadBaselineSpeed);
+    const difficultyCoefficient = Number.parseFloat(workloadDifficultyCoefficient);
+    if (!Number.isFinite(quantity) || !Number.isFinite(baselineSpeed) || !Number.isFinite(difficultyCoefficient)) return;
+
+    await invoke("save_workload_config_command", {
+      bookId,
+      quantity,
+      baselineSpeed,
+      difficultyCoefficient,
+      recordedAt: new Date().toISOString(),
+    });
+    const [bookHours, revisions] = await Promise.all([
+      invoke<BookHoursDTO | null>("get_book_hours_command", { bookId }),
+      invoke<WorkloadConfigRevisionDTO[]>("list_workload_config_revisions_command", { bookId }),
+    ]);
+    setOrganizeBookHours(bookHours);
+    setOrganizeWorkloadRevisions(revisions);
   }
 
   async function addBookToCollection(bookId: string, collectionId: string) {
@@ -752,6 +805,55 @@ function App() {
                             <button type="button" onClick={() => addTagToBook(book.book_id)}>
                               Add Tag
                             </button>
+                          </div>
+                          <div role="region" aria-label={`Book Hours for ${book.title}`}>
+                            <span>Book Hours: </span>
+                            {organizeBookHours ? (
+                              <span>
+                                Base {organizeBookHours.base_hours.toFixed(1)}h, Cumulative{" "}
+                                {organizeBookHours.cumulative_hours.toFixed(1)}h (
+                                {organizeBookHours.cumulative_reading_percent.toFixed(0)}% cumulative reading)
+                              </span>
+                            ) : (
+                              <span>Not configured yet.</span>
+                            )}
+                            <label>
+                              Quantity
+                              <input
+                                type="number"
+                                value={workloadQuantity}
+                                onChange={(e) => setWorkloadQuantity(e.target.value)}
+                              />
+                            </label>
+                            <label>
+                              Baseline Speed
+                              <input
+                                type="number"
+                                value={workloadBaselineSpeed}
+                                onChange={(e) => setWorkloadBaselineSpeed(e.target.value)}
+                              />
+                            </label>
+                            <label>
+                              Difficulty Coefficient
+                              <input
+                                type="number"
+                                value={workloadDifficultyCoefficient}
+                                onChange={(e) => setWorkloadDifficultyCoefficient(e.target.value)}
+                              />
+                            </label>
+                            <button type="button" onClick={() => saveWorkloadConfig(book.book_id)}>
+                              Save Book Hours Config
+                            </button>
+                            {organizeWorkloadRevisions.length > 0 && (
+                              <ul className="workload-revision-history">
+                                {organizeWorkloadRevisions.map((revision, index) => (
+                                  <li key={index}>
+                                    {revision.recorded_at}: Quantity {revision.quantity}, Speed{" "}
+                                    {revision.baseline_speed}, Difficulty {revision.difficulty_coefficient}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </div>
                         </div>
                       )}

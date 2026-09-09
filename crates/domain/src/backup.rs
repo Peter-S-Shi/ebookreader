@@ -359,6 +359,7 @@ mod tests {
                 &conn,
                 "book-1",
                 &crate::book_hours::WorkloadConfig { quantity: 50_000.0, baseline_speed: 250.0, difficulty_coefficient: 1.1 },
+                "2026-09-09T00:00:00Z",
             )
             .unwrap();
             crate::collections::create_collection(&conn, "col-1", "Favorites").unwrap();
@@ -387,6 +388,11 @@ mod tests {
 
         let workload = crate::book_hours::load_workload_config(&conn, "book-1").unwrap().unwrap();
         assert_eq!(workload.quantity, 50_000.0);
+        assert_eq!(
+            crate::book_hours::list_workload_config_revisions(&conn, "book-1").unwrap().len(),
+            1,
+            "FC-A05: the workload config revision history is canonical user data and must survive backup/restore"
+        );
 
         let collections = crate::collections::list_collections_for_book(&conn, "book-1").unwrap();
         assert_eq!(collections.len(), 1);

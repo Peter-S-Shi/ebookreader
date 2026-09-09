@@ -540,6 +540,11 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
       }
       return undefined;
     });
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_command") return null;
+      if (cmd === "list_workload_config_revisions_command") return [];
+      return undefined;
+    });
 
     render(<App />);
     await screen.findByText("A Book");
@@ -558,6 +563,99 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     await user.click(within(panel).getByRole("button", { name: "Add Tag" }));
     expect(collectionsMock).toHaveBeenCalledWith("add_tag_to_book_command", { bookId: "b1", tagName: "reread" });
     expect(await within(panel).findByText("reread")).toBeInTheDocument();
+  });
+});
+
+describe("Book Hours configuration + revision history (PRODUCT_SPEC.md SS9; FC-A05)", () => {
+  it("shows 'Not configured yet' before any workload config exists", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_command") return null;
+      if (cmd === "list_workload_config_revisions_command") return [];
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+    await user.click(screen.getByRole("button", { name: "Organize" }));
+
+    expect(await screen.findByText("Not configured yet.")).toBeInTheDocument();
+  });
+
+  it("displays the current Base/Cumulative Book Hours estimate and its revision history", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_command") {
+        return { base_hours: 20, cumulative_hours: 10, cumulative_reading_percent: 50 };
+      }
+      if (cmd === "list_workload_config_revisions_command") {
+        return [
+          { quantity: 100_000, baseline_speed: 250, difficulty_coefficient: 1.2, recorded_at: "2026-09-09T01:00:00Z" },
+          { quantity: 80_000, baseline_speed: 250, difficulty_coefficient: 1.0, recorded_at: "2026-09-08T00:00:00Z" },
+        ];
+      }
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+    await user.click(screen.getByRole("button", { name: "Organize" }));
+    const panel = await screen.findByRole("region", { name: "Book Hours for A Book" });
+
+    expect(within(panel).getByText(/base 20\.0h, cumulative 10\.0h/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/2026-09-09T01:00:00Z/)).toBeInTheDocument();
+    expect(within(panel).getByText(/2026-09-08T00:00:00Z/)).toBeInTheDocument();
+  });
+
+  it("saves a workload config change, records a revision, and refreshes the estimate", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    let saved: { quantity: number; baselineSpeed: number; difficultyCoefficient: number } | null = null;
+    invokeMock.mockImplementation(async (cmd: string, args) => {
+      if (cmd === "get_book_hours_command") {
+        return saved
+          ? { base_hours: saved.quantity / saved.baselineSpeed, cumulative_hours: 0, cumulative_reading_percent: 0 }
+          : null;
+      }
+      if (cmd === "list_workload_config_revisions_command") {
+        return saved
+          ? [{ quantity: saved.quantity, baseline_speed: saved.baselineSpeed, difficulty_coefficient: saved.difficultyCoefficient, recorded_at: "2026-09-09T00:00:00Z" }]
+          : [];
+      }
+      if (cmd === "save_workload_config_command") {
+        const a = args as { quantity: number; baselineSpeed: number; difficultyCoefficient: number };
+        saved = { quantity: a.quantity, baselineSpeed: a.baselineSpeed, difficultyCoefficient: a.difficultyCoefficient };
+        return undefined;
+      }
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+    await user.click(screen.getByRole("button", { name: "Organize" }));
+    const panel = await screen.findByRole("region", { name: "Book Hours for A Book" });
+    await within(panel).findByText("Not configured yet.");
+
+    await user.clear(within(panel).getByLabelText("Quantity"));
+    await user.type(within(panel).getByLabelText("Quantity"), "100000");
+    await user.clear(within(panel).getByLabelText("Baseline Speed"));
+    await user.type(within(panel).getByLabelText("Baseline Speed"), "250");
+    await user.click(within(panel).getByRole("button", { name: "Save Book Hours Config" }));
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "save_workload_config_command",
+      expect.objectContaining({ bookId: "b1", quantity: 100000, baselineSpeed: 250, difficultyCoefficient: 1 }),
+    );
+    expect(await within(panel).findByText(/base 400\.0h/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/2026-09-09T00:00:00Z/)).toBeInTheDocument();
   });
 });
 
