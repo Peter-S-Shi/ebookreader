@@ -294,13 +294,13 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
             key={notebookRefreshKey}
             bookId={bookId}
             onClose={() => setNotebookOpen(false)}
-            onJumpTo={(anchor) => {
-              const page = parseInt(anchor.primary_anchor, 10);
-              if (Number.isFinite(page) && page >= 1 && (pageCount === 0 || page <= pageCount)) {
-                setViewMode("single");
-                setPageNumber(page);
-              }
-              setNotebookOpen(false);
+            onJumpTo={(asset) => {
+              if (!asset.anchor) return false;
+              const page = parseInt(asset.anchor.primary_anchor, 10);
+              if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return false;
+              setViewMode("single");
+              setPageNumber(page);
+              return true;
             }}
           />
         )

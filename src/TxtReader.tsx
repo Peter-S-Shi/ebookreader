@@ -167,14 +167,14 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
               key={notebookRefreshKey}
               bookId={bookId}
               onClose={() => setNotebookOpen(false)}
-              onJumpTo={(anchor) => {
+              onJumpTo={(asset) => {
                 const container = containerRef.current;
-                if (container && text !== null) {
-                  const charOffset = parseInt(anchor.primary_anchor, 10);
-                  const fraction = Number.isFinite(charOffset) && text.length > 0 ? charOffset / text.length : 0;
-                  container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
-                }
-                setNotebookOpen(false);
+                if (!asset.anchor || !container || text === null) return false;
+                const charOffset = parseInt(asset.anchor.primary_anchor, 10);
+                if (!Number.isFinite(charOffset) || charOffset < 0 || charOffset > text.length) return false;
+                const fraction = text.length > 0 ? charOffset / text.length : 0;
+                container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
+                return true;
               }}
             />
           )}

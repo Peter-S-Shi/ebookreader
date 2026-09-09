@@ -24,11 +24,14 @@ export interface ReadingAssetDTO {
 interface NotebookPanelProps {
   bookId: string;
   onClose: () => void;
-  /** Jump the Reader to a source-bound asset's anchor. Omitted (or the
-   * asset having no anchor / being Orphaned) hides the jump-back action --
-   * SS11's orphan preservation means a stale anchor must not offer a jump
-   * that can no longer resolve. */
-  onJumpTo?: (anchor: DocumentLocationDTO) => void;
+  /** Jump the Reader to a source-bound asset's anchor; resolves to whether
+   * the anchor actually resolved. Omitted (or the asset having no anchor /
+   * being Orphaned) hides the jump-back action. A failed jump (the anchor
+   * could no longer be resolved -- PRODUCT_SPEC.md SS11: "If an anchor
+   * becomes unrecoverable") marks the asset Orphaned/Detached here rather
+   * than deleting it, and never closes the panel so the user sees the
+   * result. */
+  onJumpTo?: (asset: ReadingAssetDTO) => boolean | Promise<boolean>;
 }
 
 const KIND_LABELS: Record<AssetKind, string> = {
@@ -59,6 +62,17 @@ export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps)
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
+
+  async function handleJumpTo(asset: ReadingAssetDTO) {
+    if (!onJumpTo) return;
+    const resolved = await onJumpTo(asset);
+    if (resolved) {
+      onClose();
+    } else {
+      await invoke("mark_reading_asset_orphaned_command", { assetId: asset.id }).catch(() => {});
+      refresh();
+    }
+  }
 
   async function handleAddNote() {
     const text = draft.trim();
@@ -101,7 +115,7 @@ export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps)
             {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
             <p>{asset.text}</p>
             {asset.anchor && !asset.orphaned && onJumpTo && (
-              <button type="button" onClick={() => onJumpTo(asset.anchor!)}>
+              <button type="button" onClick={() => handleJumpTo(asset)}>
                 Jump to
               </button>
             )}

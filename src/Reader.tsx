@@ -39,7 +39,10 @@ interface FoliateBook {
 }
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
-  goTo(target: string): Promise<void>;
+  // foliate-js's goTo() never rejects on an unresolvable target -- it
+  // catches internally and resolves to `undefined` -- so a resolved
+  // (non-undefined) return is the only failure signal available.
+  goTo(target: string): Promise<unknown>;
   getCFI(index: number, range: Range): string;
   lastLocation?: { cfi?: string; fraction?: number };
   isFixedLayout?: boolean;
@@ -258,9 +261,10 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
               key={notebookRefreshKey}
               bookId={bookId}
               onClose={() => setOpenPanel(null)}
-              onJumpTo={(anchor) => {
-                viewRef.current?.goTo(anchor.primary_anchor).catch(() => {});
-                setOpenPanel(null);
+              onJumpTo={async (asset) => {
+                if (!asset.anchor || !viewRef.current) return false;
+                const resolved = await viewRef.current.goTo(asset.anchor.primary_anchor);
+                return resolved !== undefined;
               }}
             />
           )}
