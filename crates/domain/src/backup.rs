@@ -440,6 +440,92 @@ mod tests {
     }
 
     #[test]
+    fn a_full_library_backup_excludes_reference_files_by_default() {
+        // MANUAL_QA.md QA-BACK-02 "verify inclusion is opt-in".
+        let dir = scratch_dir("full-library-reference-excluded-by-default");
+        let db_path = dir.join("library.sqlite3");
+        seeded_db(&db_path);
+        let managed_dir = dir.join("managed");
+        std::fs::create_dir_all(&managed_dir).unwrap();
+
+        let zip_path = dir.join("full_backup.zip");
+        let manifest =
+            create_full_library_backup(&db_path, &managed_dir, &[], &zip_path, "2026-09-09T00:00:00Z", 1).unwrap();
+
+        assert!(
+            manifest.files.iter().all(|f| !f.starts_with("reference/")),
+            "PRODUCT_SPEC.md SS16.3: Reference source files are included only when explicitly selected"
+        );
+    }
+
+    #[test]
+    fn a_full_library_backup_includes_only_explicitly_selected_reference_files() {
+        let dir = scratch_dir("full-library-reference-opt-in");
+        let db_path = dir.join("library.sqlite3");
+        seeded_db(&db_path);
+        let managed_dir = dir.join("managed");
+        std::fs::create_dir_all(&managed_dir).unwrap();
+        let reference_source = dir.join("my-reference-book.epub");
+        std::fs::write(&reference_source, b"a reference-mode book the user owns").unwrap();
+
+        let zip_path = dir.join("full_backup.zip");
+        let manifest = create_full_library_backup(
+            &db_path,
+            &managed_dir,
+            &[reference_source.clone()],
+            &zip_path,
+            "2026-09-09T00:00:00Z",
+            1,
+        )
+        .unwrap();
+
+        assert_eq!(manifest.files, vec!["reference/my-reference-book.epub".to_string()]);
+        let mut archive = open_archive(&zip_path).unwrap();
+        let bytes = read_entry(&mut archive, "reference/my-reference-book.epub").unwrap();
+        assert_eq!(bytes, b"a reference-mode book the user owns");
+    }
+
+    #[test]
+    fn restoring_a_full_library_backup_never_overwrites_the_original_reference_file() {
+        // PRODUCT_SPEC.md SS16.4: "never silently overwrite reference
+        // source files" -- the archived reference/ bytes are a safety
+        // copy inside the zip, not something restore extracts back over
+        // the user's own file at its original path.
+        let dir = scratch_dir("full-library-reference-restore-no-overwrite");
+        let db_path = dir.join("library.sqlite3");
+        seeded_db(&db_path);
+        let managed_dir = dir.join("managed");
+        std::fs::create_dir_all(&managed_dir).unwrap();
+        let reference_source = dir.join("my-reference-book.epub");
+        std::fs::write(&reference_source, b"original bytes the user owns").unwrap();
+
+        let zip_path = dir.join("full_backup.zip");
+        create_full_library_backup(
+            &db_path,
+            &managed_dir,
+            &[reference_source.clone()],
+            &zip_path,
+            "2026-09-09T00:00:00Z",
+            1,
+        )
+        .unwrap();
+
+        // Simulate the user having since modified their own Reference file.
+        std::fs::write(&reference_source, b"the user has since edited this file").unwrap();
+
+        let restored_db_path = dir.join("restored.sqlite3");
+        let restored_managed_dir = dir.join("restored-managed");
+        let snapshot_path = dir.join("snapshot.sqlite3");
+        restore(&zip_path, &restored_db_path, &restored_managed_dir, &snapshot_path).unwrap();
+
+        let bytes_after_restore = std::fs::read(&reference_source).unwrap();
+        assert_eq!(
+            bytes_after_restore, b"the user has since edited this file",
+            "restore must never silently overwrite a Reference source file at its original path"
+        );
+    }
+
+    #[test]
     fn restoring_an_archive_missing_a_manifest_listed_file_is_rejected_without_touching_the_live_database() {
         let dir = scratch_dir("incomplete-archive-rejected");
         let db_path = dir.join("library.sqlite3");

@@ -19,6 +19,8 @@ interface BackupPreviewDTO {
 interface BookSummaryDTO {
   book_id: string;
   title: string;
+  path?: string;
+  ownership_mode?: string;
 }
 
 interface ReadingProgressDTO {
@@ -43,6 +45,13 @@ export function DataRecovery() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [bookDataBooks, setBookDataBooks] = useState<BookSummaryDTO[] | null>(null);
   const [completedReadInputs, setCompletedReadInputs] = useState<Record<string, string>>({});
+  // FC-C07 (`PRODUCT_SPEC.md` SS16.3: Full Library Backup may "optionally"
+  // include "explicitly selected Reference source files"): the Reference-
+  // mode Books available to opt in, and which paths the user has checked.
+  // `null` means not loaded yet -- shown only once the user opens Full
+  // Library Backup, not fetched unconditionally on mount.
+  const [referenceBooks, setReferenceBooks] = useState<BookSummaryDTO[] | null>(null);
+  const [selectedReferenceFiles, setSelectedReferenceFiles] = useState<Set<string>>(new Set());
 
   async function createAppDataBackup() {
     const dest = await save({
@@ -61,6 +70,23 @@ export function DataRecovery() {
     }
   }
 
+  async function loadReferenceBooks() {
+    const books = await invoke<BookSummaryDTO[]>("list_library_command");
+    setReferenceBooks(books.filter((book) => book.ownership_mode === "reference"));
+  }
+
+  function toggleReferenceFile(path: string) {
+    setSelectedReferenceFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }
+
   async function createFullLibraryBackup() {
     const dest = await save({
       defaultPath: `ebookreader-full-library-backup.zip`,
@@ -71,7 +97,7 @@ export function DataRecovery() {
       const manifest = await invoke<BackupManifestDTO>("create_full_library_backup_command", {
         destPath: dest,
         createdAt: new Date().toISOString(),
-        extraReferenceFiles: [],
+        extraReferenceFiles: Array.from(selectedReferenceFiles),
       });
       setStatusMessage(`Full Library Backup created: ${manifest.book_count} book(s), ${manifest.files.length} file(s).`);
     } catch (e) {
@@ -154,10 +180,40 @@ export function DataRecovery() {
           <button type="button" onClick={createFullLibraryBackup}>
             Create Full Library Backup
           </button>
+          <button type="button" onClick={loadReferenceBooks}>
+            Choose Reference Files to Include…
+          </button>
           <button type="button" onClick={chooseArchiveToPreview}>
             Choose Backup to Restore…
           </button>
         </div>
+
+        {referenceBooks && (
+          <div role="region" aria-label="Reference Files to Include">
+            <p className="ocr-workspace-hint">
+              Full Library Backup always includes Managed-Copy book files. Reference source files are excluded
+              unless explicitly selected here (opt-in).
+            </p>
+            {referenceBooks.length === 0 ? (
+              <p>No Reference-mode books in the Library.</p>
+            ) : (
+              <ul>
+                {referenceBooks.map((book) => (
+                  <li key={book.book_id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={selectedReferenceFiles.has(book.path!)}
+                        onChange={() => toggleReferenceFile(book.path!)}
+                      />
+                      {book.title}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {preview && (
           <div className="data-recovery-preview" role="region" aria-label="Backup preview">

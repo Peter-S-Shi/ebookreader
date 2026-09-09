@@ -195,4 +195,53 @@ describe("DataRecovery", () => {
     expect(confirmMock).toHaveBeenCalled();
     expect(invokeMock).not.toHaveBeenCalledWith("restore_backup_command", expect.anything());
   });
+
+  describe("Full Library Backup Reference-file opt-in (PRODUCT_SPEC.md SS16.3; FC-C07)", () => {
+    it("excludes Reference files by default", async () => {
+      const user = userEvent.setup();
+      saveMock.mockResolvedValue("C:/backups/full.zip");
+      invokeMock.mockResolvedValue({ kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 1, files: [] });
+
+      render(<DataRecovery />);
+      await user.click(screen.getByRole("button", { name: "Create Full Library Backup" }));
+
+      expect(invokeMock).toHaveBeenCalledWith(
+        "create_full_library_backup_command",
+        expect.objectContaining({ extraReferenceFiles: [] }),
+      );
+    });
+
+    it("includes only the explicitly checked Reference files", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === "list_library_command") {
+          return Promise.resolve([
+            { book_id: "ref-1", title: "Reference Book", path: "C:/books/ref1.epub", format: "epub", ownership_mode: "reference", available: true },
+            { book_id: "ref-2", title: "Another Reference Book", path: "C:/books/ref2.epub", format: "epub", ownership_mode: "reference", available: true },
+            { book_id: "managed-1", title: "Managed Book", path: "C:/app/managed1.epub", format: "epub", ownership_mode: "managed_copy", available: true },
+          ]);
+        }
+        if (cmd === "create_full_library_backup_command") {
+          return Promise.resolve({ kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 3, files: [] });
+        }
+        return Promise.resolve(undefined);
+      });
+      saveMock.mockResolvedValue("C:/backups/full.zip");
+
+      render(<DataRecovery />);
+      await user.click(screen.getByRole("button", { name: "Choose Reference Files to Include…" }));
+
+      expect(await screen.findByText("Reference Book")).toBeInTheDocument();
+      expect(screen.getByText("Another Reference Book")).toBeInTheDocument();
+      expect(screen.queryByText("Managed Book")).not.toBeInTheDocument();
+
+      await user.click(screen.getByLabelText("Reference Book"));
+      await user.click(screen.getByRole("button", { name: "Create Full Library Backup" }));
+
+      expect(invokeMock).toHaveBeenCalledWith(
+        "create_full_library_backup_command",
+        expect.objectContaining({ extraReferenceFiles: ["C:/books/ref1.epub"] }),
+      );
+    });
+  });
 });
