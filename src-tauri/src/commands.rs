@@ -10,6 +10,7 @@ use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config
 use ebookreader_domain::completion::ReadingProgress;
 use ebookreader_domain::document_location::{load_location, save_location, DocumentLocation};
 use ebookreader_domain::fonts::parse_system_font_registry_names;
+use ebookreader_domain::ocr::{self, OcrJob, OcrJobStatus, OcrScope};
 use ebookreader_domain::progress_store::{load_progress, save_progress};
 use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::search::{self, SearchHit};
@@ -414,4 +415,66 @@ pub fn list_all_reading_assets_command(state: State<DbState>, kind: Option<Strin
 pub fn mark_reading_asset_orphaned_command(state: State<DbState>, asset_id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     assets::mark_orphaned(&conn, &asset_id).map_err(|e| format!("could not mark asset orphaned: {e}"))
+}
+
+/// Create an OCR job for a Book (`PRODUCT_SPEC.md` SS13.1: "user chooses
+/// Current Page, Selected Pages, or Entire Book"). This records the job's
+/// scope/status only -- running the actual OCR engine against `scope` is
+/// a later checkpoint (see `ebookreader_domain::ocr`'s module doc for why
+/// real inference isn't wired yet).
+#[tauri::command]
+pub fn create_ocr_job_command(state: State<DbState>, book_id: String, scope: OcrScope) -> Result<OcrJob, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let job = OcrJob { id: uuid::Uuid::new_v4().to_string(), book_id, scope, status: OcrJobStatus::Pending };
+    ocr::create_job(&conn, &job).map_err(|e| format!("could not create OCR job: {e}"))?;
+    Ok(job)
+}
+
+#[tauri::command]
+pub fn get_ocr_job_command(state: State<DbState>, job_id: String) -> Result<Option<OcrJob>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::get_job(&conn, &job_id).map_err(|e| format!("could not load OCR job: {e}"))
+}
+
+/// Pause/resume/cancel an OCR job, or record its terminal outcome
+/// (SS13.1: "jobs can pause/resume/cancel"; "successful completion has an
+/// explicit semantic success state").
+#[tauri::command]
+pub fn set_ocr_job_status_command(state: State<DbState>, job_id: String, status: OcrJobStatus) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::set_job_status(&conn, &job_id, status).map_err(|e| format!("could not update OCR job status: {e}"))
+}
+
+/// Save (or overwrite) one page's raw OCR text -- the rebuildable cache
+/// (SS13.1: "raw OCR/cache is rebuildable").
+#[tauri::command]
+pub fn save_ocr_page_result_command(state: State<DbState>, book_id: String, page_number: u32, text: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::save_page_result(&conn, &book_id, page_number, &text).map_err(|e| format!("could not save OCR page result: {e}"))
+}
+
+/// Save a user's correction to one page's OCR text. Canonical user data
+/// -- `clear_ocr_cache_command` never touches it (`ROADMAP.md` M5 Exit
+/// Gate: "Manual corrections survive raw OCR/cache rebuild and restart").
+#[tauri::command]
+pub fn save_ocr_correction_command(state: State<DbState>, book_id: String, page_number: u32, corrected_text: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::save_correction(&conn, &book_id, page_number, &corrected_text)
+        .map_err(|e| format!("could not save OCR correction: {e}"))
+}
+
+/// The text a Reader/search should actually use for a page: the user's
+/// correction if one exists, else the raw OCR result, else `None`.
+#[tauri::command]
+pub fn get_ocr_effective_text_command(state: State<DbState>, book_id: String, page_number: u32) -> Result<Option<String>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::effective_text(&conn, &book_id, page_number).map_err(|e| format!("could not load OCR text: {e}"))
+}
+
+/// Delete all raw OCR results for a Book (cache invalidation/rebuild).
+/// Corrections are untouched -- see `save_ocr_correction_command`.
+#[tauri::command]
+pub fn clear_ocr_cache_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    ocr::clear_page_results(&conn, &book_id).map_err(|e| format!("could not clear OCR cache: {e}"))
 }

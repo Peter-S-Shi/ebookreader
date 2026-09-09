@@ -121,6 +121,33 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 6 {
+        conn.execute_batch(
+            "
+            CREATE TABLE ocr_job (
+                id TEXT PRIMARY KEY,
+                book_id TEXT NOT NULL REFERENCES book(id),
+                scope TEXT NOT NULL,
+                status TEXT NOT NULL
+            );
+            CREATE INDEX idx_ocr_job_book ON ocr_job(book_id);
+            CREATE TABLE ocr_page_result (
+                book_id TEXT NOT NULL REFERENCES book(id),
+                page_number INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                PRIMARY KEY (book_id, page_number)
+            );
+            CREATE TABLE ocr_correction (
+                book_id TEXT NOT NULL REFERENCES book(id),
+                page_number INTEGER NOT NULL,
+                corrected_text TEXT NOT NULL,
+                PRIMARY KEY (book_id, page_number)
+            );
+            PRAGMA user_version = 6;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -383,7 +410,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]

@@ -15,6 +15,7 @@ pub mod cjk_search;
 pub mod completion;
 pub mod document_location;
 pub mod fonts;
+pub mod ocr;
 pub mod progress_store;
 pub mod reading_session;
 pub mod search;
