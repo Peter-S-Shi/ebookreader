@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
-import { ACCENT_COLOR_KEY, THEME_MODE_KEY } from "./appSettings";
+import { ACCENT_COLOR_KEY, AUTO_PAUSE_AFTER_INACTIVITY_KEY, COUNT_NOTE_TAKING_KEY, PAUSE_ON_BACKGROUND_KEY, THEME_MODE_KEY, TRACK_ACTUAL_READING_TIME_KEY } from "./appSettings";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
@@ -61,6 +61,71 @@ describe("Settings — Appearance", () => {
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: ACCENT_COLOR_KEY, value: "#112233" }),
+    );
+  });
+});
+
+describe("Settings — Actual Reading Time (PRODUCT_SPEC.md SS10; FC-A06)", () => {
+  it("defaults all four policies to On when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Track Actual Reading Time" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Pause When App Is in Background" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Auto-pause After 5 Minutes Inactivity" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Count Note-taking as Reading Time" })).toBeChecked();
+  });
+
+  it("loads a persisted 'off' value for one policy without affecting the others", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === PAUSE_ON_BACKGROUND_KEY) return "false";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Pause When App Is in Background" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Track Actual Reading Time" })).toBeChecked();
+  });
+
+  it("persists turning off Track Actual Reading Time", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Track Actual Reading Time" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: TRACK_ACTUAL_READING_TIME_KEY, value: "false" }),
+    );
+  });
+
+  it("persists turning off Count Note-taking as Reading Time", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Count Note-taking as Reading Time" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: COUNT_NOTE_TAKING_KEY, value: "false" }),
+    );
+  });
+
+  it("persists turning off Auto-pause After 5 Minutes Inactivity", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Auto-pause After 5 Minutes Inactivity" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: AUTO_PAUSE_AFTER_INACTIVITY_KEY,
+        value: "false",
+      }),
     );
   });
 });

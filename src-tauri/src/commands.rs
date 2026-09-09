@@ -22,7 +22,7 @@ use ebookreader_domain::fonts::parse_system_font_registry_names;
 use ebookreader_domain::ocr::{self, OcrJob, OcrJobStatus, OcrScope};
 use ebookreader_domain::ocr_engine::{reading_order_text, OcrEngine};
 use ebookreader_domain::progress_store::{load_progress, save_progress};
-use ebookreader_domain::reading_session::SessionState;
+use ebookreader_domain::reading_session::{PauseKind, SessionState};
 use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
     delete_managed_copy_file, delete_reading_data, get_book, import_book, import_book_managed, list_books,
@@ -297,15 +297,18 @@ pub fn list_system_fonts_command() -> Result<Vec<String>, String> {
 
 #[derive(Debug, Serialize)]
 pub struct ReadingSessionStatus {
-    /// "active" | "paused_locked" | "paused_suspended"
+    /// "active" | "paused_locked" | "paused_suspended" | "paused_background"
+    /// | "paused_inactivity"
     pub state: String,
     pub total_excluded_ms: u128,
+    pub total_note_taking_ms: u128,
 }
 
 /// Current ReadingSession pause state, per `ARCHITECTURE.md` SS10: exact
 /// lock/sleep-excluded time, maintained by the real Win32 hook
-/// (`reading_session_hook`), not a fixed inactivity heuristic. Consumed by
-/// Actual Reading Time / Book Hours computation (M3).
+/// (`reading_session_hook`) plus the app-driven Background/Inactivity
+/// pauses and note-taking tracking below, not a fixed inactivity
+/// heuristic. Consumed by Actual Reading Time / Book Hours computation.
 #[tauri::command]
 pub fn reading_session_status_command(state: State<ReadingSessionState>) -> Result<ReadingSessionStatus, String> {
     let session = state
@@ -316,11 +319,60 @@ pub fn reading_session_status_command(state: State<ReadingSessionState>) -> Resu
         SessionState::Active => "active",
         SessionState::PausedLocked => "paused_locked",
         SessionState::PausedSuspended => "paused_suspended",
+        SessionState::PausedBackground => "paused_background",
+        SessionState::PausedInactivity => "paused_inactivity",
     };
     Ok(ReadingSessionStatus {
         state: state_str.to_string(),
         total_excluded_ms: session.total_excluded().as_millis(),
+        total_note_taking_ms: session.total_note_taking().as_millis(),
     })
+}
+
+/// Pause the ReadingSession for an app-driven reason (`PRODUCT_SPEC.md`
+/// SS10 "Pause When App Is in Background" / "Auto-pause After 5 Minutes
+/// Inactivity") -- as opposed to the OS-level lock/sleep pauses the
+/// native `reading_session_hook` drives directly. `kind` must be
+/// `"background"` or `"inactivity"`. Returns `true` if this call actually
+/// changed the state (a redundant pause signal while already paused is a
+/// no-op).
+#[tauri::command]
+pub fn pause_reading_session_command(state: State<ReadingSessionState>, kind: String) -> Result<bool, String> {
+    let pause_kind = match kind.as_str() {
+        "background" => PauseKind::Background,
+        "inactivity" => PauseKind::Inactivity,
+        other => return Err(format!("unknown pause kind: {other}")),
+    };
+    let mut session = state.0.lock().map_err(|e| format!("ReadingSession lock poisoned: {e}"))?;
+    Ok(session.pause(pause_kind, std::time::Instant::now()))
+}
+
+/// Resume the ReadingSession from whichever app-driven pause is in
+/// effect. A no-op if the session is already active.
+#[tauri::command]
+pub fn resume_reading_session_command(state: State<ReadingSessionState>) -> Result<(), String> {
+    let mut session = state.0.lock().map_err(|e| format!("ReadingSession lock poisoned: {e}"))?;
+    session.resume(std::time::Instant::now());
+    Ok(())
+}
+
+/// Start tracking a note-taking interval (`PRODUCT_SPEC.md` SS10 "Count
+/// Note-taking as Reading Time"). ReadingSession only records the fact of
+/// how long note-taking lasted; whether it counts toward displayed
+/// Actual Reading Time is a Settings policy applied when that time is
+/// recorded, not here.
+#[tauri::command]
+pub fn start_note_taking_command(state: State<ReadingSessionState>) -> Result<(), String> {
+    let mut session = state.0.lock().map_err(|e| format!("ReadingSession lock poisoned: {e}"))?;
+    session.start_note_taking(std::time::Instant::now());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_note_taking_command(state: State<ReadingSessionState>) -> Result<(), String> {
+    let mut session = state.0.lock().map_err(|e| format!("ReadingSession lock poisoned: {e}"))?;
+    session.stop_note_taking(std::time::Instant::now());
+    Ok(())
 }
 
 /// Load a Book's reading progress (`PRODUCT_SPEC.md` SS8). A never-opened

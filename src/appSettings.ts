@@ -5,6 +5,12 @@ import { invoke } from "@tauri-apps/api/core";
 export const THEME_MODE_KEY = "appearance.theme_mode";
 export const ACCENT_COLOR_KEY = "appearance.accent_color";
 export const UPDATE_CHECK_ON_STARTUP_KEY = "update_awareness.check_on_startup";
+// FC-A06: PRODUCT_SPEC.md SS10's small Actual Reading Time policy
+// surface, all default On.
+export const TRACK_ACTUAL_READING_TIME_KEY = "actual_reading_time.track_enabled";
+export const PAUSE_ON_BACKGROUND_KEY = "actual_reading_time.pause_on_background";
+export const AUTO_PAUSE_AFTER_INACTIVITY_KEY = "actual_reading_time.auto_pause_after_inactivity";
+export const COUNT_NOTE_TAKING_KEY = "actual_reading_time.count_note_taking";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -13,6 +19,11 @@ export const DEFAULT_ACCENT_COLOR = "#3b6ea5";
 // PRODUCT_SPEC.md SS17 lists "optional automatic startup check" as
 // included V1 behavior, so an unset preference defaults to on.
 export const DEFAULT_UPDATE_CHECK_ON_STARTUP = true;
+// PRODUCT_SPEC.md SS10: all four Actual Reading Time policies default On.
+export const DEFAULT_TRACK_ACTUAL_READING_TIME = true;
+export const DEFAULT_PAUSE_ON_BACKGROUND = true;
+export const DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY = true;
+export const DEFAULT_COUNT_NOTE_TAKING = true;
 
 export async function getSetting(key: string): Promise<string | null> {
   return await invoke<string | null>("get_setting_command", { key });
@@ -54,4 +65,19 @@ export async function loadUpdateCheckOnStartupPreference(): Promise<boolean> {
 
 export async function saveUpdateCheckOnStartupPreference(enabled: boolean): Promise<void> {
   await setSetting(UPDATE_CHECK_ON_STARTUP_KEY, enabled ? "true" : "false");
+}
+
+/// Generic boolean-setting reader: anything other than exactly "true" or
+/// "false" (including unset/`null`, or a stale/corrupt value) resolves to
+/// `defaultValue` rather than being coerced -- a boolean setting is never
+/// silently treated as "off" just because it wasn't a recognized string.
+export async function loadBooleanSetting(key: string, defaultValue: boolean): Promise<boolean> {
+  const stored = await getSetting(key);
+  if (stored === "true") return true;
+  if (stored === "false") return false;
+  return defaultValue;
+}
+
+export async function saveBooleanSetting(key: string, value: boolean): Promise<void> {
+  await setSetting(key, value ? "true" : "false");
 }

@@ -3,13 +3,27 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotebookPanel } from "./NotebookPanel";
 
-const { invokeMock, saveMock } = vi.hoisted(() => ({ invokeMock: vi.fn(), saveMock: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+const { invokeMock, saveMock, noteTakingMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  saveMock: vi.fn(),
+  // FC-A06: NotebookPanel now calls start/stop_note_taking_command on
+  // mount/unmount. Routed to their own mock (always resolved) so they
+  // never consume a slot from invokeMock's call-order-based
+  // mockResolvedValueOnce queue -- every pre-existing test here was
+  // written before note-taking tracking existed.
+  noteTakingMock: vi.fn(),
+}));
+const NOTE_TAKING_COMMANDS = new Set(["start_note_taking_command", "stop_note_taking_command"]);
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (...args: [string, ...unknown[]]) => (NOTE_TAKING_COMMANDS.has(args[0]) ? noteTakingMock : invokeMock)(...args),
+}));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ save: saveMock }));
 
 beforeEach(() => {
   invokeMock.mockReset();
   saveMock.mockReset();
+  noteTakingMock.mockReset();
+  noteTakingMock.mockResolvedValue(undefined);
 });
 
 describe("NotebookPanel", () => {
@@ -208,6 +222,22 @@ describe("NotebookPanel", () => {
       await user.click(screen.getByRole("button", { name: "Export as Markdown" }));
 
       expect(invokeMock).not.toHaveBeenCalledWith("export_notebook_markdown_command", expect.anything());
+    });
+  });
+
+  describe("Note-taking tracking (PRODUCT_SPEC.md SS10 'Count Note-taking as Reading Time'; FC-A06)", () => {
+    it("starts tracking note-taking on mount and stops on unmount", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+
+      const { unmount } = render(<NotebookPanel bookId="book-1" bookTitle="Test Book" onClose={() => {}} />);
+      await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("list_reading_assets_command", { bookId: "book-1" }));
+
+      expect(noteTakingMock).toHaveBeenCalledWith("start_note_taking_command");
+      expect(noteTakingMock).not.toHaveBeenCalledWith("stop_note_taking_command");
+
+      unmount();
+
+      expect(noteTakingMock).toHaveBeenCalledWith("stop_note_taking_command");
     });
   });
 });

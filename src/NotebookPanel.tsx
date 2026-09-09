@@ -66,6 +66,18 @@ export function NotebookPanel({ bookId, bookTitle, onClose, onJumpTo }: Notebook
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
+  // PRODUCT_SPEC.md SS10 "Count Note-taking as Reading Time":
+  // ReadingSession only needs to know the *fact* of how long note-taking
+  // lasted while this panel was open -- whether that duration counts
+  // toward displayed Actual Reading Time is a Settings policy applied by
+  // `useActualReadingTimeHeartbeat`, not decided here.
+  useEffect(() => {
+    invoke("start_note_taking_command").catch(() => {});
+    return () => {
+      invoke("stop_note_taking_command").catch(() => {});
+    };
+  }, []);
+
   async function handleJumpTo(asset: ReadingAssetDTO) {
     if (!onJumpTo) return;
     const resolved = await onJumpTo(asset);

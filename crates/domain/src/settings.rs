@@ -39,6 +39,13 @@ pub mod keys {
 
     // FC-C08: Update Awareness startup-check preference.
     pub const UPDATE_CHECK_ON_STARTUP: &str = "update_awareness.check_on_startup"; // "true" | "false"
+
+    // FC-A06: PRODUCT_SPEC.md SS10's small Actual Reading Time policy
+    // surface, all default On.
+    pub const TRACK_ACTUAL_READING_TIME: &str = "actual_reading_time.track_enabled"; // "true" | "false"
+    pub const PAUSE_ON_BACKGROUND: &str = "actual_reading_time.pause_on_background"; // "true" | "false"
+    pub const AUTO_PAUSE_AFTER_INACTIVITY: &str = "actual_reading_time.auto_pause_after_inactivity"; // "true" | "false"
+    pub const COUNT_NOTE_TAKING: &str = "actual_reading_time.count_note_taking"; // "true" | "false"
 }
 
 #[cfg(test)]
