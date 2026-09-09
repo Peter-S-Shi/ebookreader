@@ -16,10 +16,21 @@
 /// blank, so dictionary entries start at index 1 -- PaddleOCR's
 /// `['blank'] + dict_chars` convention).
 ///
-/// `logits` is a row-major `[seq_len, num_classes]` tensor (raw scores, not
-/// required to be pre-softmaxed). Returns the decoded text and its average
-/// per-character confidence (softmax probability of the selected class,
-/// computed only for accepted characters).
+/// `logits` is a row-major `[seq_len, num_classes]` tensor of **already
+/// softmax-activated probabilities**, not raw logits: confirmed empirically
+/// (`PP-OCRv6_rec_small.onnx`'s `fetch_name_0` output rows sum to ~1.0 with
+/// all values in [0,1]) -- the same "already activated" pattern as the
+/// detector's sigmoid output (see
+/// `tooling/m5-evidence/m5a_det_medium_rust_ort_spike.md` Finding 4). An
+/// earlier version of this function applied a redundant softmax on top,
+/// which is mathematically well-behaved (never panics, argmax is invariant
+/// under a monotonic transform, so decoded *text* was never wrong) but
+/// silently produced near-zero confidence scores by re-normalizing an
+/// already-normalized distribution over 18,710 classes. Confidence is now
+/// just the selected class's probability directly.
+///
+/// Returns the decoded text and its average per-character confidence
+/// (computed only over accepted, non-blank characters).
 pub fn ctc_greedy_decode(
     logits: &[f32],
     seq_len: usize,
@@ -50,8 +61,7 @@ pub fn ctc_greedy_decode(
 
         if let Some(ch) = dict.get(best_idx - 1) {
             text.push_str(ch);
-            let denom: f32 = row.iter().map(|&v| (v - best_val).exp()).sum();
-            confidences.push(1.0 / denom);
+            confidences.push(best_val);
         }
     }
 
@@ -71,11 +81,17 @@ mod tests {
         vec!["a".to_string(), "b".to_string(), "c".to_string()]
     }
 
-    // 4 classes: [blank, a, b, c]. One row per timestep, high score at the
-    // intended class index, low elsewhere.
+    // 4 classes: [blank, a, b, c]. One row per timestep -- already
+    // softmax-shaped (sums to 1.0), matching the real model's output.
     fn row(num_classes: usize, hot_index: usize) -> Vec<f32> {
         let mut r = vec![0.0f32; num_classes];
-        r[hot_index] = 10.0;
+        r[hot_index] = 0.97;
+        let remainder = 0.03 / (num_classes - 1) as f32;
+        for (i, v) in r.iter_mut().enumerate() {
+            if i != hot_index {
+                *v = remainder;
+            }
+        }
         r
     }
 
