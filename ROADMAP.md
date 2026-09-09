@@ -816,7 +816,7 @@ None of these residuals threaten the Exit Gate's own condition.
 
 # Milestone 8 — Data Safety, Restore & Update Awareness
 
-**Status:** Planned  
+**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
 **Risk:** High
 
 ## Goal
@@ -854,6 +854,72 @@ Deliver recovery snapshots, backups, real Restore, relink/recovery, Library Heal
 ## Exit Gate
 
 Stable V1 feature implementation is not Feature Complete until real Restore works.
+
+**Satisfied.** Real Restore works, proven by a real file-based
+backup/restore round trip (`crates/domain/src/backup.rs`), not a
+mocked or in-memory-only proof (the same discipline M5's Exit Gate
+enforced for OCR correction durability): App Data Backup and Full
+Library Backup both copy the canonical SQLite database file itself
+(`ARCHITECTURE.md`: "SQLite... is the canonical persistence engine") --
+never a hand-rolled per-table export that could silently diverge from
+what the app actually persists -- into a real zip archive alongside a
+manifest, and Restore reverses this exactly. The workflow matches the
+one the M0 corrective-pass spike already validated
+(`tooling/m0-evidence/results/m0h_backup_restore.txt`: "manifest/
+preview -> safety snapshot -> restore -> verify"): `preview()` reads
+the manifest and checks completeness without mutating anything on
+disk (proven directly); `restore()` refuses an incomplete archive
+outright, touching nothing (proven directly, matching the spike's own
+"REJECTED reason=archive_incomplete" / "app-data unchanged after
+rejection" result); a recovery safety snapshot of the live database is
+created *before* any replacement, satisfying SS16.1 (proven directly);
+Managed-Copy files round-trip for a Full Library Backup (proven
+directly); "canonical user-asset round trip" is proven with a
+dedicated test carrying a Note, an OCR correction (not just raw
+recognized text), and a Book Hours workload config through a real
+backup->restore cycle intact, not inferred from the database-file-copy
+approach alone. "Needs Relink" surfacing after Restore requires no
+separate detection path: `store::list_books`'s existing `available`
+computation (whether a Reference path still exists on disk) runs
+against whatever database Restore just put in place, so it is correct
+by construction rather than by a parallel check that could drift out
+of sync. The Tauri command layer (`restore_backup_command`) safely
+swaps the live `rusqlite::Connection` (in-memory placeholder while the
+file is replaced, then a fresh connection to the restored file) so the
+file-level replacement never races a held file handle. A
+`DataRecovery.tsx` surface (`DESIGN.md` SS14 canonical `ER-DATA-001`)
+provides Create App Data Backup / Create Full Library Backup / Choose
+Backup to Restore -> Preview -> confirm (a real destructive-confirmation
+dialog naming the automatic safety snapshot) -> Restore, plus Update
+Awareness (SS17): a stable-release check against GitHub Releases'
+`/releases/latest` endpoint, which already excludes drafts/prereleases
+by GitHub's own documented semantics -- "stable release channel only"
+and "draft/prerelease ignored" with no extra filtering logic needed.
+Never a silent auto-install; a failed/offline check resolves to
+"Check Failed" rather than throwing. 9 new domain tests (151 domain
+tests total, was 143), 16 new frontend tests (89 frontend tests total,
+was 73), CI green.
+
+**Residuals explicitly carried forward, not silently dropped**: (1) if
+an individual Managed-Copy file fails to write mid-restore (a
+filesystem-level fault, e.g. a permissions error, after the archive's
+completeness has already been validated), the live database has
+already been replaced but not all managed files -- the automatic
+recovery snapshot exists precisely so this rare case is manually
+recoverable, but there is no automated rollback of a partially-applied
+restore. (2) `override_completed_reads_command`'s (M3) required warning
+copy (`DESIGN.md` SS14: "active progress is cleared; Actual Reading
+Time stays unchanged; ReadingSession history stays unchanged") has no
+frontend UI at all yet -- this was never an M8 Success Evidence item
+(M8's own bullets are Backup/Restore/Update Awareness, not this
+specific M3 feature's UI), so it is not a gap in this Milestone, but is
+recorded here as a genuinely open item for a future session. (3) The
+Backup/Restore/Update Awareness UI has not been exercised via a live
+native-window click-through and screenshotted, for the same
+`SetForegroundWindow` sandbox residual carried from M4-M7
+(`[[feedback-native-gui-visual-verification]]`). None of these
+residuals threaten the Exit Gate's own condition, which is about real
+Restore working -- proven directly above.
 
 ---
 

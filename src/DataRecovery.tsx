@@ -1,0 +1,179 @@
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { save, open, confirm } from "@tauri-apps/plugin-dialog";
+import { checkForUpdate, type UpdateCheckResult } from "./updateAwareness";
+
+interface BackupManifestDTO {
+  kind: "AppData" | "FullLibrary";
+  created_at: string;
+  book_count: number;
+  files: string[];
+}
+
+interface BackupPreviewDTO {
+  manifest: BackupManifestDTO;
+  schema_ok: boolean;
+  missing: string[];
+}
+
+const REPO_OWNER = "Peter-S-Shi";
+const REPO_NAME = "ebookreader";
+const CURRENT_VERSION = "0.1.0";
+
+/// `DESIGN.md` SS14 "Data / Recovery" (canonical `ER-DATA-001`): a safety
+/// center. `PRODUCT_SPEC.md` SS16 "Stable V1 requires real Restore" --
+/// Restore always Previews before replacement, and an incomplete
+/// archive is refused rather than partially applied
+/// (`crates/domain/src/backup.rs`). SS17 "Update Awareness" is a
+/// read-only stable-release check against GitHub Releases
+/// (`[[updateAwareness]]`), never a silent auto-install.
+export function DataRecovery() {
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ path: string; data: BackupPreviewDTO } | null>(null);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  async function createAppDataBackup() {
+    const dest = await save({
+      defaultPath: `ebookreader-app-data-backup.zip`,
+      filters: [{ name: "EbookReader Backup", extensions: ["zip"] }],
+    });
+    if (!dest) return;
+    try {
+      const manifest = await invoke<BackupManifestDTO>("create_app_data_backup_command", {
+        destPath: dest,
+        createdAt: new Date().toISOString(),
+      });
+      setStatusMessage(`App Data Backup created: ${manifest.book_count} book(s).`);
+    } catch (e) {
+      setStatusMessage(`Backup failed: ${e}`);
+    }
+  }
+
+  async function createFullLibraryBackup() {
+    const dest = await save({
+      defaultPath: `ebookreader-full-library-backup.zip`,
+      filters: [{ name: "EbookReader Backup", extensions: ["zip"] }],
+    });
+    if (!dest) return;
+    try {
+      const manifest = await invoke<BackupManifestDTO>("create_full_library_backup_command", {
+        destPath: dest,
+        createdAt: new Date().toISOString(),
+        extraReferenceFiles: [],
+      });
+      setStatusMessage(`Full Library Backup created: ${manifest.book_count} book(s), ${manifest.files.length} file(s).`);
+    } catch (e) {
+      setStatusMessage(`Backup failed: ${e}`);
+    }
+  }
+
+  async function chooseArchiveToPreview() {
+    const path = await open({ multiple: false, filters: [{ name: "EbookReader Backup", extensions: ["zip"] }] });
+    if (!path || Array.isArray(path)) return;
+    setStatusMessage(null);
+    try {
+      const data = await invoke<BackupPreviewDTO>("preview_backup_command", { archivePath: path });
+      setPreview({ path, data });
+    } catch (e) {
+      setPreview(null);
+      setStatusMessage(`Could not read this archive: ${e}`);
+    }
+  }
+
+  async function confirmRestore() {
+    if (!preview) return;
+    const proceed = await confirm(
+      "Restoring will replace your current Library data with this backup's contents. " +
+        "A safety snapshot of your current data is created automatically first, so this can be undone. Continue?",
+      { title: "Confirm Restore", kind: "warning" },
+    );
+    if (!proceed) return;
+
+    try {
+      await invoke("restore_backup_command", { archivePath: preview.path });
+      setStatusMessage("Restore complete. Books whose Reference source files are missing will show Needs Relink.");
+      setPreview(null);
+    } catch (e) {
+      setStatusMessage(`Restore failed: ${e}`);
+    }
+  }
+
+  async function runUpdateCheck() {
+    setCheckingUpdate(true);
+    const result = await checkForUpdate(CURRENT_VERSION, REPO_OWNER, REPO_NAME);
+    setUpdateResult(result);
+    setCheckingUpdate(false);
+  }
+
+  return (
+    <section className="data-recovery" aria-label="Data and Recovery">
+      <div className="data-recovery-group">
+        <h3>Backup &amp; Restore</h3>
+        <p className="ocr-workspace-hint">
+          App Data Backup: Library metadata, Notes, Excerpts, Annotations, reading history, Book Hours history, OCR
+          corrections, Alignment Packages, and settings. Reference book files are not copied.
+        </p>
+        <div className="data-recovery-actions">
+          <button type="button" onClick={createAppDataBackup}>
+            Create App Data Backup
+          </button>
+          <button type="button" onClick={createFullLibraryBackup}>
+            Create Full Library Backup
+          </button>
+          <button type="button" onClick={chooseArchiveToPreview}>
+            Choose Backup to Restore…
+          </button>
+        </div>
+
+        {preview && (
+          <div className="data-recovery-preview" role="region" aria-label="Backup preview">
+            <b>{preview.data.manifest.kind === "AppData" ? "App Data Backup" : "Full Library Backup"}</b>
+            <p>Created: {preview.data.manifest.created_at}</p>
+            <p>Books: {preview.data.manifest.book_count}</p>
+            {preview.data.schema_ok && preview.data.missing.length === 0 ? (
+              <p className="data-recovery-ok">This archive is complete and can be restored.</p>
+            ) : (
+              <p className="data-recovery-warn" role="alert">
+                This archive is incomplete{preview.data.missing.length > 0 ? ` (missing: ${preview.data.missing.join(", ")})` : ""} and cannot be restored.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={confirmRestore}
+              disabled={!preview.data.schema_ok || preview.data.missing.length > 0}
+            >
+              Restore This Backup
+            </button>
+          </div>
+        )}
+
+        {statusMessage && <p role="status">{statusMessage}</p>}
+      </div>
+
+      <div className="data-recovery-group">
+        <h3>Update Awareness</h3>
+        <p>Current version: {CURRENT_VERSION}</p>
+        <button type="button" onClick={runUpdateCheck} disabled={checkingUpdate}>
+          {checkingUpdate ? "Checking…" : "Check Now"}
+        </button>
+        {updateResult && (
+          <p role="status">
+            {updateResult.status === "up_to_date" && "Up To Date."}
+            {updateResult.status === "check_failed" && "Check Failed. You may be offline."}
+            {updateResult.status === "update_available" && (
+              <>
+                Update Available: {updateResult.latestVersion}.{" "}
+                {updateResult.releaseUrl && (
+                  <a href={updateResult.releaseUrl} target="_blank" rel="noreferrer">
+                    Release notes
+                  </a>
+                )}
+              </>
+            )}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}

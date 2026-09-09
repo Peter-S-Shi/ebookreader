@@ -2,13 +2,14 @@
 //! duplicate/persistence decisions live in `ebookreader_domain::store`,
 //! which carries its own TDD coverage (`crates/domain/src/store.rs`).
 
-use crate::db::{managed_books_dir, DbState};
+use crate::db::{db_path, managed_books_dir, recovery_snapshots_dir, DbState};
 use crate::{OcrEngineState, ReadingSessionState};
 use ebookreader_domain::actual_reading_time::{
     active_duration, load_actual_reading_time, save_actual_reading_time, ActualReadingTime,
 };
 use ebookreader_domain::alignment::{self, AlignmentPackage};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
+use ebookreader_domain::backup::{self, BackupManifest, BackupPreview};
 use ebookreader_domain::book_hours::{cumulative_book_hours, load_workload_config, save_workload_config, WorkloadConfig};
 use ebookreader_domain::calendar::{self, DayDetail};
 use ebookreader_domain::completion::ReadingProgress;
@@ -388,6 +389,92 @@ pub fn get_alignment_package_command(
 ) -> Result<Option<AlignmentPackage>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     alignment::find_package_for_book(&conn, &book_id).map_err(|e| format!("could not load Alignment Package: {e}"))
+}
+
+/// Create an App Data Backup (`PRODUCT_SPEC.md` SS16.2) at `dest_path`:
+/// the canonical database file plus a manifest, never Managed-Copy
+/// files or Reference source bytes.
+#[tauri::command]
+pub fn create_app_data_backup_command(
+    app: AppHandle,
+    state: State<DbState>,
+    dest_path: String,
+    created_at: String,
+) -> Result<BackupManifest, String> {
+    let db_file = db_path(&app)?;
+    let book_count = {
+        let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+        list_books(&conn).map_err(|e| format!("{e}"))?.len() as u32
+    };
+    backup::create_app_data_backup(&db_file, Path::new(&dest_path), &created_at, book_count)
+        .map_err(|e| format!("could not create App Data Backup: {e}"))
+}
+
+/// Create a Full Library Backup (`PRODUCT_SPEC.md` SS16.3): App Data
+/// Backup contents plus every Managed-Copy file, plus any explicitly-
+/// selected Reference source files.
+#[tauri::command]
+pub fn create_full_library_backup_command(
+    app: AppHandle,
+    state: State<DbState>,
+    dest_path: String,
+    created_at: String,
+    extra_reference_files: Vec<String>,
+) -> Result<BackupManifest, String> {
+    let db_file = db_path(&app)?;
+    let managed_dir = managed_books_dir(&app)?;
+    let book_count = {
+        let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+        list_books(&conn).map_err(|e| format!("{e}"))?.len() as u32
+    };
+    let extra: Vec<std::path::PathBuf> = extra_reference_files.into_iter().map(std::path::PathBuf::from).collect();
+    backup::create_full_library_backup(&db_file, &managed_dir, &extra, Path::new(&dest_path), &created_at, book_count)
+        .map_err(|e| format!("could not create Full Library Backup: {e}"))
+}
+
+/// Preview a backup archive's manifest/contents (`PRODUCT_SPEC.md`
+/// SS16.4, `DESIGN.md` SS14 "Restore must always Preview before
+/// replacement") without touching any live app state.
+#[tauri::command]
+pub fn preview_backup_command(archive_path: String) -> Result<BackupPreview, String> {
+    backup::preview(Path::new(&archive_path)).map_err(|e| format!("{e}"))
+}
+
+/// Apply a Restore. Creates an automatic recovery snapshot of the live
+/// database before any replacement (SS16.1), then replaces it (and, for
+/// a Full Library Backup, Managed-Copy files) with the archive's
+/// contents. Refuses an incomplete archive outright, touching nothing.
+///
+/// The live `rusqlite::Connection` this Tauri instance already holds
+/// must release its file handle on `db_path` *before* the restore
+/// overwrites that file, and a fresh connection must replace it
+/// afterward -- swapping in a throwaway in-memory connection first
+/// forces the old file handle closed without any unsafe pointer
+/// juggling, then a real connection to the restored file replaces it
+/// once the restore itself has succeeded.
+#[tauri::command]
+pub fn restore_backup_command(app: AppHandle, state: State<DbState>, archive_path: String) -> Result<BackupManifest, String> {
+    let db_file = db_path(&app)?;
+    let managed_dir = managed_books_dir(&app)?;
+    let snapshot_dir = recovery_snapshots_dir(&app)?;
+    let snapshot_path = snapshot_dir.join(format!("pre-restore-{}.sqlite3", std::process::id()));
+
+    let mut conn_guard = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    *conn_guard = rusqlite::Connection::open_in_memory()
+        .map_err(|e| format!("could not release the live database handle before restore: {e}"))?;
+
+    let result = backup::restore(Path::new(&archive_path), &db_file, &managed_dir, &snapshot_path)
+        .map_err(|e| format!("could not restore backup: {e}"));
+
+    let reopened = rusqlite::Connection::open(&db_file)
+        .map_err(|e| format!("could not reopen the library database after restore: {e}"))?;
+    ebookreader_domain::store::run_migrations(&reopened).map_err(|e| format!("{e}"))?;
+    search::ensure_search_schema(&reopened).map_err(|e| format!("{e}"))?;
+    *conn_guard = reopened;
+
+    let manifest = result?;
+    backup::prune_old_snapshots(&snapshot_dir, 5).map_err(|e| format!("could not prune old recovery snapshots: {e}"))?;
+    Ok(manifest)
 }
 
 /// Index (or re-index) one searchable text entry for a Book -- e.g. a

@@ -911,6 +911,46 @@ button {
   color: #9a6b27;
 }
 
+.data-recovery {
+  text-align: left;
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5em;
+}
+
+.data-recovery-group {
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 12px;
+  padding: 1em;
+}
+
+.data-recovery-group h3 {
+  margin-top: 0;
+}
+
+.data-recovery-actions {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  margin-top: 0.75em;
+}
+
+.data-recovery-preview {
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.data-recovery-ok {
+  color: #1a7f37;
+}
+
+.data-recovery-warn {
+  color: #9a6b27;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;

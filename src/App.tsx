@@ -6,6 +6,7 @@ import { PdfReader } from "./PdfReader";
 import { TxtReader } from "./TxtReader";
 import { Calendar } from "./Calendar";
 import { BilingualReader } from "./BilingualReader";
+import { DataRecovery } from "./DataRecovery";
 import "./App.css";
 
 interface BookSummary {
@@ -52,6 +53,7 @@ function App() {
   const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [dataRecoveryOpen, setDataRecoveryOpen] = useState(false);
   const [globalNotes, setGlobalNotes] = useState<ReadingAssetDTO[]>([]);
   const [notesKindFilter, setNotesKindFilter] = useState<"" | "annotation" | "excerpt" | "note">("");
   const [openBilingual, setOpenBilingual] = useState<
@@ -271,6 +273,13 @@ function App() {
           {calendarOpen ? "Hide Calendar" : "Calendar"}
         </button>
         {calendarOpen && <Calendar />}
+      </section>
+
+      <section aria-label="Data and Recovery">
+        <button type="button" onClick={() => setDataRecoveryOpen((open) => !open)}>
+          {dataRecoveryOpen ? "Hide Data & Recovery" : "Data & Recovery"}
+        </button>
+        {dataRecoveryOpen && <DataRecovery />}
       </section>
 
       <section aria-label="Library">
