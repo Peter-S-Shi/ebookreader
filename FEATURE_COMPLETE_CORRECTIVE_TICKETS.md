@@ -16,7 +16,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 8 | FC-A04 — Notebook Markdown export | CLOSED (`dc4eb4d`, CI run 34414007149 success) | — |
 | 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | CLOSED (`c3b02eb`, CI run 34414736330 success) | 1 (lives under Data) |
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | CLOSED (`6a65420`, CI run 34415666414 success) | 1 (preference lives in Settings) |
-| 11 | FC-A05 — Book Hours configuration UI + revision history | OPEN | 1 |
+| 11 | FC-A05 — Book Hours configuration UI + revision history | CLOSED (`135a7ff`, CI run 34416801485 success) | 1 |
 | 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | OPEN | 1 |
 | 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | OPEN | — |
 | 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | OPEN | 1 |
@@ -196,3 +196,19 @@ Evidence:
 - `cargo build` and `cargo test` in `src-tauri` passed (no backend command surface changes -- `get_setting_command`/`set_setting_command` already existed).
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 131 tests -- 4 new tests in `App.test.tsx`'s new "Startup Update Awareness check" describe block: preference off skips the check with zero `fetch` calls; an available update shows the banner with a working release-notes link; up-to-date shows no banner and does not block the Library from rendering; Dismiss hides the banner). Getting this right required routing the new mount-time `get_setting_command` call (keyed specifically on `update_awareness.check_on_startup`, not the whole command, since the Settings-destination test already exercises `get_setting_command` for other keys) through its own mock defaulted to disabled, so none of the 40 pre-existing tests needed editing and none triggered a real `fetch`. `npx vite build` passed.
 - GitHub Actions: CI run 34415666414 passed on `6a65420` (Frontend and Rust jobs green).
+
+## Ticket 11 (FC-A05) — closed 2026-09-09 (`135a7ff`, CI run 34416801485 success)
+
+Failure Attribution: earliest-wrong layer was **Persistence**, not just Frontend integration -- matching the user's original correction that not every remaining gap is frontend-only. `book_hours.rs`'s own module comment admitted the deferral explicitly: workload config only ever overwrote in place, with no revision table, and its doc comment said a full per-revision history was out of scope for the milestone that built it. `PRODUCT_SPEC.md` SS9.3 ("versioned/explainable" + "preserve the relevant estimate snapshot/revision") is a real, unmet persistence requirement, compounded by zero UI ever calling the existing `get_book_hours_command`/`save_workload_config_command`.
+
+Landed:
+- `crates/domain/src/store.rs`: migration v13 adds append-only `workload_config_revision`; `delete_reading_data` now clears it alongside `workload_config`.
+- `crates/domain/src/book_hours.rs`: `save_workload_config` takes a `recorded_at` timestamp and appends a revision on every save (the current-config row is still overwritten in place; only the history is append-only); new `list_workload_config_revisions`.
+- `src-tauri/src/commands.rs` + `lib.rs`: `save_workload_config_command` threads the timestamp; new `list_workload_config_revisions_command`.
+- `src/App.tsx`: a "Book Hours" section inside the existing per-Book Organize panel -- current Base/Cumulative estimate (or "Not configured yet"), editable Quantity/Baseline Speed/Difficulty Coefficient, and the full revision history underneath.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (181 passed, 2 ignored; was 179 after Ticket 10). 4 new tests: revision append-not-overwrite, empty-history-before-first-save, plus the existing canonical-asset backup/restore round-trip test extended to prove the revision history itself survives backup/restore (not just the current config).
+- `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 134 tests -- 3 new tests in `App.test.tsx`'s new "Book Hours configuration + revision history" describe block: unconfigured state, displaying estimate + history, saving records a revision and refreshes the estimate). `npx vite build` passed.
+- GitHub Actions: CI run 34416801485 passed on `135a7ff` (Frontend and Rust jobs green).
