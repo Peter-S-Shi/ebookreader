@@ -40,10 +40,13 @@ type PdfViewMode = "single" | "continuous";
 // (100s of pages) documents' rendering performance are later-checkpoint
 // residuals: continuous mode here renders every page eagerly, which is
 // fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Zoom/fit and search remain
-// later checkpoints. Text selection -> Highlight/Excerpt (M4, SS11) is
+// virtualization for much longer documents. Zoom/fit remains a later
+// checkpoint. Text selection -> Highlight/Excerpt (M4, SS11) is
 // implemented for single-page mode via a pdf.js TextLayer overlaid on the
 // canvas; continuous mode's per-page selection scoping is a follow-up.
+// Whole-page text is also indexed into the M4 search index in the
+// background on open (SS12: "supported book text" is a required
+// Library-wide Search source).
 export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
@@ -75,6 +78,26 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       const savedPage = saved?.primary_anchor ? parseInt(saved.primary_anchor, 10) : NaN;
       const startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
       if (!cancelled) setPageNumber(startPage);
+
+      // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
+      // "supported book text" is a required Library-wide Search source),
+      // one entry per page so results stay reasonably scoped. Runs in the
+      // background, sequentially, so it doesn't compete with rendering.
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (cancelled) return;
+        const page = await pdf.getPage(i);
+        if (cancelled) return;
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+        if (pageText.trim()) {
+          await invoke("index_search_text_command", {
+            bookId,
+            kind: "book_text",
+            entryId: String(i),
+            content: pageText,
+          }).catch(() => {});
+        }
+      }
     })();
     return () => {
       cancelled = true;

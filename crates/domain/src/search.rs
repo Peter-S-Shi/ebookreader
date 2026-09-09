@@ -5,13 +5,15 @@
 //! `unicode61`/`trigram` tokenizers cannot -- M0-E's original finding).
 //!
 //! This module indexes/searches arbitrary (book_id, kind, content) text
-//! entries -- it does not itself extract text from EPUB/PDF/TXT. Full
-//! whole-book indexing needs a text-extraction pipeline (the renderers
-//! already parse EPUB/PDF in the frontend; wiring their extracted text
-//! back through an index command is a follow-up checkpoint), but Notes/
-//! Excerpts/Annotations (M4's other named asset types) are naturally
-//! backend-authored text and can be indexed directly through this API
-//! once those asset types exist.
+//! entries -- it does not itself extract text from EPUB/PDF/TXT; each
+//! Reader extracts its own text (foliate-js section documents, pdf.js
+//! `getTextContent`, or the raw TXT string) and calls
+//! `index_search_text_command` in the background on open, tagged with
+//! `kind = "book_text"`. `PRODUCT_SPEC.md` SS12 names "supported book
+//! text" as a required Library-wide Search source alongside Note/Excerpt/
+//! Annotation content (indexed the same way by `commands::create_reading_
+//! asset_command`) -- corrected OCR text is the one named source still
+//! outstanding, since it depends on M5's OCR pipeline existing at all.
 
 use rusqlite::Connection;
 use serde::Serialize;

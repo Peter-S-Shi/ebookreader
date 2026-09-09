@@ -34,8 +34,12 @@ interface FoliateRenderer {
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
 }
+interface FoliateSection {
+  createDocument?: () => Promise<Document>;
+}
 interface FoliateBook {
   toc?: TocItem[];
+  sections?: FoliateSection[];
 }
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
@@ -121,6 +125,30 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
       if (!cancelled && saved?.primary_anchor) {
         await view.goTo(saved.primary_anchor).catch(() => {});
       }
+
+      // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
+      // "supported book text" is a required Library-wide Search source),
+      // one entry per section. Runs in the background, sequentially, so
+      // it doesn't compete with rendering.
+      (async () => {
+        const sections = view.book?.sections ?? [];
+        for (let i = 0; i < sections.length; i++) {
+          if (cancelled) return;
+          const createDocument = sections[i].createDocument;
+          if (!createDocument) continue;
+          const doc = await createDocument();
+          if (cancelled) return;
+          const sectionText = doc.body?.textContent ?? "";
+          if (sectionText.trim()) {
+            await invoke("index_search_text_command", {
+              bookId,
+              kind: "book_text",
+              entryId: String(i),
+              content: sectionText,
+            }).catch(() => {});
+          }
+        }
+      })();
 
       // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11:
       // "text selection exposes lightweight Highlight / Excerpt / Note

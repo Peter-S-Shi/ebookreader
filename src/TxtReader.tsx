@@ -48,6 +48,14 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
       if (cancelled) return;
       const decoded = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
       setText(decoded);
+
+      // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
+      // "supported book text" is a required Library-wide Search source).
+      // One entry for the whole book -- TXT has no natural section
+      // boundaries the way EPUB/PDF do.
+      invoke("index_search_text_command", { bookId, kind: "book_text", entryId: "full", content: decoded }).catch(
+        () => {},
+      );
     })();
     return () => {
       cancelled = true;
