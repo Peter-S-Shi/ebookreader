@@ -10,8 +10,8 @@ use commands::{
     list_system_fonts_command, load_reading_location_command, mark_reading_asset_orphaned_command,
     override_completed_reads_command, read_book_file_command, reading_session_status_command,
     record_active_reading_time_command, relink_book_command, remove_book_command,
-    save_reading_location_command, save_workload_config_command, search_in_book_command,
-    search_library_command, start_next_read_command,
+    save_reading_location_command, save_workload_config_command, rebuild_search_index_command,
+    search_in_book_command, search_library_command, start_next_read_command,
 };
 use ebookreader_domain::reading_session::ReadingSession;
 use std::sync::{Arc, Mutex};
@@ -58,6 +58,7 @@ pub fn run() {
             index_search_text_command,
             search_library_command,
             search_in_book_command,
+            rebuild_search_index_command,
             create_reading_asset_command,
             list_reading_assets_command,
             list_all_reading_assets_command,

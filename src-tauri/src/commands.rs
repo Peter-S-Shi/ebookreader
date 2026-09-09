@@ -345,6 +345,16 @@ pub fn search_in_book_command(state: State<DbState>, query: String, book_id: Str
     search::search_in_book(&conn, &query, &book_id).map_err(|e| format!("search failed: {e}"))
 }
 
+/// Rebuild the search index from canonical source data. Per
+/// `PRODUCT_SPEC.md` SS12 ("Search index is derived state and must be
+/// rebuildable"): this only touches the derived `search_index` table,
+/// never `reading_asset` or any other canonical table.
+#[tauri::command]
+pub fn rebuild_search_index_command(state: State<DbState>) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    search::rebuild_index(&conn).map_err(|e| format!("could not rebuild search index: {e}"))
+}
+
 fn parse_asset_kind(kind: &str) -> Result<AssetKind, String> {
     match kind {
         "annotation" => Ok(AssetKind::Annotation),

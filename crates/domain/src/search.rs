@@ -54,6 +54,33 @@ pub fn index_text(conn: &Connection, book_id: &str, kind: &str, entry_id: &str, 
     Ok(())
 }
 
+/// Rebuild the search index from canonical source data (currently: every
+/// reading asset's text -- `Notebook aggregates Annotation / Note /
+/// Excerpt`; whole-book extracted text will join this list once a
+/// text-extraction pipeline exists, per this module's own doc comment).
+///
+/// Per `PRODUCT_SPEC.md` SS12 ("Search index is derived state and must be
+/// rebuildable") and `ROADMAP.md` M4 Success Evidence ("index rebuild
+/// cannot delete canonical user data"): this drops and recreates only the
+/// derived `search_index` table. It never touches `reading_asset` (or any
+/// other canonical table) -- a caller can verify user data survived by
+/// reading `reading_asset` directly before/after, which is exactly what
+/// this module's own test does.
+pub fn rebuild_index(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch("DROP TABLE IF EXISTS search_index")?;
+    ensure_search_schema(conn)?;
+
+    for asset in crate::assets::list_all_assets(conn, None)? {
+        let kind = match asset.kind {
+            crate::assets::AssetKind::Annotation => "annotation",
+            crate::assets::AssetKind::Excerpt => "excerpt",
+            crate::assets::AssetKind::Note => "note",
+        };
+        index_text(conn, &asset.book_id, kind, &asset.id, &asset.text)?;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SearchHit {
     pub book_id: String,
@@ -188,5 +215,44 @@ mod tests {
 
         assert!(search(&conn, "新内容").unwrap().len() == 1);
         assert!(search(&conn, "旧内容").unwrap().is_empty(), "stale content must not still be searchable");
+    }
+
+    /// `ROADMAP.md` M4 Success Evidence: "index rebuild cannot delete
+    /// canonical user data." The canonical data is `reading_asset`, not
+    /// `search_index` -- this proves a rebuild leaves it untouched even
+    /// while the derived index itself is dropped and recreated, and that
+    /// search still works against the rebuilt index afterward.
+    #[test]
+    fn rebuilding_the_index_never_touches_canonical_reading_asset_rows() {
+        use crate::assets::{create_asset, list_assets_for_book, AssetKind, ReadingAsset};
+        use crate::store::run_migrations;
+
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        ensure_search_schema(&conn).unwrap();
+        conn.execute("INSERT INTO book (id, title) VALUES ('book-1', 'Test Book')", []).unwrap();
+
+        let asset = ReadingAsset {
+            id: "a1".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Excerpt,
+            text: "a passage about the rabbit hole".into(),
+            anchor: None,
+            orphaned: false,
+        };
+        create_asset(&conn, &asset).unwrap();
+        index_text(&conn, "book-1", "excerpt", "a1", &asset.text).unwrap();
+
+        let before = list_assets_for_book(&conn, "book-1").unwrap();
+        assert!(search(&conn, "rabbit").unwrap().iter().any(|h| h.book_id == "book-1"));
+
+        rebuild_index(&conn).unwrap();
+
+        let after = list_assets_for_book(&conn, "book-1").unwrap();
+        assert_eq!(before, after, "reading_asset rows must be byte-for-byte unchanged by an index rebuild");
+        assert!(
+            search(&conn, "rabbit").unwrap().iter().any(|h| h.book_id == "book-1"),
+            "the rebuilt index must find the asset's text again"
+        );
     }
 }
