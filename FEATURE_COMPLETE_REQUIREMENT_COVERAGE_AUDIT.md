@@ -25,7 +25,7 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 | ID | Requirement | Classification | Evidence | Ticket |
 |---|---|---|---|---|
 | FC-A01 | Collections and Tags (V1 domain entities) | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `crates/domain/src/store.rs` migration v11 + `crates/domain/src/collections.rs`: full Collection/Tag domain model; `src-tauri/src/commands.rs`: 11 commands; `src/App.tsx`: Library Collections toolbar (create/filter/delete) + per-Book Organize panel (Collection membership + Tags). Backup inclusion proven by an extended `backup.rs` round-trip test | — (closed) |
-| FC-A02 | Metadata editing / user-correction precedence | **MISSING** | Only `title` persisted, set once at import (`store.rs:199-268`); no edit UI, no re-detection path, so the invariant is vacuously true because nothing exists to violate it | FC-A02 |
+| FC-A02 | Metadata editing / user-correction precedence | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `crates/domain/src/store.rs`: `book.title_user_edited` (migration v12) + `update_book_title`; the remove-then-reimport restore path now skips the title overwrite once a correction is recorded. `src-tauri/src/commands.rs`: `update_book_title_command`. `src/App.tsx`: inline Edit Title / Save / Cancel per Book | — (closed) |
 | FC-A03 | Duplicate fingerprint UX (3-choice dialog) | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `crates/domain/src/store.rs`: `import_book_internal` returns `ImportOutcome::DuplicateFound` (no mutation) on an active-entry fingerprint match; `src-tauri/src/commands.rs`'s `ImportBookResult` surfaces it; `src/App.tsx` shows the frozen "This book already exists." dialog with Open Existing / Relink Existing Book (reusing `relink_book_command`) / Cancel | — (closed) |
 | FC-A04 | Notebook Markdown export | **MISSING** | No `markdown`/`export` hits anywhere in production source beyond JS keyword noise | FC-A04 |
 | FC-A05 | Book Hours configuration/history fidelity | **IMPLEMENTED_PARTIAL** | `book_hours.rs:41-76` overwrites current config (`ON CONFLICT DO UPDATE`), no history table (comment at 21-24 admits this is deferred); no UI at all calls the existing commands | FC-A05 |
@@ -44,8 +44,9 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 - Updated 2026-09-09: `FC-C01`, `FC-C02`, `FC-C03`, `FC-C04`, `FC-C06` closed via corrective-pass tickets 1-4; `FC-C05` partially closed (Appearance). 5 of the 8 confirmed (`FC-C01`-`FC-C08`) items are now fully closed.
 - Updated 2026-09-09 (Ticket 5): `FC-A03` closed.
 - Updated 2026-09-09 (Ticket 6): `FC-A01` closed.
+- Updated 2026-09-09 (Ticket 7): `FC-A02` closed.
 - 2 items (`FC-A12`, `FC-A13`) were already genuinely closed — no ticket needed.
-- 11 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
+- 10 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
 - No item required a `NEEDS_HUMAN_CONFLICT_DECISION` — every gap found is a coverage/implementation gap against an already-frozen, non-conflicting authority, not a contract conflict.
 - No item is `LEGITIMATE_DEFERRED_NON_GOAL` — nothing found is marked deferred by the authorities themselves.
 

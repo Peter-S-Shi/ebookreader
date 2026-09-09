@@ -12,7 +12,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | CLOSED (`2de37bc`, CI run 34403600204 success) | 1 (lives under Data) |
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | CLOSED (`bb3ac72`, CI run 34410909121 success) | — |
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | CLOSED (`c54ea86`, CI run 34412338912 success) | — |
-| 7 | FC-A02 — Metadata editing UI + user-correction precedence | OPEN | — |
+| 7 | FC-A02 — Metadata editing UI + user-correction precedence | CLOSED (`df4e570`, CI run 34413175475 success) | — |
 | 8 | FC-A04 — Notebook Markdown export | OPEN | — |
 | 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | OPEN | 1 (lives under Data) |
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | OPEN | 1 (preference lives in Settings) |
@@ -135,3 +135,18 @@ Evidence:
 - `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 121 tests -- 4 new tests in a new "Collections and Tags" describe block: create-and-filter-option, filter-shows-only-members, delete-collection-preserves-books, Organize panel add/remove Collection membership and Tags). The mount-time `list_collections_command` call was routed through a separate `collectionsMock` in the test file's mock setup (with sane defaults set in `beforeEach`) specifically so the 34 pre-existing tests, written before Collections existed and relying on `invokeMock`'s call-order-based `mockResolvedValueOnce` queue, needed zero edits.
 - GitHub Actions: CI run 34412338912 passed on `c54ea86` (Frontend and Rust jobs green).
+
+## Ticket 7 (FC-A02) — closed 2026-09-09 (`df4e570`, CI run 34413175475 success)
+
+Failure Attribution: earliest-wrong layer was split across two layers, and fixing only the more visible one would have created a new violation. The audit found "no edit UI, no re-detection path, so the invariant is vacuously true" -- true at the time, but Failure Attribution surfaced an actual live violation waiting to happen: `import_book_internal`'s remove-then-reimport restore path (landed under Ticket 5/FC-A03 review, pre-existing before that) unconditionally ran `UPDATE book SET ... title = ?1` with the freshly re-detected filename-derived title. The moment a title-editing UI existed, that path would silently overwrite a user's correction on the very next remove/reimport cycle -- an actual, not hypothetical, breach of `PRODUCT_SPEC.md` SS3.4. Both halves (the edit UI, and protecting edits from that overwrite) had to land together.
+
+Landed:
+- `crates/domain/src/store.rs`: migration v12 adds `book.title_user_edited` (defaults 0). New `update_book_title(conn, book_id, title)` sets the title and the flag. `import_book_internal`'s restore branch now checks the flag: if set, `library_status` is reactivated without touching `title`; if unset, the freshly-detected title still applies (an uncorrected title should still benefit from better detection later).
+- `src-tauri/src/commands.rs` + `lib.rs`: `update_book_title_command`.
+- `src/App.tsx`: inline "Edit Title" / Save Title / Cancel per Book in the Library list, using the same disclosure pattern as Organize.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (173 passed, 2 ignored; was 170 after Ticket 6). 3 new tests: title-edit round-trip; a corrected title survives remove-then-reimport; an *uncorrected* title still updates on reimport (proving the fix is precisely scoped to user corrections, not a blanket "never update title again").
+- `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 123 tests -- 2 new tests: edit-and-refresh, Cancel-discards-draft-without-invoking-the-command). `npx vite build` passed.
+- GitHub Actions: CI run 34413175475 passed on `df4e570` (Frontend and Rust jobs green).
