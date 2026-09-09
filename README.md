@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** M8 — Data Safety, Restore & Update Awareness (autonomous feature loop, final Milestone before Feature Complete Candidate)  
-**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1, M2, M3, M4, M5, M6, and M7 complete**; M8 in progress under the M1→M8 autonomous engineering authorization envelope — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, reproducible M0 evidence harness at `tooling/m0-evidence/`  
+**Phase:** **Feature Complete Candidate** — M1 through M8 all complete under the M1→M8 autonomous engineering authorization envelope; awaiting the Human Feature Freeze Gate  
+**Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1, M2, M3, M4, M5, M6, M7, and M8 complete** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`  
 **V1 product/domain scope:** Frozen  
 **V1 UI baseline:** Frozen  
 **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)  

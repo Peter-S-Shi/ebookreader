@@ -816,7 +816,7 @@ None of these residuals threaten the Exit Gate's own condition.
 
 # Milestone 8 — Data Safety, Restore & Update Awareness
 
-**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
+**Status:** **Complete** (2026-09-09, commit `2b81d54`) — Exit Gate evidence below.
 **Risk:** High
 
 ## Goal
