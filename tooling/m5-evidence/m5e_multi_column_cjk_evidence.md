@@ -55,19 +55,15 @@ the multi-column splicing failure mode named (but not previously shown)
 in `PROJECT_STATUS.md`'s carried residuals, now demonstrated on a real
 page with real recognized text, not asserted from a hypothetical.
 
-## Finding 3 — vertical CJK columns are recognized but ordered wrong
+## Finding 3 — vertical CJK columns recognize as real characters but in the wrong sequence
 
-The classical-Chinese block (rows of pure CJK characters in the raw
-output) is genuinely legible text, character-for-character -- but the
-classical convention is columns read top-to-bottom, columns ordered
-**right-to-left**. `reading_order_text` has no script-direction awareness
-at all: it buckets by y-center then sorts **left-to-right**, which is the
-wrong column order for this script, and if a single detected box spans
-more than one character vertically (recognized top-to-bottom internally
-by the recognizer, since it reads along the box's long axis) that
-substring is then placed into a left-to-right column sequence that should
-have been right-to-left. The real output (e.g. `也尹楚遂南楚城是以告`) does
-not form a coherent classical-Chinese sentence in the order produced.
+The classical-Chinese block's recognized output (e.g. `也尹楚遂南楚城是以告`)
+consists of real, valid CJK characters -- the recognizer is not producing
+garbage -- but does not form a coherent classical-Chinese sentence in the
+order produced. Initially read as an ordering-only defect (columns present
+but traversed in the wrong direction); refined below, after inspecting the
+source page and the real detected box geometry, into a more precise
+detection-orientation finding, not just an ordering one.
 
 ## Architecture Implication (Finding 2)
 
@@ -114,25 +110,69 @@ regression test (`column_clustering_separates_two_side_by_side_columns`)
 covers this in CI without needing model assets. **Multi-column English
 splicing: fixed and validated, not just theorized.**
 
-## Fix status for Finding 3 (vertical CJK) — still open
+## Finding 3, refined — visually confirmed against the source page: this is a detection-orientation problem, not just an assembly-ordering one
 
-Column clustering does not address script direction: columns are still
-read left-to-right, top-to-bottom-within-column, which remains wrong for
-vertical classical Chinese (should be right-to-left column order). The
-real output for that block is unchanged by this fix and still does not
-form a coherent sequence. A real fix needs a script-direction-aware
-ordering mode, likely gated on some signal of "this page/region is
-vertical text" -- PP-OCR's own family includes layout-analysis and
-text-direction models that were not part of this session's reused asset
-set, and remains a real, scoped follow-up decision, not assumed or
-attempted here.
+Before assuming a reordering fix (reverse column traversal to
+right-to-left) would close this, the fixture page was actually inspected
+visually (not just via recognized text) and cross-referenced against the
+real detected box geometry for every CJK-containing line:
 
-## Status: Finding 2 (multi-column) closed with validated evidence; Finding 3 (vertical CJK) remains an explicitly open residual
+```
+x=[261,1368] y=[421,512]  w=1106 h=91  也尹楚遂南楚城是以告
+x=[251,1455] y=[393,781]  w=1204 h=388 以云
+x=[335,1370] y=[658,748]  w=1035 h=90  之山楚報卜虞人有做怒而知而
+x=[335,1369] y=[711,795]  w=1033 h=83  遠蹶之及邊師在一其使備邑虐忘也為
+x=[302,1412] y=[718,924]  w=1110 h=206 臺薩與廣韓藝是一教屬英樂簡其業為
+x=[303,1403] y=[814,1023] w=1100 h=210 華營業雲軍襲委立至體客業國希轉雲
+x=[341,1367] y=[957,1025] w=1026 h=68  于懼吳可之沈也誰焉鼓且修以日好知
+```
+
+The source page shows the classical-Chinese block as roughly 15 narrow
+vertical columns, each one character wide, read top-to-bottom,
+right-to-left. The detected boxes are the opposite shape: **wide and
+short** (w~1000-1200px spanning nearly the entire block's width, h as
+little as 68-91px) -- each detected box is a *horizontal band crossing
+most or all 15 columns*, not a single column. The recognizer then reads
+each wide band in its normal left-to-right direction, picking up one
+character from each of many different columns per band, in the wrong
+order for any of them.
+
+**This means a reverse-column-order fix (the natural next step to try,
+symmetric with the Finding 2 fix) would not actually work** -- there are
+no real per-column boxes to reorder; the wrong characters are already
+concatenated together inside single boxes before reading order is ever
+assembled. `reading_order_text` operates on already-detected/recognized
+lines and cannot recover information that the detection stage itself
+never separated out correctly. Confirming this by actually looking at
+the source page and the real box geometry -- rather than assuming a
+column-reversal heuristic would close the gap and shipping it unverified
+-- avoided what would have been a plausible-looking but ineffective fix.
+
+## Architecture Implication (Finding 3)
+
+A real fix needs a different intervention *before* `reading_order_text`
+ever runs, not a different ordering rule within it: either (a) a
+text-direction/layout-analysis signal that identifies a page region as
+vertical CJK and reprocesses that region through detection+recognition
+after rotating it 90° (so DBNet finds narrow tall column-boxes instead of
+wide short cross-column bands), or (b) a genuinely different detection
+model/configuration tuned for vertical text. PP-OCR's own family includes
+layout-analysis and text-direction classification models for exactly
+this; none were part of this session's reused asset set, and adding
+either is a real, scoped architecture decision for a future checkpoint,
+not attempted here.
+
+## Status: Finding 2 (multi-column) closed with validated evidence; Finding 3 (vertical CJK) remains an explicitly open residual, now root-caused rather than just observed
 
 Single-column body text (the majority case for most books) and now
 side-by-side multi-column layouts (a common case for commentary/notes,
 dictionaries, and academic texts) both produce coherent reading order.
 Vertical CJK script direction is the one reading-order defect mode from
-M0's original finding that is not yet closed -- carried forward
-explicitly, with the exact defect pattern and a concrete next step named,
-not silently dropped.
+M0's original finding that is not yet closed. It is now understood at
+the *architecture* level, not just observed as bad output: this is a
+detection-orientation gap (the detector finds cross-column horizontal
+bands, not per-column boxes) that requires a rotation-and-reprocess or
+dedicated direction-detection intervention before the recognizer ever
+runs on that region -- carried forward explicitly, with the exact defect
+pattern, the concrete real box geometry, and the specific reason a naive
+reordering fix would not work, not silently dropped.

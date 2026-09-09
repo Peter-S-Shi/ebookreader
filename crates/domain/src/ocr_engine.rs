@@ -372,6 +372,25 @@ mod tests {
         let text = reading_order_text(&lines);
         println!("--- ia_200.jpg: {} lines detected ---", lines.len());
         println!("{text}");
+
+        println!("--- box geometry for lines whose text contains CJK characters ---");
+        for l in &lines {
+            let is_cjk = l.text.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c));
+            if is_cjk {
+                let xs: Vec<f64> = l.points.iter().map(|p| p.0).collect();
+                let ys: Vec<f64> = l.points.iter().map(|p| p.1).collect();
+                let x_min = xs.iter().cloned().fold(f64::INFINITY, f64::min);
+                let x_max = xs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                let y_min = ys.iter().cloned().fold(f64::INFINITY, f64::min);
+                let y_max = ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                println!(
+                    "x=[{x_min:.0},{x_max:.0}] y=[{y_min:.0},{y_max:.0}] w={:.0} h={:.0} text={:?}",
+                    x_max - x_min,
+                    y_max - y_min,
+                    l.text
+                );
+            }
+        }
     }
 
     fn line_at(text: &str, x_min: f64, y_min: f64, w: f64, h: f64) -> RecognizedLine {
