@@ -11,7 +11,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | CLOSED (`22afafc`, CI run 34402533583 success) | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | CLOSED (`2de37bc`, CI run 34403600204 success) | 1 (lives under Data) |
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | CLOSED (`bb3ac72`, CI run 34410909121 success) | — |
-| 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | OPEN | — |
+| 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | CLOSED (`c54ea86`, CI run 34412338912 success) | — |
 | 7 | FC-A02 — Metadata editing UI + user-correction precedence | OPEN | — |
 | 8 | FC-A04 — Notebook Markdown export | OPEN | — |
 | 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | OPEN | 1 (lives under Data) |
@@ -118,3 +118,20 @@ Evidence:
 - `cargo build` (both `ebookreader-domain` and `src-tauri`) passed; `cargo test` in `src-tauri` passed (0 unit tests there by design -- command logic is covered via the domain crate's tests and frontend integration tests).
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 117 tests, including 4 new tests in `src/App.test.tsx`'s new "Duplicate Fingerprint" describe block: dialog appears with all three choices and does not itself refresh the Library; Open Existing opens the existing Book; Relink Existing Book calls `relink_book_command` with the picked path and refreshes; Cancel dismisses with no side effects). `npx vite build` passed.
 - GitHub Actions: CI run 34410909121 passed on `bb3ac72` (Frontend and Rust jobs green).
+
+## Ticket 6 (FC-A01) — closed 2026-09-09 (`c54ea86`, CI run 34412338912 success)
+
+Failure Attribution: earliest-wrong layer was the **domain model** itself -- not a wiring gap. `PRODUCT_SPEC.md` SS3.3 lists Collections/Tags as canonical user data alongside Notes/Excerpts/Book Hours, and SS4.3/4.4 define them as first-class domain concepts, but zero schema, zero domain function, zero command, and zero UI existed anywhere in the codebase (confirmed by the original audit's `grep` finding zero matches). This is `MISSING`, not `IMPLEMENTED_BACKEND_ONLY`/`PARTIAL` -- there was no smaller fix available than building the full vertical slice.
+
+Landed:
+- `crates/domain/src/store.rs`: migration v11 adds `collection`, `book_collection` (Book<->Collection membership), `tag`, and `book_tag` (Book<->Tag application) tables.
+- `crates/domain/src/collections.rs` (new module): `create_collection`/`rename_collection`/`delete_collection`/`list_collections`; `add_book_to_collection`/`remove_book_from_collection` (idempotent set membership, not a log)/`list_book_ids_in_collection`/`list_collections_for_book`; `add_tag_to_book` (get-or-create by name)/`remove_tag_from_book`/`list_tags_for_book`. 8 new domain tests.
+- `src-tauri/src/commands.rs` + `lib.rs`: 11 new Tauri commands (`create_collection_command`, `rename_collection_command`, `delete_collection_command`, `list_collections_command`, `add_book_to_collection_command`, `remove_book_from_collection_command`, `list_book_ids_in_collection_command`, `list_collections_for_book_command`, `add_tag_to_book_command`, `remove_tag_from_book_command`, `list_tags_for_book_command`) as thin adapters, matching the rest of `commands.rs`'s pattern.
+- `src/App.tsx`: a "Collections" toolbar on the Library screen (create a Collection; filter the Book list to one Collection or "All"; delete a Collection without touching its member Books); a per-Book "Organize" panel, expanded on demand rather than loaded eagerly for every Book, showing/editing that Book's Collection memberships and Tags.
+- Backup inclusion required no new backup code: `backup.rs` copies the canonical SQLite file itself (`ROADMAP.md` M8), so the new tables are automatically included. Extended the existing `canonical_user_assets_survive_a_real_backup_and_restore_round_trip` test to seed a Collection membership and a Tag and assert both survive backup/restore, so this is proven rather than merely inferred from architecture.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (170 passed, 2 ignored; was 162 before Ticket 5, 170 after Tickets 5+6's combined +8).
+- `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 121 tests -- 4 new tests in a new "Collections and Tags" describe block: create-and-filter-option, filter-shows-only-members, delete-collection-preserves-books, Organize panel add/remove Collection membership and Tags). The mount-time `list_collections_command` call was routed through a separate `collectionsMock` in the test file's mock setup (with sane defaults set in `beforeEach`) specifically so the 34 pre-existing tests, written before Collections existed and relying on `invokeMock`'s call-order-based `mockResolvedValueOnce` queue, needed zero edits.
+- GitHub Actions: CI run 34412338912 passed on `c54ea86` (Frontend and Rust jobs green).
