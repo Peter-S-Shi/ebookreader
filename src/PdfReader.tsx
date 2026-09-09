@@ -26,6 +26,9 @@ interface PdfReaderProps {
   bookId: string;
   title: string;
   onBack: () => void;
+  // FC-C01/FC-C02: a source location (from a Search hit or a Notebook
+  // asset) to open directly to, instead of resuming the last page.
+  initialAnchor?: DocumentLocationDTO;
 }
 
 type PdfViewMode = "single" | "continuous";
@@ -58,13 +61,14 @@ type PdfViewMode = "single" | "continuous";
 // per-page progress reporting are not wired (a single command call blocks
 // until every target page is done) -- a genuine residual, not hidden from
 // the user: the button's label says so rather than faking a progress bar.
-export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
+export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const ocrTextRef = useRef<HTMLParagraphElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const [status, setStatus] = useState("Loading…");
+  const [jumpFailed, setJumpFailed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
@@ -101,10 +105,22 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
       pdfRef.current = pdf;
       setPageCount(pdf.numPages);
 
-      const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
-      const savedPage = saved?.primary_anchor ? parseInt(saved.primary_anchor, 10) : NaN;
-      const startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
-      if (!cancelled) setPageNumber(startPage);
+      // FC-C01/FC-C02: an exact jump takes priority over the resume page.
+      // An anchor that fails to parse to a valid in-range page is reported
+      // truthfully rather than silently opening at page one.
+      if (initialAnchor?.primary_anchor) {
+        const targetPage = parseInt(initialAnchor.primary_anchor, 10);
+        const valid = Number.isFinite(targetPage) && targetPage >= 1 && targetPage <= pdf.numPages;
+        if (!cancelled) {
+          setPageNumber(valid ? targetPage : 1);
+          setJumpFailed(!valid);
+        }
+      } else {
+        const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
+        const savedPage = saved?.primary_anchor ? parseInt(saved.primary_anchor, 10) : NaN;
+        const startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
+        if (!cancelled) setPageNumber(startPage);
+      }
 
       // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
       // "supported book text" is a required Library-wide Search source),
@@ -119,11 +135,23 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
         if (pageText.trim()) {
           anyPageHasText = true;
+          // FC-C01: the page number itself is a real, resolvable anchor
+          // (this is exactly the primary_anchor scheme `saveLocation`
+          // below already uses for reading-position durability).
+          const anchor: DocumentLocationDTO = {
+            book_id: bookId,
+            format: "pdf",
+            progression_hint: pdf.numPages > 0 ? i / pdf.numPages : 0,
+            primary_anchor: String(i),
+            fallback_anchors: [],
+            context_selector: null,
+          };
           await invoke("index_search_text_command", {
             bookId,
             kind: "book_text",
             entryId: String(i),
             content: pageText,
+            anchor,
           }).catch(() => {});
         }
       }
@@ -410,6 +438,11 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {jumpFailed && (
+        <p role="alert" className="jump-failed-notice">
+          Could not jump to the exact location — opened the Book instead.
+        </p>
       )}
       {hasExtractableText === false && viewMode === "single" && (
         <div className="pdf-ocr-panel">

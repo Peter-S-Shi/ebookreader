@@ -19,10 +19,26 @@ interface BookSummary {
   available: boolean;
 }
 
+// Mirrors `document_location::DocumentLocation` (see also each Reader's
+// own local copy of this same shape).
+interface DocumentLocationDTO {
+  book_id: string;
+  format: string;
+  progression_hint: number;
+  primary_anchor: string;
+  fallback_anchors: string[];
+  context_selector: string | null;
+}
+
 interface SearchHit {
   book_id: string;
   kind: string;
   content: string;
+  // FC-C01: the real source location this hit's text was captured at, if
+  // one was recorded. `null` for a hit with no finer anchor than "the
+  // Book itself" (e.g. a free-standing Note) -- opening the Book plain is
+  // the truthful behavior for those, not a degraded jump.
+  anchor: DocumentLocationDTO | null;
 }
 
 interface ReadingAssetDTO {
@@ -30,6 +46,7 @@ interface ReadingAssetDTO {
   book_id: string;
   kind: "annotation" | "excerpt" | "note";
   text: string;
+  anchor: DocumentLocationDTO | null;
   orphaned: boolean;
 }
 
@@ -50,6 +67,11 @@ const READABLE_FORMATS = new Set(["epub", "pdf", "txt"]);
 function App() {
   const [books, setBooks] = useState<BookSummary[] | null>(null);
   const [openBook, setOpenBook] = useState<BookSummary | null>(null);
+  // FC-C01/FC-C02: the exact source location to seek to once `openBook`'s
+  // Reader mounts, threaded from whichever Search hit or Notebook asset
+  // was clicked. `null` when opening a Book normally (resumes its last
+  // reading position instead).
+  const [pendingAnchor, setPendingAnchor] = useState<DocumentLocationDTO | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchHit[] | null>(null);
   // Top-level management information architecture (`DESIGN.md`; FC-C06):
@@ -125,10 +147,6 @@ function App() {
   }
 
   // Library-wide Search (PRODUCT_SPEC.md SS12: "Library-wide Search").
-  // Jump-to-result-location isn't available yet -- SearchHit only carries
-  // (book_id, kind, content), not the asset's own anchor -- so a result
-  // opens its Book rather than navigating to the exact passage; a
-  // follow-up checkpoint would thread the anchor through.
   async function runSearch(query: string) {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -139,15 +157,23 @@ function App() {
     setSearchResults(hits);
   }
 
-  function openSearchResultBook(bookId: string) {
+  // FC-C01/FC-C02: opens the Book and, when the hit/asset carries a real
+  // source anchor, tells the Reader to seek to it on mount. `anchor` is
+  // `null` for a hit/asset with no finer location than "the Book itself"
+  // (e.g. a free-standing Note) -- opening plain is the truthful behavior
+  // there, not a degraded jump. An anchor that *is* present but fails to
+  // resolve at runtime (a stale/unrecoverable location) is reported by
+  // the Reader itself, which is the only place that can actually attempt
+  // the seek.
+  function openBookAtLocation(bookId: string, anchor: DocumentLocationDTO | null) {
     const book = books?.find((b) => b.book_id === bookId);
-    if (book && book.available && READABLE_FORMATS.has(book.format)) setOpenBook(book);
+    if (!book || !book.available || !READABLE_FORMATS.has(book.format)) return;
+    setPendingAnchor(anchor);
+    setOpenBook(book);
   }
 
   // Global Notes (PRODUCT_SPEC.md SS11: "cross-book search; filter by
-  // asset type; open source Book at the relevant location"). Opening at
-  // the relevant location has the same anchor-plumbing gap as Search
-  // above -- this opens the Book, not yet the exact passage.
+  // asset type; open source Book at the relevant location").
   async function loadGlobalNotes(kind: "" | "annotation" | "excerpt" | "note") {
     setNotesKindFilter(kind);
     const assets = await invoke<ReadingAssetDTO[]>("list_all_reading_assets_command", {
@@ -173,8 +199,16 @@ function App() {
   }
 
   if (openBook) {
-    const onBack = () => setOpenBook(null);
-    const props = { bookId: openBook.book_id, title: openBook.title, onBack };
+    const onBack = () => {
+      setOpenBook(null);
+      setPendingAnchor(null);
+    };
+    const props = {
+      bookId: openBook.book_id,
+      title: openBook.title,
+      onBack,
+      initialAnchor: pendingAnchor ?? undefined,
+    };
     switch (openBook.format) {
       case "pdf":
         return <PdfReader {...props} />;
@@ -229,7 +263,7 @@ function App() {
                 const book = books?.find((b) => b.book_id === hit.book_id);
                 return (
                   <li key={`${hit.book_id}-${hit.kind}-${i}`}>
-                    <button type="button" onClick={() => openSearchResultBook(hit.book_id)}>
+                    <button type="button" onClick={() => openBookAtLocation(hit.book_id, hit.anchor)}>
                       {book?.title ?? hit.book_id}
                     </button>
                     <span className="search-hit-kind"> ({hit.kind})</span>
@@ -278,7 +312,7 @@ function App() {
                 const book = books?.find((b) => b.book_id === asset.book_id);
                 return (
                   <li key={asset.id}>
-                    <button type="button" onClick={() => openSearchResultBook(asset.book_id)}>
+                    <button type="button" onClick={() => openBookAtLocation(asset.book_id, asset.anchor)}>
                       {book?.title ?? asset.book_id}
                     </button>
                     <span className="search-hit-kind"> ({asset.kind})</span>

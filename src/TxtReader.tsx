@@ -21,6 +21,9 @@ interface TxtReaderProps {
   bookId: string;
   title: string;
   onBack: () => void;
+  // FC-C01/FC-C02: a source location (from a Search hit or a Notebook
+  // asset) to scroll to on open, instead of resuming the last position.
+  initialAnchor?: DocumentLocationDTO;
 }
 
 // Minimal TXT reading surface: plain-text has no pagination/typography of
@@ -29,9 +32,10 @@ interface TxtReaderProps {
 // character offset saved alongside it as primary_anchor (consistent with
 // tooling/m0-evidence's TXT DocumentLocation spike, which validated
 // character-offset + context-fallback stability at the domain level).
-export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
+export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [text, setText] = useState<string | null>(null);
+  const [jumpFailed, setJumpFailed] = useState(false);
   const restoredRef = useRef(false);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [typographyOpen, setTypographyOpen] = useState(false);
@@ -51,11 +55,35 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
 
       // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
       // "supported book text" is a required Library-wide Search source).
-      // One entry for the whole book -- TXT has no natural section
-      // boundaries the way EPUB/PDF do.
-      invoke("index_search_text_command", { bookId, kind: "book_text", entryId: "full", content: decoded }).catch(
-        () => {},
-      );
+      // FC-C01: indexing the whole file as one entry (the original
+      // approach) has no sub-position to anchor a jump to -- TXT has no
+      // natural section boundaries the way EPUB/PDF do, but paragraphs
+      // (blank-line-separated runs) are a real, resolvable one: each
+      // entry's primary_anchor is the real character offset where that
+      // paragraph starts in `decoded`, the same offset scheme
+      // `handleScroll`/`onJumpTo` below already use for jump-to-asset.
+      let cursor = 0;
+      for (const paragraph of decoded.split(/\n{2,}/)) {
+        const start = decoded.indexOf(paragraph, cursor);
+        const paragraphStart = start >= 0 ? start : cursor;
+        cursor = paragraphStart + paragraph.length;
+        if (!paragraph.trim()) continue;
+        const anchor: DocumentLocationDTO = {
+          book_id: bookId,
+          format: "txt",
+          progression_hint: decoded.length > 0 ? paragraphStart / decoded.length : 0,
+          primary_anchor: String(paragraphStart),
+          fallback_anchors: [],
+          context_selector: paragraph.slice(0, 80),
+        };
+        invoke("index_search_text_command", {
+          bookId,
+          kind: "book_text",
+          entryId: String(paragraphStart),
+          content: paragraph,
+          anchor,
+        }).catch(() => {});
+      }
     })();
     return () => {
       cancelled = true;
@@ -66,9 +94,25 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
     if (text === null || restoredRef.current) return;
     restoredRef.current = true;
     (async () => {
-      const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
       const container = containerRef.current;
-      if (saved && container && saved.progression_hint > 0) {
+      if (!container) return;
+
+      // FC-C01/FC-C02: an exact jump takes priority over the resume
+      // position. An out-of-range anchor is reported truthfully rather
+      // than silently scrolling to an arbitrary spot.
+      if (initialAnchor?.primary_anchor) {
+        const charOffset = parseInt(initialAnchor.primary_anchor, 10);
+        const valid = Number.isFinite(charOffset) && charOffset >= 0 && charOffset <= text.length;
+        if (valid) {
+          const fraction = text.length > 0 ? charOffset / text.length : 0;
+          container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
+        }
+        setJumpFailed(!valid);
+        return;
+      }
+
+      const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
+      if (saved && saved.progression_hint > 0) {
         container.scrollTop = saved.progression_hint * (container.scrollHeight - container.clientHeight);
       }
     })();
@@ -191,6 +235,11 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {jumpFailed && (
+        <p role="alert" className="jump-failed-notice">
+          Could not jump to the exact location — opened the Book instead.
+        </p>
       )}
       {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">

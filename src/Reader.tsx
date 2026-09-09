@@ -24,6 +24,10 @@ interface ReaderProps {
   bookId: string;
   title: string;
   onBack: () => void;
+  // FC-C01/FC-C02: a source location (from a Search hit or a Notebook
+  // asset) to seek to on open, instead of resuming the last reading
+  // position. Absent for a normal open.
+  initialAnchor?: DocumentLocationDTO;
 }
 
 // The <foliate-view> custom element foliate-js registers; it ships no
@@ -36,6 +40,11 @@ interface FoliateRenderer {
 }
 interface FoliateSection {
   createDocument?: () => Promise<Document>;
+  // foliate-js's own precomputed base CFI for this section (epub.js
+  // `sections[i].cfi`) -- a real, resolvable `view.goTo()` target, so
+  // FC-C01's per-section search index entries can carry a genuine anchor
+  // rather than none at all.
+  cfi?: string;
 }
 interface FoliateBook {
   toc?: TocItem[];
@@ -71,10 +80,11 @@ interface ActiveSelection {
 // since "do not expose reflow typography that cannot work"). DESIGN.md
 // SS5: Contents panel navigates via the publication's own TOC, when it
 // has one. DESIGN.md's Notebook side panel is a later M2/M4 checkpoint.
-export function Reader({ bookId, title, onBack }: ReaderProps) {
+export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateView | null>(null);
   const [status, setStatus] = useState("Loading…");
+  const [jumpFailed, setJumpFailed] = useState(false);
   const [isFixedLayout, setIsFixedLayout] = useState(false);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -121,9 +131,19 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
         if (view.renderer) applyViewMode(view.renderer, viewMode);
       }
 
-      const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
-      if (!cancelled && saved?.primary_anchor) {
-        await view.goTo(saved.primary_anchor).catch(() => {});
+      if (initialAnchor?.primary_anchor) {
+        // FC-C01/FC-C02: an exact jump takes priority over the resume
+        // location. foliate-js's goTo() never rejects -- it resolves to
+        // `undefined` on an unresolvable target, the only failure signal
+        // available -- so an unresolvable anchor is reported truthfully
+        // rather than silently falling back to page one.
+        const resolved = await view.goTo(initialAnchor.primary_anchor).catch(() => undefined);
+        if (!cancelled) setJumpFailed(resolved === undefined);
+      } else {
+        const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
+        if (!cancelled && saved?.primary_anchor) {
+          await view.goTo(saved.primary_anchor).catch(() => {});
+        }
       }
 
       // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
@@ -140,11 +160,26 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
           if (cancelled) return;
           const sectionText = doc.body?.textContent ?? "";
           if (sectionText.trim()) {
+            // FC-C01: `sections[i].cfi` is foliate-js's own precomputed
+            // base CFI for this section -- a real anchor `view.goTo()`
+            // can resolve, not a fabricated position.
+            const cfi = sections[i].cfi;
+            const anchor: DocumentLocationDTO | null = cfi
+              ? {
+                  book_id: bookId,
+                  format: "epub",
+                  progression_hint: sections.length > 0 ? i / sections.length : 0,
+                  primary_anchor: cfi,
+                  fallback_anchors: [],
+                  context_selector: null,
+                }
+              : null;
             await invoke("index_search_text_command", {
               bookId,
               kind: "book_text",
               entryId: String(i),
               content: sectionText,
+              anchor,
             }).catch(() => {});
           }
         }
@@ -301,6 +336,11 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {jumpFailed && (
+        <p role="alert" className="jump-failed-notice">
+          Could not jump to the exact location — opened the Book instead.
+        </p>
       )}
       {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">

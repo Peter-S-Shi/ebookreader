@@ -19,6 +19,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 
 use crate::cjk_search::{build_phrase_query, expand_for_index};
+use crate::document_location::DocumentLocation;
 
 /// Idempotent: creates the FTS5 virtual table if it doesn't already
 /// exist. Kept separate from `store::run_migrations` since FTS5 virtual
@@ -26,11 +27,39 @@ use crate::cjk_search::{build_phrase_query, expand_for_index};
 /// ordinary tables (no `IF NOT EXISTS`-driven `user_version` bump is
 /// needed here -- FTS5 `CREATE VIRTUAL TABLE IF NOT EXISTS` handles its
 /// own idempotency).
+///
+/// FC-C01 corrective ticket added the `anchor_json` column. Since this is
+/// derived, rebuildable state (this module's own doc comment), a database
+/// created before that column existed is handled by dropping and
+/// recreating the table empty rather than a `user_version`-style
+/// migration -- the index repopulates the next time a Reader opens each
+/// Book or `rebuild_search_index_command` runs, exactly as it did on
+/// first index.
 pub fn ensure_search_schema(conn: &Connection) -> rusqlite::Result<()> {
+    if table_exists_without_anchor_column(conn)? {
+        conn.execute_batch("DROP TABLE IF EXISTS search_index")?;
+    }
     conn.execute_batch(
         "CREATE VIRTUAL TABLE IF NOT EXISTS search_index
-             USING fts5(book_id UNINDEXED, kind UNINDEXED, content, indexed_text)",
+             USING fts5(book_id UNINDEXED, kind UNINDEXED, content, indexed_text, anchor_json UNINDEXED)",
     )
+}
+
+fn table_exists_without_anchor_column(conn: &Connection) -> rusqlite::Result<bool> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'search_index'",
+        [],
+        |r| r.get(0),
+    )?;
+    if exists == 0 {
+        return Ok(false);
+    }
+    let has_anchor: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('search_index') WHERE name = 'anchor_json'",
+        [],
+        |r| r.get(0),
+    )?;
+    Ok(has_anchor == 0)
 }
 
 /// Index (or re-index) one searchable text entry for a Book -- e.g. an
@@ -38,20 +67,43 @@ pub fn ensure_search_schema(conn: &Connection) -> rusqlite::Result<()> {
 /// exists) a section of a Book's own content. `entry_id` distinguishes
 /// multiple entries of the same `kind` for the same Book (e.g. multiple
 /// Notes) so re-indexing one doesn't duplicate or orphan others.
+///
+/// Has no real-format anchor to attach (`index_text_with_anchor`'s
+/// `anchor` would be `None`) -- callers that have one (a reading asset's
+/// own anchor, or a Reader's own per-section/page/paragraph location)
+/// should call that instead so a resulting `SearchHit` can support an
+/// exact jump (FC-C01).
 pub fn index_text(conn: &Connection, book_id: &str, kind: &str, entry_id: &str, content: &str) -> rusqlite::Result<()> {
+    index_text_with_anchor(conn, book_id, kind, entry_id, content, None)
+}
+
+/// [`index_text`], additionally recording the real format-aware location
+/// this entry's text was captured at, if one exists.
+pub fn index_text_with_anchor(
+    conn: &Connection,
+    book_id: &str,
+    kind: &str,
+    entry_id: &str,
+    content: &str,
+    anchor: Option<&DocumentLocation>,
+) -> rusqlite::Result<()> {
     // FTS5 has no natural primary key to upsert against; delete-then-
     // insert by (book_id, kind:entry_id) is the simplest correct re-index
     // -- deliberately *not* filtered by content too, so re-indexing the
     // same entry with *changed* content replaces it rather than leaving
     // the old text stuck alongside the new.
     let namespaced_kind = format!("{kind}:{entry_id}");
+    let anchor_json = anchor
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|e| rusqlite::Error::InvalidPath(format!("{e}").into()))?;
     conn.execute(
         "DELETE FROM search_index WHERE book_id = ?1 AND kind = ?2",
         (book_id, &namespaced_kind),
     )?;
     conn.execute(
-        "INSERT INTO search_index (book_id, kind, content, indexed_text) VALUES (?1, ?2, ?3, ?4)",
-        (book_id, &namespaced_kind, content, expand_for_index(content)),
+        "INSERT INTO search_index (book_id, kind, content, indexed_text, anchor_json) VALUES (?1, ?2, ?3, ?4, ?5)",
+        (book_id, &namespaced_kind, content, expand_for_index(content), &anchor_json),
     )?;
     Ok(())
 }
@@ -78,7 +130,7 @@ pub fn rebuild_index(conn: &Connection) -> rusqlite::Result<()> {
             crate::assets::AssetKind::Excerpt => "excerpt",
             crate::assets::AssetKind::Note => "note",
         };
-        index_text(conn, &asset.book_id, kind, &asset.id, &asset.text)?;
+        index_text_with_anchor(conn, &asset.book_id, kind, &asset.id, &asset.text, asset.anchor.as_ref())?;
     }
     Ok(())
 }
@@ -89,6 +141,12 @@ pub struct SearchHit {
     /// `"<kind>:<entry_id>"` as passed to `index_text`.
     pub kind: String,
     pub content: String,
+    /// The real format-aware location this hit's text was captured at, if
+    /// one was recorded (`document_location::DocumentLocation`). `None`
+    /// for a hit with no finer anchor than "the Book itself" -- a caller
+    /// must fail the exact-jump truthfully rather than guess a location
+    /// (FC-C01: "unresolvable results fail truthfully").
+    pub anchor: Option<DocumentLocation>,
 }
 
 /// Library-wide search across all indexed entries.
@@ -108,16 +166,18 @@ fn search_scoped(conn: &Connection, query: &str, book_id: Option<&str>) -> rusql
     }
 
     let sql = match book_id {
-        Some(_) => "SELECT book_id, kind, content FROM search_index WHERE indexed_text MATCH ?1 AND book_id = ?2",
-        None => "SELECT book_id, kind, content FROM search_index WHERE indexed_text MATCH ?1",
+        Some(_) => "SELECT book_id, kind, content, anchor_json FROM search_index WHERE indexed_text MATCH ?1 AND book_id = ?2",
+        None => "SELECT book_id, kind, content, anchor_json FROM search_index WHERE indexed_text MATCH ?1",
     };
     let mut stmt = conn.prepare(sql)?;
 
     let map_row = |row: &rusqlite::Row| {
+        let anchor_json: Option<String> = row.get(3)?;
         Ok(SearchHit {
             book_id: row.get(0)?,
             kind: row.get(1)?,
             content: row.get(2)?,
+            anchor: anchor_json.and_then(|json| serde_json::from_str(&json).ok()),
         })
     };
 
@@ -217,6 +277,111 @@ mod tests {
 
         assert!(search(&conn, "新内容").unwrap().len() == 1);
         assert!(search(&conn, "旧内容").unwrap().is_empty(), "stale content must not still be searchable");
+    }
+
+    fn sample_anchor(book_id: &str) -> DocumentLocation {
+        DocumentLocation {
+            book_id: book_id.into(),
+            format: "epub".into(),
+            progression_hint: 0.2,
+            primary_anchor: "epubcfi(/6/4!/4/2/1:0)".into(),
+            fallback_anchors: vec![],
+            context_selector: None,
+        }
+    }
+
+    /// FC-C01: a hit whose entry was indexed with a real anchor carries it
+    /// back so a caller can navigate to the exact source location.
+    #[test]
+    fn a_hit_indexed_with_an_anchor_carries_it_back() {
+        let conn = conn_with_schema();
+        let anchor = sample_anchor("book-1");
+        index_text_with_anchor(&conn, "book-1", "excerpt", "1", "the rabbit hole", Some(&anchor)).unwrap();
+
+        let hits = search(&conn, "rabbit").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].anchor, Some(anchor));
+    }
+
+    /// A hit indexed the plain way (no format-aware location available)
+    /// truthfully carries no anchor, rather than a caller inventing one.
+    #[test]
+    fn a_hit_indexed_without_an_anchor_carries_none() {
+        let conn = conn_with_schema();
+        index_text(&conn, "book-1", "excerpt", "1", "the rabbit hole").unwrap();
+
+        let hits = search(&conn, "rabbit").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].anchor, None);
+    }
+
+    /// `ensure_search_schema` must not lose data it doesn't need to lose:
+    /// calling it again against an already-current schema is a no-op.
+    #[test]
+    fn ensure_search_schema_is_idempotent_against_a_current_schema() {
+        let conn = conn_with_schema();
+        let anchor = sample_anchor("book-1");
+        index_text_with_anchor(&conn, "book-1", "excerpt", "1", "the rabbit hole", Some(&anchor)).unwrap();
+
+        ensure_search_schema(&conn).unwrap();
+
+        let hits = search(&conn, "rabbit").unwrap();
+        assert_eq!(hits.len(), 1, "re-running ensure_search_schema against an up-to-date table must not drop data");
+    }
+
+    /// A pre-existing `search_index` table from before the `anchor_json`
+    /// column existed must be transparently upgraded (dropped and
+    /// recreated empty -- this is derived, rebuildable state) rather than
+    /// erroring or silently keeping the old shape.
+    #[test]
+    fn ensure_search_schema_upgrades_a_pre_anchor_column_table() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE search_index USING fts5(book_id UNINDEXED, kind UNINDEXED, content, indexed_text)",
+        )
+        .unwrap();
+
+        ensure_search_schema(&conn).unwrap();
+
+        let anchor = sample_anchor("book-1");
+        index_text_with_anchor(&conn, "book-1", "excerpt", "1", "the rabbit hole", Some(&anchor)).unwrap();
+        let hits = search(&conn, "rabbit").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].anchor, Some(anchor));
+    }
+
+    /// FC-C01: `rebuild_index` threads each reading asset's own anchor
+    /// through, so Notes/Excerpts/Annotations remain exact-jumpable from
+    /// Search after a rebuild, not just right after `create_asset`.
+    #[test]
+    fn rebuild_index_carries_each_assets_own_anchor_into_the_index() {
+        use crate::assets::{create_asset, AssetKind, ReadingAsset};
+        use crate::store::run_migrations;
+
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        ensure_search_schema(&conn).unwrap();
+        conn.execute("INSERT INTO book (id, title) VALUES ('book-1', 'Test Book')", []).unwrap();
+
+        let anchor = sample_anchor("book-1");
+        create_asset(
+            &conn,
+            &ReadingAsset {
+                id: "a1".into(),
+                book_id: "book-1".into(),
+                kind: AssetKind::Excerpt,
+                text: "a passage about the rabbit hole".into(),
+                anchor: Some(anchor.clone()),
+                orphaned: false,
+            },
+        )
+        .unwrap();
+
+        rebuild_index(&conn).unwrap();
+
+        let hits = search(&conn, "rabbit").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].anchor, Some(anchor));
     }
 
     /// `ROADMAP.md` M4 Success Evidence: "index rebuild cannot delete

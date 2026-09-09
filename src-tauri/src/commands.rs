@@ -494,7 +494,10 @@ pub fn restore_backup_command(app: AppHandle, state: State<DbState>, archive_pat
 }
 
 /// Index (or re-index) one searchable text entry for a Book -- e.g. a
-/// Note or Excerpt's text (`ROADMAP.md` M4).
+/// Note or Excerpt's text, or a Reader's own per-section/page/paragraph
+/// book text (`ROADMAP.md` M4). `anchor`, when the caller has one, lets a
+/// resulting `SearchHit` support an exact jump back to this entry's real
+/// source location (FC-C01) rather than only opening the Book.
 #[tauri::command]
 pub fn index_search_text_command(
     state: State<DbState>,
@@ -502,9 +505,10 @@ pub fn index_search_text_command(
     kind: String,
     entry_id: String,
     content: String,
+    anchor: Option<DocumentLocation>,
 ) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
-    search::index_text(&conn, &book_id, &kind, &entry_id, &content)
+    search::index_text_with_anchor(&conn, &book_id, &kind, &entry_id, &content, anchor.as_ref())
         .map_err(|e| format!("could not index search text: {e}"))
 }
 
@@ -566,7 +570,7 @@ pub fn create_reading_asset_command(
         orphaned: false,
     };
     assets::create_asset(&conn, &asset).map_err(|e| format!("could not create reading asset: {e}"))?;
-    search::index_text(&conn, &asset.book_id, &kind, &asset.id, &asset.text)
+    search::index_text_with_anchor(&conn, &asset.book_id, &kind, &asset.id, &asset.text, asset.anchor.as_ref())
         .map_err(|e| format!("could not index reading asset text: {e}"))?;
     Ok(asset)
 }

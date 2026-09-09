@@ -11,9 +11,20 @@ const { invokeMock, openMock } = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: openMock }));
 vi.mock("./Reader", () => ({
-  Reader: ({ bookId, title, onBack }: { bookId: string; title: string; onBack: () => void }) => (
+  Reader: ({
+    bookId,
+    title,
+    onBack,
+    initialAnchor,
+  }: {
+    bookId: string;
+    title: string;
+    onBack: () => void;
+    initialAnchor?: { primary_anchor: string };
+  }) => (
     <div>
       <p>Reading: {title} ({bookId})</p>
+      {initialAnchor && <p>Jump target: {initialAnchor.primary_anchor}</p>}
       <button type="button" onClick={onBack}>
         Back to Library
       </button>
@@ -239,6 +250,52 @@ describe("Library-wide Search", () => {
 
     expect(await screen.findByText(/Reading: Alice's Adventures in Wonderland \(book-1\)/)).toBeInTheDocument();
   });
+
+  const sampleAnchor = {
+    book_id: "book-1",
+    format: "epub",
+    progression_hint: 0.2,
+    primary_anchor: "epubcfi(/6/4!/4/2/1:0)",
+    fallback_anchors: [],
+    context_selector: null,
+  };
+
+  it("FC-C01: opening a search result with a real anchor seeks the Reader there", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Alice's Adventures in Wonderland");
+
+    invokeMock.mockResolvedValueOnce([{ book_id: "book-1", kind: "excerpt:1", content: "the rabbit hole", anchor: sampleAnchor }]);
+    await user.type(screen.getByLabelText("Search the library"), "rabbit");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    const resultItem = (await screen.findByText("the rabbit hole")).closest("li")!;
+
+    await user.click(within(resultItem).getByRole("button", { name: "Alice's Adventures in Wonderland" }));
+
+    expect(await screen.findByText(`Jump target: ${sampleAnchor.primary_anchor}`)).toBeInTheDocument();
+  });
+
+  it("a search result with no anchor opens the Book plainly (truthful, not a guessed jump)", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Alice's Adventures in Wonderland");
+
+    invokeMock.mockResolvedValueOnce([{ book_id: "book-1", kind: "excerpt:1", content: "the rabbit hole", anchor: null }]);
+    await user.type(screen.getByLabelText("Search the library"), "rabbit");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    const resultItem = (await screen.findByText("the rabbit hole")).closest("li")!;
+
+    await user.click(within(resultItem).getByRole("button", { name: "Alice's Adventures in Wonderland" }));
+
+    await screen.findByText(/Reading: Alice's Adventures in Wonderland/);
+    expect(screen.queryByText(/Jump target:/)).not.toBeInTheDocument();
+  });
 });
 
 describe("Global Notes", () => {
@@ -276,6 +333,49 @@ describe("Global Notes", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("list_all_reading_assets_command", { kind: "excerpt" });
     expect(await screen.findByText("a collected passage")).toBeInTheDocument();
+  });
+
+  it("FC-C02: opening a Global Notes asset with a real anchor seeks the Reader there", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Book One");
+
+    const anchor = {
+      book_id: "book-1",
+      format: "epub",
+      progression_hint: 0.1,
+      primary_anchor: "epubcfi(/6/2!/4/2/1:0)",
+      fallback_anchors: [],
+      context_selector: "chapter 1",
+    };
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "note", text: "A source-anchored thought", orphaned: false, anchor },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await user.click(await screen.findByRole("button", { name: "Book One" }));
+
+    expect(await screen.findByText(`Jump target: ${anchor.primary_anchor}`)).toBeInTheDocument();
+  });
+
+  it("a free-standing Note (no anchor) opens the Book plainly", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Book One");
+
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "note", text: "A free-standing thought", orphaned: false, anchor: null },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await user.click(await screen.findByRole("button", { name: "Book One" }));
+
+    await screen.findByText(/Reading: Book One/);
+    expect(screen.queryByText(/Jump target:/)).not.toBeInTheDocument();
   });
 
   it("marks an orphaned Global Notes entry as Detached", async () => {

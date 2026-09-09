@@ -7,7 +7,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | # | Ticket | Status | Depends on |
 |---|---|---|---|
 | 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | CLOSED (nav shell + Appearance) — remaining FC-C05 setting groups tracked under tickets 9-16 | — |
-| 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | OPEN | — |
+| 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | CLOSED | — |
 | 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | OPEN | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | OPEN | 1 (lives under Data) |
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | OPEN | — |
@@ -53,3 +53,20 @@ Failure Attribution for FC-C05 found the earliest-wrong layer was **Persistence*
 ## Ticket 1 closure (2026-09-09, follow-up commit)
 
 FC-C06 landed: `App.tsx` now has a real `<nav aria-label="Main">` with five destinations (Library/Notes/Calendar/Data/Settings), `aria-current="page"` on the active one, Library as the default so existing book-list behavior is unchanged, Search kept as an always-visible topbar section independent of destination (never a sixth nav item), and Reader/Bilingual unchanged as contextual overlays with no nav entry at all. All ~20 pre-existing `App.test.tsx` cases pass unmodified against the new structure (none of them depended on more than one section being visible simultaneously), plus 4 new tests asserting the real nav semantics (default destination, switching hides the previous panel, Search stays visible, Reader has no nav). 104 frontend tests, `tsc --noEmit`, `vite build` green. Ticket 1 is CLOSED for FC-C06 and for FC-C05's Appearance slice; the rest of FC-C05's required settings list remains explicitly open under tickets 9-16.
+
+## Ticket 2 (FC-C01/FC-C02) — closed 2026-09-09
+
+Failure Attribution found two different earliest-wrong layers, not one:
+
+- **FC-C02 (Global Notes jump): Frontend integration only.** `ReadingAsset.anchor: Option<DocumentLocation>` was already fully persisted and tested in the domain layer, and already serialized straight through `list_all_reading_assets_command`/`list_reading_assets_command`. The gap was purely that `App.tsx`'s `ReadingAssetDTO` didn't expose `anchor` and the click handler didn't use it.
+- **FC-C01 (Search jump): Persistence, then Frontend integration.** `search::SearchHit` and the FTS5 `search_index` table had no anchor column at all -- a real domain-layer gap, fixed first.
+
+Landed:
+- `crates/domain/src/search.rs`: `search_index` gains an `anchor_json` column (with a same-commit schema-upgrade path for a pre-existing table, since this is derived/rebuildable state, not a `user_version` migration); `index_text_with_anchor` (new) and `index_text` (unchanged signature, delegates with `None`); `SearchHit.anchor: Option<DocumentLocation>`; `rebuild_index` threads each reading asset's own anchor through.
+- `create_reading_asset_command` now indexes with the asset's own anchor (closes the search-side half of Notes/Excerpts/Annotations being exact-jumpable, not just Global-Notes-side).
+- `index_search_text_command` gained an `anchor: Option<DocumentLocation>` parameter.
+- `Reader.tsx` (EPUB): indexes each section with foliate-js's own precomputed `sections[i].cfi` as a real anchor. `PdfReader.tsx`: indexes each page with the page number (the same scheme reading-position durability already used). `TxtReader.tsx`: switched from one whole-file index entry (no sub-position possible) to per-paragraph entries anchored at each paragraph's real character offset -- the smallest change that gives TXT a genuine, format-aware anchor rather than none.
+- `Reader`/`PdfReader`/`TxtReader` each accept an `initialAnchor` prop that takes priority over the resume location on open; an anchor that fails to resolve (bad CFI, out-of-range page/offset) shows a truthful "Could not jump to the exact location" banner rather than silently landing on page one.
+- `App.tsx`: `SearchHit`/`ReadingAssetDTO` gain `anchor`; `openBookAtLocation` (replacing `openSearchResultBook`) threads it through `pendingAnchor` state into whichever Reader opens. A `null` anchor (free-standing Note, or a hit with no finer location) opens the Book plainly -- correct, not a failure, since there was never a location to jump to.
+
+160 Rust tests (5 new), 108 frontend tests (4 new), `tsc --noEmit`, `vite build`, `cargo build` (src-tauri) all green.

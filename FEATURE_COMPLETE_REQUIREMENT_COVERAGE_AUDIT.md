@@ -11,8 +11,8 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 
 | ID | Requirement | Classification | Evidence | Ticket |
 |---|---|---|---|---|
-| FC-C01 | Search result exact-location jump | **MISSING** | `crates/domain/src/search.rs:86-92` `SearchHit` has no location field; `src/App.tsx:123-141` explicit comment admits results open the Book, not the passage | FC-C01 |
-| FC-C02 | Global Notes exact source jump | **IMPLEMENTED_PARTIAL** | `src/App.tsx:143-146,256` reuses the same book-open path as search (no location); orphan/detached state at `App.tsx:260` is correctly truthful | FC-C02 |
+| FC-C01 | Search result exact-location jump | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | `crates/domain/src/search.rs`: `SearchHit.anchor`, `search_index.anchor_json`, `index_text_with_anchor`; `Reader.tsx`/`PdfReader.tsx`/`TxtReader.tsx` each index book text with a real per-section/page/paragraph anchor (`sections[i].cfi`, page number, paragraph char-offset respectively) and accept an `initialAnchor` prop that seeks there on open, reporting an unresolvable anchor truthfully via a `jumpFailed` banner rather than silently opening page one | — (closed) |
+| FC-C02 | Global Notes exact source jump | **IMPLEMENTED_USER_REACHABLE** (closed 2026-09-09) | Failure Attribution found the domain layer already had this: `ReadingAsset.anchor: Option<DocumentLocation>` was already fully persisted and tested. The actual gap was `App.tsx`'s `ReadingAssetDTO` not exposing it and the click handler not using it -- `openBookAtLocation` now threads `asset.anchor` the same way as Search; a free-standing Note (`anchor: null`) opens the Book plainly, which is truthful (there is no location to fail to reach), not a degraded jump | — (closed) |
 | FC-C03 | Book Data completed-read override UI | **IMPLEMENTED_BACKEND_ONLY** | `src-tauri/src/commands.rs:236-249` command exists; zero call sites in `src/*.tsx` | FC-C03 |
 | FC-C04 | Destructive semantics separation | **MISSING** | `src/App.tsx:315-317` one unconfirmed "Remove" button; `crates/domain/src/store.rs:371-388` fuses all three semantics in one call | FC-C04 |
 | FC-C05 | Canonical Settings surface | **IMPLEMENTED_PARTIAL** (updated 2026-09-09) | `src/Settings.tsx` + `crates/domain/src/settings.rs` (`app_setting` table, migration v9): Appearance (theme mode, accent color) is real, persisted, user-reachable. Reading-time policy toggles, Reading Checkpoint, typography defaults, sound/motion, default import mode, update-awareness preference, and About & Updates are still not in this surface -- each is owned by ticket 9-16 per `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` and lands inside this same `Settings.tsx`, not a second location | FC-C05 (Appearance slice closed; remainder tracked under tickets 9-16) |
@@ -41,9 +41,9 @@ Classification values: `IMPLEMENTED_USER_REACHABLE`, `IMPLEMENTED_BACKEND_ONLY`,
 
 ## Summary
 
-- 0 items are `IMPLEMENTED_USER_REACHABLE` and fully closed among the 8 confirmed (`FC-C01`-`FC-C08`) items.
-- 2 items (`FC-A12`, `FC-A13`) are genuinely closed already — no ticket needed.
-- 20 items require corrective work before a second Feature Complete Candidate can be declared.
+- Updated 2026-09-09: `FC-C01`, `FC-C02`, `FC-C06` closed via corrective-pass tickets 1-2; `FC-C05` partially closed (Appearance). 3 of the 8 confirmed (`FC-C01`-`FC-C08`) items are now fully closed.
+- 2 items (`FC-A12`, `FC-A13`) were already genuinely closed — no ticket needed.
+- 15 items still require corrective work before a second Feature Complete Candidate can be declared (see `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` for live status).
 - No item required a `NEEDS_HUMAN_CONFLICT_DECISION` — every gap found is a coverage/implementation gap against an already-frozen, non-conflicting authority, not a contract conflict.
 - No item is `LEGITIMATE_DEFERRED_NON_GOAL` — nothing found is marked deferred by the authorities themselves.
 
