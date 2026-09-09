@@ -194,6 +194,16 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 10 {
+        conn.execute_batch(
+            "
+            ALTER TABLE book ADD COLUMN library_status TEXT NOT NULL DEFAULT 'active';
+            CREATE INDEX idx_book_library_status ON book(library_status);
+            PRAGMA user_version = 10;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -248,9 +258,20 @@ fn import_book_internal(
     let fingerprint = compute_fingerprint(file_path)
         .map_err(|e| rusqlite::Error::InvalidPath(format!("{e}").into()))?;
 
-    let existing = existing_entries(conn)?;
-    if let Some(dup) = find_duplicate(&existing, &fingerprint) {
-        return Ok(dup.book_id.clone());
+    let existing_book = conn
+        .query_row(
+            "SELECT book.id, book.library_status
+             FROM book JOIN book_file ON book_file.book_id = book.id
+             WHERE book_file.fingerprint = ?1",
+            [&fingerprint],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+
+    if let Some((book_id, library_status)) = &existing_book {
+        if library_status == "active" {
+            return Ok(book_id.clone());
+        }
     }
 
     let stored_path: std::path::PathBuf = match (ownership_mode, managed_dir) {
@@ -270,6 +291,20 @@ fn import_book_internal(
         }
         (OwnershipMode::Reference, _) => file_path.to_path_buf(),
     };
+
+    if let Some((book_id, _)) = existing_book {
+        conn.execute("UPDATE book SET library_status = 'active', title = ?1 WHERE id = ?2", (title, &book_id))?;
+        conn.execute(
+            "UPDATE book_file SET path = ?1, format = ?2, ownership_mode = ?3 WHERE book_id = ?4",
+            (
+                stored_path.to_string_lossy().to_string(),
+                format,
+                ownership_mode.as_str(),
+                &book_id,
+            ),
+        )?;
+        return Ok(book_id);
+    }
 
     let book_id = format!("{fingerprint}"); // fingerprint doubles as a stable id for this minimal slice
     conn.execute(
@@ -358,6 +393,7 @@ pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
     let mut stmt = conn.prepare(
         "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
          FROM book JOIN book_file ON book_file.book_id = book.id
+         WHERE book.library_status = 'active'
          ORDER BY book.rowid DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -375,27 +411,60 @@ pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
     rows.collect()
 }
 
-/// Remove a Book from the Library.
+/// Remove a Book from the visible Library.
 ///
-/// Per `PRODUCT_SPEC.md`: a Managed-Copy BookFile's app-managed copy is
-/// deleted (it exists only because EbookReader made it); a Reference
-/// BookFile's source is the user's own file and is never touched.
+/// Per `PRODUCT_SPEC.md` SS5, Managed-Copy file deletion and reading-data
+/// deletion are separate explicit operations. This action hides the Book
+/// from the Library while preserving its source binding and canonical
+/// reading data for a later explicit user decision.
+pub fn remove_from_library(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE book SET library_status = 'removed' WHERE id = ?1",
+        [book_id],
+    )?;
+    Ok(())
+}
+
+/// Backward-compatible domain entry point for older command callers.
 pub fn remove_book(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
+    remove_from_library(conn, book_id)
+}
+
+/// Delete user reading data for a Book without removing the Book's Library
+/// entry or touching any Reference/Managed-Copy file bytes.
+pub fn delete_reading_data(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM document_location WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM reading_progress WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM workload_config WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM actual_reading_time WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM reading_asset WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM ocr_job WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM ocr_page_result WHERE book_id = ?1", [book_id])?;
+    conn.execute("DELETE FROM ocr_correction WHERE book_id = ?1", [book_id])?;
+    conn.execute(
+        "DELETE FROM alignment_package WHERE book_id_a = ?1 OR book_id_b = ?1",
+        [book_id],
+    )?;
+    Ok(())
+}
+
+/// Delete the app-managed file bytes for a Managed-Copy Book. Reference
+/// sources are user-owned files and are rejected by this operation.
+pub fn delete_managed_copy_file(conn: &Connection, book_id: &str) -> rusqlite::Result<()> {
     let (path, ownership_mode): (String, String) = conn.query_row(
         "SELECT path, ownership_mode FROM book_file WHERE book_id = ?1",
         [book_id],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
 
-    if ownership_mode == OwnershipMode::ManagedCopy.as_str() {
-        // Best-effort: an already-missing managed copy is not an error --
-        // the Book row is still removed either way.
-        std::fs::remove_file(&path).ok();
+    if ownership_mode != OwnershipMode::ManagedCopy.as_str() {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "Delete Managed-Copy File is only valid for Managed-Copy books".to_string(),
+        ));
     }
 
-    conn.execute("DELETE FROM book_file WHERE book_id = ?1", [book_id])?;
-    conn.execute("DELETE FROM book WHERE id = ?1", [book_id])?;
-
+    // Best-effort: an already-missing managed copy is not an error.
+    std::fs::remove_file(&path).ok();
     Ok(())
 }
 
@@ -404,7 +473,7 @@ pub fn get_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<Boo
     conn.query_row(
         "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
          FROM book JOIN book_file ON book_file.book_id = book.id
-         WHERE book.id = ?1",
+         WHERE book.id = ?1 AND book.library_status = 'active'",
         [book_id],
         |row| {
             let path: String = row.get(2)?;
@@ -434,7 +503,9 @@ pub fn find_book_id_by_fingerprint(conn: &Connection, fingerprint: &str) -> rusq
 
 fn existing_entries(conn: &Connection) -> rusqlite::Result<Vec<LibraryEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT book.id, book.title, book_file.fingerprint FROM book JOIN book_file ON book_file.book_id = book.id",
+        "SELECT book.id, book.title, book_file.fingerprint
+         FROM book JOIN book_file ON book_file.book_id = book.id
+         WHERE book.library_status = 'active'",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(LibraryEntry {
@@ -466,7 +537,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 9);
+        assert_eq!(version, 10);
     }
 
     #[test]
@@ -657,18 +728,47 @@ mod tests {
     }
 
     #[test]
-    fn remove_book_deletes_the_managed_copy_but_never_touches_a_reference_source() {
+    fn destructive_library_operations_are_separated_by_domain_consequence() {
         let conn = Connection::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
 
-        // Managed Copy: removing the Book must delete the app-managed copy.
-        let managed_source = temp_file("to-remove-managed.epub", b"managed book contents");
-        let managed_dir = std::env::temp_dir().join(format!("ebookreader-remove-test-{}", std::process::id()));
+        let reference_source = temp_file("separated-reference.epub", b"reference book contents");
+        let reference_book_id =
+            import_book(&conn, &reference_source, "Reference To Keep", "epub", OwnershipMode::Reference).unwrap();
+        conn.execute(
+            "INSERT INTO reading_asset (id, book_id, kind, text, anchor_json, orphaned) VALUES ('asset-1', ?1, 'note', 'kept note', NULL, 0)",
+            [&reference_book_id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO reading_progress (book_id, completed_read_count, active_read_in_progress, active_pass_progress) VALUES (?1, 2, 1, 0.5)",
+            [&reference_book_id],
+        )
+        .unwrap();
+
+        remove_from_library(&conn, &reference_book_id).unwrap();
+
+        assert!(reference_source.exists(), "Reference source bytes must never be deleted by Remove from Library");
+        assert!(
+            list_books(&conn).unwrap().iter().all(|book| book.book_id != reference_book_id),
+            "Remove from Library removes the Book from the visible Library"
+        );
+        let asset_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM reading_asset WHERE book_id = ?1", [&reference_book_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(asset_count, 1, "Remove from Library is not Delete Reading Data");
+        let progress_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM reading_progress WHERE book_id = ?1", [&reference_book_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(progress_count, 1, "Remove from Library preserves reading state for a later explicit data decision");
+
+        let managed_source = temp_file("separated-managed.epub", b"managed book contents");
+        let managed_dir = std::env::temp_dir().join(format!("ebookreader-delete-managed-test-{}", std::process::id()));
         std::fs::create_dir_all(&managed_dir).unwrap();
         let managed_book_id = import_book_managed(
             &conn,
             &managed_source,
-            "Managed To Remove",
+            "Managed To Delete",
             "epub",
             OwnershipMode::ManagedCopy,
             &managed_dir,
@@ -678,31 +778,55 @@ mod tests {
             .query_row("SELECT path FROM book_file WHERE book_id = ?1", [&managed_book_id], |r| r.get(0))
             .unwrap();
 
-        remove_book(&conn, &managed_book_id).unwrap();
+        delete_reading_data(&conn, &managed_book_id).unwrap();
 
+        assert!(
+            std::path::Path::new(&managed_stored_path).exists(),
+            "Delete Reading Data must not delete the Managed-Copy file"
+        );
+        assert!(
+            get_book(&conn, &managed_book_id).unwrap().is_some(),
+            "Delete Reading Data keeps the Book in the Library"
+        );
+
+        delete_managed_copy_file(&conn, &managed_book_id).unwrap();
         assert!(
             !std::path::Path::new(&managed_stored_path).exists(),
-            "removing a Managed-Copy Book must delete its app-managed copy"
+            "Delete Managed-Copy File deletes only the app-managed copy"
         );
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM book WHERE id = ?1", [&managed_book_id], |r| r.get(0)).unwrap();
-        assert_eq!(count, 0);
 
-        // Reference: removing the Book must NOT touch the user's source file.
-        let reference_source = temp_file("to-remove-reference.epub", b"reference book contents");
-        let reference_book_id =
-            import_book(&conn, &reference_source, "Reference To Remove", "epub", OwnershipMode::Reference).unwrap();
-
-        remove_book(&conn, &reference_book_id).unwrap();
-
-        assert!(
-            reference_source.exists(),
-            "removing a Reference Book must never delete the user's own source file"
-        );
-        assert_eq!(
-            std::fs::read(&reference_source).unwrap(),
-            b"reference book contents"
-        );
+        let err = delete_managed_copy_file(&conn, &reference_book_id).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("Delete Managed-Copy File is only valid for Managed-Copy books"));
 
         std::fs::remove_dir_all(&managed_dir).ok();
+    }
+
+    #[test]
+    fn reimporting_a_removed_book_restores_the_existing_library_entry() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let source = temp_file("removed-then-reimported.epub", b"same fingerprint");
+        let book_id = import_book(&conn, &source, "Original Title", "epub", OwnershipMode::Reference).unwrap();
+        conn.execute(
+            "INSERT INTO reading_asset (id, book_id, kind, text, anchor_json, orphaned) VALUES ('asset-reimport', ?1, 'note', 'still here', NULL, 0)",
+            [&book_id],
+        )
+        .unwrap();
+
+        remove_from_library(&conn, &book_id).unwrap();
+        assert!(list_books(&conn).unwrap().is_empty());
+
+        let restored_id = import_book(&conn, &source, "Restored Title", "epub", OwnershipMode::Reference).unwrap();
+
+        assert_eq!(restored_id, book_id);
+        let books = list_books(&conn).unwrap();
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].title, "Restored Title");
+        let asset_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM reading_asset WHERE book_id = ?1", [&book_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(asset_count, 1, "Remove from Library preserves data that a later re-import can recover");
     }
 }

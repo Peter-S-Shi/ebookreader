@@ -109,7 +109,29 @@ function App() {
   }
 
   async function removeBook(bookId: string) {
+    const confirmed = window.confirm(
+      "Remove this Book from the Library? Reading data is kept, and no source file will be deleted.",
+    );
+    if (!confirmed) return;
     await invoke("remove_book_command", { bookId });
+    await refreshLibrary();
+  }
+
+  async function deleteReadingData(bookId: string) {
+    const confirmed = window.confirm(
+      "Delete this Book's reading data? Notes, progress, OCR corrections, Book Hours, and alignment data for this Book will be removed. The Book file stays in place.",
+    );
+    if (!confirmed) return;
+    await invoke("delete_reading_data_command", { bookId });
+    await refreshLibrary();
+  }
+
+  async function deleteManagedCopyFile(bookId: string) {
+    const confirmed = window.confirm(
+      "Delete this app-managed book file? The Book will remain in the Library and may need relink/import repair. Reference source files are never deleted by this action.",
+    );
+    if (!confirmed) return;
+    await invoke("delete_managed_copy_file_command", { bookId });
     await refreshLibrary();
   }
 
@@ -376,8 +398,16 @@ function App() {
                       </button>
                     )}
                     <button type="button" onClick={() => removeBook(book.book_id)}>
-                      Remove
+                      Remove from Library
                     </button>
+                    <button type="button" onClick={() => deleteReadingData(book.book_id)}>
+                      Delete Reading Data
+                    </button>
+                    {book.ownership_mode === "managed_copy" && (
+                      <button type="button" onClick={() => deleteManagedCopyFile(book.book_id)}>
+                        Delete Managed-Copy File
+                      </button>
+                    )}
                   </li>
                 );
               })}

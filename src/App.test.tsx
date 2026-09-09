@@ -55,6 +55,7 @@ vi.mock("./TxtReader", () => ({
 beforeEach(() => {
   invokeMock.mockReset();
   openMock.mockReset();
+  vi.restoreAllMocks();
 });
 
 describe("App shell", () => {
@@ -116,8 +117,9 @@ describe("Library", () => {
     expect(within(presentItem).queryByText(/needs relink/i)).not.toBeInTheDocument();
   });
 
-  it("removes a book via Remove and refreshes the list", async () => {
+  it("removes a book from the Library only after confirming the separated consequence", async () => {
     const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "to-remove", title: "Removable Book", path: "C:/books/removable.epub", format: "epub", ownership_mode: "reference", available: true },
     ]); // initial list
@@ -127,10 +129,74 @@ describe("Library", () => {
     render(<App />);
     await screen.findByText("Removable Book");
 
-    await user.click(screen.getByRole("button", { name: /remove/i }));
+    await user.click(screen.getByRole("button", { name: "Remove from Library" }));
 
     expect(await screen.findByText(/library is empty/i)).toBeInTheDocument();
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Reading data is kept"));
     expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "to-remove" });
+  });
+
+  it("does not remove a book when Remove from Library confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "keep", title: "Keep Book", path: "C:/books/keep.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    await screen.findByText("Keep Book");
+
+    await user.click(screen.getByRole("button", { name: "Remove from Library" }));
+
+    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", { bookId: "keep" });
+    expect(screen.getByText("Keep Book")).toBeInTheDocument();
+  });
+
+  it("deletes reading data through an explicitly labeled destructive action while keeping file semantics separate", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    invokeMock.mockResolvedValueOnce(undefined); // delete_reading_data_command
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    await screen.findByText("Data Book");
+
+    await user.click(screen.getByRole("button", { name: "Delete Reading Data" }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Book file stays in place"));
+    expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "data-book" });
+    expect(await screen.findByText("Data Book")).toBeInTheDocument();
+  });
+
+  it("offers Managed-Copy file deletion only for managed-copy books", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "managed", title: "Managed Book", path: "C:/app/managed.epub", format: "epub", ownership_mode: "managed_copy", available: true },
+      { book_id: "reference", title: "Reference Book", path: "C:/books/reference.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    invokeMock.mockResolvedValueOnce(undefined); // delete_managed_copy_file_command
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "managed", title: "Managed Book", path: "C:/app/managed.epub", format: "epub", ownership_mode: "managed_copy", available: false },
+      { book_id: "reference", title: "Reference Book", path: "C:/books/reference.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    const managedItem = (await screen.findByText("Managed Book")).closest("li")!;
+    const referenceItem = screen.getByText("Reference Book").closest("li")!;
+
+    expect(within(managedItem).getByRole("button", { name: "Delete Managed-Copy File" })).toBeInTheDocument();
+    expect(within(referenceItem).queryByRole("button", { name: "Delete Managed-Copy File" })).not.toBeInTheDocument();
+
+    await user.click(within(managedItem).getByRole("button", { name: "Delete Managed-Copy File" }));
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Reference source files are never deleted"));
+    expect(invokeMock).toHaveBeenCalledWith("delete_managed_copy_file_command", { bookId: "managed" });
   });
 });
 

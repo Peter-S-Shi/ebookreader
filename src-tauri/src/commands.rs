@@ -21,7 +21,8 @@ use ebookreader_domain::progress_store::{load_progress, save_progress};
 use ebookreader_domain::reading_session::SessionState;
 use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
-    get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
+    delete_managed_copy_file, delete_reading_data, get_book, import_book, import_book_managed, list_books,
+    relink_book_file, remove_book,
     BookSummary, OwnershipMode, RelinkOutcome,
 };
 use serde::Serialize;
@@ -105,12 +106,28 @@ pub fn relink_book_command(
 }
 
 /// Remove `book_id` from the Library. A Managed-Copy file's app-managed
-/// copy is deleted; a Reference file's source is never touched
-/// (`PRODUCT_SPEC.md`).
+/// copy is not deleted by this operation; Reference source files are
+/// never touched (`PRODUCT_SPEC.md` FC-C04).
 #[tauri::command]
 pub fn remove_book_command(state: State<DbState>, book_id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     remove_book(&conn, &book_id).map_err(|e| format!("remove failed: {e}"))
+}
+
+/// Delete user reading data for `book_id` while keeping the Library entry
+/// and any source/Managed-Copy file bytes.
+#[tauri::command]
+pub fn delete_reading_data_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    delete_reading_data(&conn, &book_id).map_err(|e| format!("delete reading data failed: {e}"))
+}
+
+/// Delete the app-managed file bytes for a Managed-Copy Book. This rejects
+/// Reference-mode Books because their source files are user-owned.
+#[tauri::command]
+pub fn delete_managed_copy_file_command(state: State<DbState>, book_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    delete_managed_copy_file(&conn, &book_id).map_err(|e| format!("delete managed-copy file failed: {e}"))
 }
 
 /// Read a Book's file bytes off disk so the Reader can hand them to the

@@ -8,7 +8,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 |---|---|---|---|
 | 1 | FC-C05/C06 — Settings surface + top-level nav shell (Library/Notes/Calendar/Data/Settings; Reader stays contextual; Search demoted to topbar/context) | CLOSED (nav shell + Appearance) — remaining FC-C05 setting groups tracked under tickets 9-16 | — |
 | 2 | FC-C01/C02 — DocumentLocation-carrying search hits + notes assets; exact-jump from Search and Global Notes into Reader | CLOSED | — |
-| 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | OPEN | — |
+| 3 | FC-C04 — Split "Remove" into Remove from Library / Delete Reading Data / delete Managed-Copy, each labeled + confirmed | CLOSED (implementation commit; CI required before proceeding) | — |
 | 4 | FC-C03 — Book Data completed-read override UI wired to existing `override_completed_reads_command` | OPEN | 1 (lives under Data) |
 | 5 | FC-A03 — Duplicate-fingerprint 3-choice dialog ([Open Existing]/[Relink Existing Book]/[Cancel]) | OPEN | — |
 | 6 | FC-A01 — Collections and Tags: schema, commands, Library UI, backup inclusion | OPEN | — |
@@ -70,3 +70,19 @@ Landed:
 - `App.tsx`: `SearchHit`/`ReadingAssetDTO` gain `anchor`; `openBookAtLocation` (replacing `openSearchResultBook`) threads it through `pendingAnchor` state into whichever Reader opens. A `null` anchor (free-standing Note, or a hit with no finer location) opens the Book plainly -- correct, not a failure, since there was never a location to jump to.
 
 160 Rust tests (5 new), 108 frontend tests (4 new), `tsc --noEmit`, `vite build`, `cargo build` (src-tauri) all green.
+
+## Ticket 3 (FC-C04) — closed 2026-09-09
+
+Failure Attribution: earliest-wrong layer was **Domain/data semantics**, then command/frontend reachability. The pre-existing `remove_book` operation fused three different product consequences: visible Library removal, canonical reading-data deletion, and Managed-Copy file deletion. Frontend ambiguity ("Remove") was a symptom, not the root.
+
+Landed:
+- `crates/domain/src/store.rs`: schema migration to `user_version = 10` adds `book.library_status`; `remove_from_library` hides a Book from the visible Library without deleting `book_file`, Reference source bytes, Managed-Copy bytes, or reading data; `delete_reading_data` removes book-scoped reading/user data while keeping the Book and file binding; `delete_managed_copy_file` deletes only app-managed file bytes and rejects Reference-mode Books.
+- `remove_book` remains as a backward-compatible domain wrapper for Remove-from-Library semantics, so old callers no longer delete Managed-Copy bytes implicitly.
+- `src-tauri/src/commands.rs` + `lib.rs`: added `delete_reading_data_command` and `delete_managed_copy_file_command`; `remove_book_command` now maps to Remove from Library only.
+- `src/App.tsx`: Library rows expose three truthful actions: `Remove from Library`, `Delete Reading Data`, and `Delete Managed-Copy File` only for Managed-Copy Books. Each action requires an explicit `window.confirm` whose text names the consequence and file/data boundary; Reference source files have no default deletion affordance.
+
+Evidence:
+- TDD red signal: `cargo test -p ebookreader-domain destructive_library_operations_are_separated_by_domain_consequence` initially failed because `remove_from_library`, `delete_reading_data`, and `delete_managed_copy_file` did not exist.
+- Domain verification: `cargo test -p ebookreader-domain` passed (160 passed, 2 ignored).
+- Frontend verification: `npm test` passed (19 files, 111 tests); App tests cover labels, confirmations, cancellation, and Managed-Copy-only file deletion affordance.
+- Static/build verification: `npm run typecheck`, `npm run build`, and `cargo build --manifest-path src-tauri\Cargo.toml` passed.
