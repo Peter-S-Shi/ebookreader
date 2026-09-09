@@ -148,13 +148,6 @@ button {
   border-bottom: 1px solid rgba(180, 130, 0, 0.2);
 }
 
-.pdf-ocr-scope {
-  display: flex;
-  align-items: center;
-  gap: 1em;
-  font-size: 0.9em;
-}
-
 .pdf-ocr-error {
   margin: 0;
   color: #a33;
@@ -171,6 +164,158 @@ button {
   width: 100%;
   font-family: inherit;
   font-size: 0.95em;
+}
+
+/* OCR Workspace (DESIGN.md SS10, canonical surface ER-OCR-001): a
+   dedicated contextual workspace, not a small corner popover like
+   .notebook-panel -- "Toolbar/scope" over "thumbnail grid + job/status/
+   correction side region". Covers most of the reading surface while
+   open; Focus mode (ReaderShell) already hides overlays, so this never
+   fights with it. */
+.ocr-workspace {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--reader-bg, #fff);
+  border-left: 1px solid rgba(127, 127, 127, 0.3);
+}
+
+.ocr-workspace-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.75em 1em;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  flex-wrap: wrap;
+}
+
+.ocr-workspace-title {
+  font-weight: 600;
+  margin-right: 0.5em;
+}
+
+.ocr-workspace-close {
+  margin-left: auto;
+}
+
+.ocr-workspace-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ocr-workspace-thumbnails {
+  flex: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.5em;
+  padding: 1em;
+  overflow-y: auto;
+}
+
+.ocr-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  width: 90px;
+  padding: 0.25em;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.ocr-thumbnail img {
+  width: 100%;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+}
+
+.ocr-thumbnail-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border: 1px solid rgba(127, 127, 127, 0.2);
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.ocr-thumbnail-number {
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
+.ocr-thumbnail-viewed {
+  border-color: rgba(70, 120, 220, 0.7);
+}
+
+.ocr-thumbnail-selected img,
+.ocr-thumbnail-selected .ocr-thumbnail-loading {
+  outline: 2px solid rgba(70, 120, 220, 0.9);
+}
+
+.ocr-workspace-side {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  padding: 1em;
+  border-left: 1px solid rgba(127, 127, 127, 0.2);
+  overflow-y: auto;
+}
+
+.ocr-workspace-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  flex-wrap: wrap;
+}
+
+.ocr-workspace-error {
+  margin: 0;
+  color: #a33;
+}
+
+/* DESIGN.md SS10 "OCR Complete" rules: success icon, stable semantic
+   success color (not user Accent), Pause/Cancel gone at this point (they
+   simply aren't rendered in the "complete" phase branch). */
+.ocr-workspace-complete {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  color: #1a7f37;
+  font-weight: 600;
+}
+
+.ocr-complete-icon {
+  font-size: 1.1em;
+}
+
+.ocr-workspace-text {
+  white-space: pre-wrap;
+  font-size: 0.95em;
+}
+
+.ocr-workspace-correction textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.95em;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ocr-workspace {
+    background-color: #1e1e1e;
+  }
+  .ocr-workspace-complete {
+    color: #4ade80;
+  }
 }
 
 /* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
