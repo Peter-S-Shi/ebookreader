@@ -266,8 +266,10 @@ mod tests {
     }
 
     /// ROADMAP.md M5 Exit Gate: "Manual corrections survive raw OCR/cache
-    /// rebuild and restart." `restart` is trivially true (SQLite
-    /// persistence); this proves the `rebuild` half.
+    /// rebuild and restart." This proves the `rebuild` half; the `restart`
+    /// half is proven separately by
+    /// `a_correction_survives_closing_and_reopening_the_database_file` --
+    /// not assumed here.
     #[test]
     fn a_correction_survives_clearing_the_raw_ocr_cache() {
         let conn = conn_with_book("book-1");
@@ -283,6 +285,43 @@ mod tests {
             Some("corrected text".into()),
             "effective text must still resolve to the surviving correction after a cache rebuild"
         );
+    }
+
+    /// The `restart` half of the M5 Exit Gate, proven directly against a
+    /// real file-backed SQLite database rather than assumed: every other
+    /// test in this module uses `Connection::open_in_memory()`, which
+    /// cannot actually demonstrate restart survival (an in-memory database
+    /// is destroyed the moment its connection is dropped -- the exact
+    /// opposite of what this Exit Gate condition claims). This test opens
+    /// a real file, saves a correction, closes that connection entirely
+    /// (dropping it, the same lifecycle event a process exit produces),
+    /// opens a brand new connection to the same file path (the same
+    /// lifecycle event a process restart produces), and confirms the
+    /// correction is still there through the new connection.
+    #[test]
+    fn a_correction_survives_closing_and_reopening_the_database_file() {
+        let db_path = std::env::temp_dir().join(format!("ebookreader-ocr-restart-test-{}.sqlite3", std::process::id()));
+        let _ = std::fs::remove_file(&db_path);
+
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            run_migrations(&conn).unwrap();
+            conn.execute("INSERT INTO book (id, title) VALUES ('book-1', 'Test Book')", []).unwrap();
+            save_page_result(&conn, "book-1", 1, "raw ocr text with an error").unwrap();
+            save_correction(&conn, "book-1", 1, "corrected text").unwrap();
+            assert_eq!(effective_text(&conn, "book-1", 1).unwrap(), Some("corrected text".into()));
+        } // conn dropped here -- the same lifecycle event a process exit produces
+
+        {
+            let conn = Connection::open(&db_path).unwrap(); // a fresh connection -- the same lifecycle event a process restart produces
+            assert_eq!(
+                effective_text(&conn, "book-1", 1).unwrap(),
+                Some("corrected text".into()),
+                "the correction must survive closing and reopening the database file, not just staying alive within one connection"
+            );
+        }
+
+        std::fs::remove_file(&db_path).ok();
     }
 
     #[test]
