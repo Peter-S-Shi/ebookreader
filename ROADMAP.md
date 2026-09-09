@@ -657,7 +657,7 @@ tests). None of these residuals threaten the Exit Gate's own condition.
 
 # Milestone 6 — Calendar, Goals & Library Planning
 
-**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
+**Status:** **Complete** (2026-09-09, commit `9e99099`) — Exit Gate evidence below.
 **Risk:** Low–Medium
 
 ## Goal
