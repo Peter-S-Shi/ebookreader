@@ -17,7 +17,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 9 | FC-C07 — Reference-file picker for Full Library Backup + inclusion/exclusion tests | CLOSED (`c3b02eb`, CI run 34414736330 success) | 1 (lives under Data) |
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | CLOSED (`6a65420`, CI run 34415666414 success) | 1 (preference lives in Settings) |
 | 11 | FC-A05 — Book Hours configuration UI + revision history | CLOSED (`135a7ff`, CI run 34416801485 success) | 1 |
-| 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | OPEN | 1 |
+| 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | CLOSED (`bed54ba`, CI run 34417941868 success) | 1 |
 | 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | OPEN | — |
 | 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | OPEN | 1 |
 | 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | OPEN | 1 |
@@ -212,3 +212,22 @@ Evidence:
 - `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 134 tests -- 3 new tests in `App.test.tsx`'s new "Book Hours configuration + revision history" describe block: unconfigured state, displaying estimate + history, saving records a revision and refreshes the estimate). `npx vite build` passed.
 - GitHub Actions: CI run 34416801485 passed on `135a7ff` (Frontend and Rust jobs green).
+
+## Ticket 12 (FC-A06) — closed 2026-09-09 (`bed54ba`, CI run 34417941868 success)
+
+Failure Attribution: earliest-wrong layer was **Domain/application**, explicitly documented as such by the code itself -- `actual_reading_time.rs`'s own module doc named the exact residual before this ticket: "the other three Settings policies SS10 names ... need window-focus and user-input-idle detection this checkpoint does not yet build ... V1 currently *undercounts pauses*." This was never a hidden gap, but it was a real undercount, not only a missing Settings UI -- so the fix had to add real ReadingSession facts (background/inactivity pause reasons, note-taking duration) before a Settings toggle could mean anything.
+
+Landed:
+- `crates/domain/src/reading_session.rs`: `PauseKind`/`SessionState` gain `Background`/`Inactivity`, handled by the same exact event-driven pause/resume machinery as the existing Locked/Suspended kinds. Note-taking is modeled as an independent fact (`start_note_taking`/`stop_note_taking`/`total_note_taking`) rather than a pause reason, since it can span a concurrent, unrelated pause.
+- `crates/domain/src/settings.rs`: 4 new keys under `actual_reading_time.*`, all default On per SS10.
+- `src-tauri/src/commands.rs` + `lib.rs`: `pause_reading_session_command`/`resume_reading_session_command` (app-driven, as opposed to the native Win32 hook's direct calls) and `start_note_taking_command`/`stop_note_taking_command`; `reading_session_status_command` now also reports `total_note_taking_ms`.
+- `src/appSettings.ts`: generic `loadBooleanSetting`/`saveBooleanSetting` (anything other than exactly "true"/"false" resolves to the caller's default rather than being coerced to off) plus the 4 keys/defaults.
+- `src/Settings.tsx`: an "Actual Reading Time" section with SS10's own four labels.
+- `src/useActualReadingTimeHeartbeat.ts`: reads all four policies on mount, starting from their On defaults so an immediate mount/unmount still flushes a tick instead of racing the settings load; wires `window` blur/focus to background pause/resume; a real last-activity timestamp to the frozen 5-minute inactivity auto-pause (not a heuristic window); nets out note-taking duration from recorded active time when that policy is off.
+- `src/NotebookPanel.tsx`: starts/stops note-taking tracking on mount/unmount.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (188 passed, 2 ignored; was 181 after Ticket 11). 8 new tests in `reading_session.rs`: both new pause kinds round-trip through resume, note-taking starts-empty/accumulates-across-cycles/redundant-start-is-a-no-op/stop-when-not-tracking-is-a-no-op/is-independent-of-concurrent-pause-state.
+- `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 146 tests -- 9 new: 6 in `useActualReadingTimeHeartbeat.test.ts` (blur/focus pause-resume and its off-policy skip, 5-minute auto-pause plus activity-triggered resume and its off-policy skip, note-taking exclusion under both settings values), 5 in `Settings.test.tsx` (all-default-On, one persisted-off value doesn't affect the others, three persist-on-toggle cases), 1 in `NotebookPanel.test.tsx` (start/stop calls on mount/unmount). Getting the heartbeat tests right required routing the new mount-time `get_setting_command` calls and `pause_reading_session_command`/`resume_reading_session_command`/`start_note_taking_command`/`stop_note_taking_command` calls without disturbing the 3 pre-existing heartbeat tests' call-order assumptions -- solved by starting the heartbeat's policy variables from their SS10 defaults synchronously and only correcting them once the settings-load promise resolves, so no existing test needed editing. `npx vite build` passed.
+- GitHub Actions: CI run 34417941868 passed on `bed54ba` (Frontend and Rust jobs green).
