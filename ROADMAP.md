@@ -726,7 +726,7 @@ condition.
 
 # Milestone 7 — Bilingual Alignment Reading
 
-**Status:** **Complete** (2026-09-09) — Exit Gate evidence below.
+**Status:** **Complete** (2026-09-09, commit `4d86045`) — Exit Gate evidence below.
 **Risk:** Medium–High
 
 ## Goal
