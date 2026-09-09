@@ -113,7 +113,21 @@ export function TxtReader({ bookId, title, onBack }: TxtReaderProps) {
               onClose={() => setTypographyOpen(false)}
             />
           )}
-          {notebookOpen && <NotebookPanel bookId={bookId} onClose={() => setNotebookOpen(false)} />}
+          {notebookOpen && (
+            <NotebookPanel
+              bookId={bookId}
+              onClose={() => setNotebookOpen(false)}
+              onJumpTo={(anchor) => {
+                const container = containerRef.current;
+                if (container && text !== null) {
+                  const charOffset = parseInt(anchor.primary_anchor, 10);
+                  const fraction = Number.isFinite(charOffset) && text.length > 0 ? charOffset / text.length : 0;
+                  container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
+                }
+                setNotebookOpen(false);
+              }}
+            />
+          )}
         </>
       }
     >

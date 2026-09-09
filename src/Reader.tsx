@@ -199,7 +199,16 @@ export function Reader({ bookId, title, onBack }: ReaderProps) {
               onClose={() => setOpenPanel(null)}
             />
           )}
-          {openPanel === "notebook" && <NotebookPanel bookId={bookId} onClose={() => setOpenPanel(null)} />}
+          {openPanel === "notebook" && (
+            <NotebookPanel
+              bookId={bookId}
+              onClose={() => setOpenPanel(null)}
+              onJumpTo={(anchor) => {
+                viewRef.current?.goTo(anchor.primary_anchor).catch(() => {});
+                setOpenPanel(null);
+              }}
+            />
+          )}
         </>
       }
     >

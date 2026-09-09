@@ -220,7 +220,22 @@ export function PdfReader({ bookId, title, onBack }: PdfReaderProps) {
           </button>
         </>
       }
-      overlay={notebookOpen && <NotebookPanel bookId={bookId} onClose={() => setNotebookOpen(false)} />}
+      overlay={
+        notebookOpen && (
+          <NotebookPanel
+            bookId={bookId}
+            onClose={() => setNotebookOpen(false)}
+            onJumpTo={(anchor) => {
+              const page = parseInt(anchor.primary_anchor, 10);
+              if (Number.isFinite(page) && page >= 1 && (pageCount === 0 || page <= pageCount)) {
+                setViewMode("single");
+                setPageNumber(page);
+              }
+              setNotebookOpen(false);
+            }}
+          />
+        )
+      }
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />

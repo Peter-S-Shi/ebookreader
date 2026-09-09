@@ -3,17 +3,32 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type AssetKind = "annotation" | "excerpt" | "note";
 
+export interface DocumentLocationDTO {
+  book_id: string;
+  format: string;
+  progression_hint: number;
+  primary_anchor: string;
+  fallback_anchors: string[];
+  context_selector: string | null;
+}
+
 export interface ReadingAssetDTO {
   id: string;
   book_id: string;
   kind: AssetKind;
   text: string;
+  anchor: DocumentLocationDTO | null;
   orphaned: boolean;
 }
 
 interface NotebookPanelProps {
   bookId: string;
   onClose: () => void;
+  /** Jump the Reader to a source-bound asset's anchor. Omitted (or the
+   * asset having no anchor / being Orphaned) hides the jump-back action --
+   * SS11's orphan preservation means a stale anchor must not offer a jump
+   * that can no longer resolve. */
+  onJumpTo?: (anchor: DocumentLocationDTO) => void;
 }
 
 const KIND_LABELS: Record<AssetKind, string> = {
@@ -29,7 +44,7 @@ const KIND_LABELS: Record<AssetKind, string> = {
 // selection events, pdf.js text-layer selection, TXT selection) and is a
 // follow-up checkpoint, not silently folded in here (DESIGN.md's own
 // non-goal: "turn Notebook into a Notion clone" -- keep this minimal).
-export function NotebookPanel({ bookId, onClose }: NotebookPanelProps) {
+export function NotebookPanel({ bookId, onClose, onJumpTo }: NotebookPanelProps) {
   const [assets, setAssets] = useState<ReadingAssetDTO[]>([]);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,6 +100,11 @@ export function NotebookPanel({ bookId, onClose }: NotebookPanelProps) {
             <span className="notebook-asset-kind">{KIND_LABELS[asset.kind]}</span>
             {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
             <p>{asset.text}</p>
+            {asset.anchor && !asset.orphaned && onJumpTo && (
+              <button type="button" onClick={() => onJumpTo(asset.anchor!)}>
+                Jump to
+              </button>
+            )}
           </li>
         ))}
       </ul>

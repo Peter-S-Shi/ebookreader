@@ -69,6 +69,48 @@ describe("NotebookPanel", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a Jump to action for a source-anchored asset and calls onJumpTo with its anchor", async () => {
+    const user = userEvent.setup();
+    const onJumpTo = vi.fn();
+    const anchor = {
+      book_id: "book-1",
+      format: "epub",
+      progression_hint: 0.5,
+      primary_anchor: "epubcfi(/6/4!/4/2/1:0)",
+      fallback_anchors: [],
+      context_selector: null,
+    };
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "annotation", text: "a highlight", anchor, orphaned: false },
+    ]);
+
+    render(<NotebookPanel bookId="book-1" onClose={() => {}} onJumpTo={onJumpTo} />);
+    await screen.findByText("a highlight");
+
+    await user.click(screen.getByText("Jump to"));
+    expect(onJumpTo).toHaveBeenCalledWith(anchor);
+  });
+
+  it("does not offer Jump to for a free-standing note or an orphaned asset", async () => {
+    const anchor = {
+      book_id: "book-1",
+      format: "epub",
+      progression_hint: 0.5,
+      primary_anchor: "epubcfi(/6/4!/4/2/1:0)",
+      fallback_anchors: [],
+      context_selector: null,
+    };
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "note", text: "free-standing", anchor: null, orphaned: false },
+      { id: "a2", book_id: "book-1", kind: "annotation", text: "stale highlight", anchor, orphaned: true },
+    ]);
+
+    render(<NotebookPanel bookId="book-1" onClose={() => {}} onJumpTo={vi.fn()} />);
+    await screen.findByText("free-standing");
+
+    expect(screen.queryByText("Jump to")).not.toBeInTheDocument();
+  });
+
   it("calls onClose when Close is clicked", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
