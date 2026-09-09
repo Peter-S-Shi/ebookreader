@@ -29,6 +29,31 @@ a {
   text-decoration: inherit;
 }
 
+.search-results,
+.global-notes-list {
+  list-style: none;
+  margin: 0.5em auto 0;
+  padding: 0;
+  max-width: 40em;
+  text-align: left;
+}
+
+.search-results li,
+.global-notes-list li {
+  padding: 0.5em 0;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.search-results p,
+.global-notes-list p {
+  margin: 0.25em 0 0;
+}
+
+.search-hit-kind {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
 a:hover {
   color: #535bf2;
 }

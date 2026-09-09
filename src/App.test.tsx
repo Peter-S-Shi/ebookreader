@@ -123,6 +123,109 @@ describe("Library", () => {
   });
 });
 
+describe("Library-wide Search", () => {
+  it("runs a search and shows results with the matching book's title", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Alice's Adventures in Wonderland");
+
+    invokeMock.mockResolvedValueOnce([{ book_id: "book-1", kind: "excerpt:1", content: "the rabbit hole" }]);
+    await user.type(screen.getByLabelText("Search the library"), "rabbit");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("search_library_command", { query: "rabbit" });
+    const resultItem = (await screen.findByText("the rabbit hole")).closest("li")!;
+    expect(within(resultItem).getByRole("button", { name: "Alice's Adventures in Wonderland" })).toBeInTheDocument();
+  });
+
+  it("shows a no-results message for an empty result set", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]);
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    invokeMock.mockResolvedValueOnce([]);
+    await user.type(screen.getByLabelText("Search the library"), "nothing");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText("No results.")).toBeInTheDocument();
+  });
+
+  it("clicking a search result opens its book", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Alice's Adventures in Wonderland");
+
+    invokeMock.mockResolvedValueOnce([{ book_id: "book-1", kind: "excerpt:1", content: "the rabbit hole" }]);
+    await user.type(screen.getByLabelText("Search the library"), "rabbit");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    const resultItem = (await screen.findByText("the rabbit hole")).closest("li")!;
+
+    await user.click(within(resultItem).getByRole("button", { name: "Alice's Adventures in Wonderland" }));
+
+    expect(await screen.findByText(/Reading: Alice's Adventures in Wonderland \(book-1\)/)).toBeInTheDocument();
+  });
+});
+
+describe("Global Notes", () => {
+  it("lists Notebook assets across all books when opened", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Book One");
+
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "note", text: "A cross-book thought", orphaned: false },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("list_all_reading_assets_command", { kind: null });
+    expect(await screen.findByText("A cross-book thought")).toBeInTheDocument();
+  });
+
+  it("filtering by asset type re-queries with the selected kind", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]);
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    invokeMock.mockResolvedValueOnce([]);
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("list_all_reading_assets_command", { kind: null }));
+
+    invokeMock.mockResolvedValueOnce([
+      { id: "e1", book_id: "book-1", kind: "excerpt", text: "a collected passage", orphaned: false },
+    ]);
+    await user.selectOptions(screen.getByLabelText("Filter Notes by type"), "excerpt");
+
+    expect(invokeMock).toHaveBeenCalledWith("list_all_reading_assets_command", { kind: "excerpt" });
+    expect(await screen.findByText("a collected passage")).toBeInTheDocument();
+  });
+
+  it("marks an orphaned Global Notes entry as Detached", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]);
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    invokeMock.mockResolvedValueOnce([
+      { id: "a1", book_id: "book-1", kind: "annotation", text: "stale highlight", orphaned: true },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Notes" }));
+
+    expect(await screen.findByText("stale highlight")).toBeInTheDocument();
+    expect(screen.getByText("Detached")).toBeInTheDocument();
+  });
+});
+
 describe("Opening a book", () => {
   it("opens the Reader for an available EPUB when its title is clicked", async () => {
     const user = userEvent.setup();
