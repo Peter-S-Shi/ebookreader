@@ -10,11 +10,13 @@ use std::path::Path;
 
 pub mod actual_reading_time;
 pub mod book_hours;
+pub mod cjk_search;
 pub mod completion;
 pub mod document_location;
 pub mod fonts;
 pub mod progress_store;
 pub mod reading_session;
+pub mod search;
 pub mod store;
 
 /// A minimal view of a Library entry sufficient for duplicate-import detection.

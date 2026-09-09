@@ -21,6 +21,8 @@ pub fn open_app_db(app: &AppHandle) -> Result<DbState, String> {
         .map_err(|e| format!("could not open library database at {db_path:?}: {e}"))?;
     ebookreader_domain::store::run_migrations(&conn)
         .map_err(|e| format!("could not apply Library schema migrations: {e}"))?;
+    ebookreader_domain::search::ensure_search_schema(&conn)
+        .map_err(|e| format!("could not apply search index schema: {e}"))?;
 
     Ok(DbState(Mutex::new(conn)))
 }

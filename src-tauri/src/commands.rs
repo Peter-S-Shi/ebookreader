@@ -11,6 +11,7 @@ use ebookreader_domain::document_location::{load_location, save_location, Docume
 use ebookreader_domain::fonts::parse_system_font_registry_names;
 use ebookreader_domain::progress_store::{load_progress, save_progress};
 use ebookreader_domain::reading_session::SessionState;
+use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
     get_book, import_book, import_book_managed, list_books, relink_book_file, remove_book,
     BookSummary, OwnershipMode, RelinkOutcome,
@@ -310,4 +311,35 @@ pub fn record_active_reading_time_command(
     );
     save_actual_reading_time(&conn, &book_id, &art).map_err(|e| format!("could not save Actual Reading Time: {e}"))?;
     Ok(art)
+}
+
+/// Index (or re-index) one searchable text entry for a Book -- e.g. a
+/// Note or Excerpt's text (`ROADMAP.md` M4).
+#[tauri::command]
+pub fn index_search_text_command(
+    state: State<DbState>,
+    book_id: String,
+    kind: String,
+    entry_id: String,
+    content: String,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    search::index_text(&conn, &book_id, &kind, &entry_id, &content)
+        .map_err(|e| format!("could not index search text: {e}"))
+}
+
+/// Library-wide search (`ROADMAP.md` M4: "global search covers required
+/// sources"), through the CJK bigram adapter so 2-character Chinese
+/// queries resolve correctly.
+#[tauri::command]
+pub fn search_library_command(state: State<DbState>, query: String) -> Result<Vec<SearchHit>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    search::search(&conn, &query).map_err(|e| format!("search failed: {e}"))
+}
+
+/// In-book search, restricted to one Book's indexed entries.
+#[tauri::command]
+pub fn search_in_book_command(state: State<DbState>, query: String, book_id: String) -> Result<Vec<SearchHit>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    search::search_in_book(&conn, &query, &book_id).map_err(|e| format!("search failed: {e}"))
 }
