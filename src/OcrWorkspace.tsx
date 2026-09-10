@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type * as pdfjsLib from "pdfjs-dist";
+import { calculateOcrRenderScale } from "./ocrScaleUtils";
 
 type OcrScope = "current" | "selected" | "entire";
 // DESIGN.md SS10 "OCR Workspace" canonical job states: Ready, Running,
@@ -39,9 +40,11 @@ function parsePageRangeInput(input: string, maxPage: number): number[] {
   return Array.from(pages).sort((a, b) => a - b);
 }
 
-async function renderPageToDataUrl(pdf: pdfjsLib.PDFDocumentProxy, pageNum: number, scale: number): Promise<string> {
+async function renderPageToDataUrl(pdf: pdfjsLib.PDFDocumentProxy, pageNum: number, scale?: number): Promise<string> {
   const page = await pdf.getPage(pageNum);
-  const viewport = page.getViewport({ scale });
+  const unscaledViewport = page.getViewport({ scale: 1.0 });
+  const effectiveScale = scale ?? calculateOcrRenderScale(unscaledViewport.width, unscaledViewport.height);
+  const viewport = page.getViewport({ scale: effectiveScale });
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(viewport.width));
   canvas.height = Math.max(1, Math.round(viewport.height));
@@ -130,7 +133,7 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
     setPagesPrepared(0);
     const pages: [number, number[]][] = [];
     for (const p of pagesToRun) {
-      const dataUrl = await renderPageToDataUrl(pdf, p, 1.2);
+      const dataUrl = await renderPageToDataUrl(pdf, p);
       const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
       const bytes = Array.from(atob(base64), (c) => c.charCodeAt(0));
       pages.push([p, bytes]);
