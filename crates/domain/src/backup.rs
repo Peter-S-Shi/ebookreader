@@ -353,10 +353,14 @@ mod tests {
 
     /// `PRODUCT_SPEC.md` SS16.2/`ROADMAP.md` M8 "canonical user-asset
     /// round trip": every category SS16.2 names as App Data Backup
-    /// contents -- a Note, an OCR correction, and a Book Hours workload
-    /// config -- must survive a real backup -> restore cycle intact,
-    /// not just the `book` row a simpler test could pass with by
-    /// accident.
+    /// contents -- a Note, an OCR correction, a Book Hours workload
+    /// config (+ its revision history), Collections/Tags, Actual Reading
+    /// Time, and an Alignment Package -- must survive a real backup ->
+    /// restore cycle intact, not just the `book` row a simpler test could
+    /// pass with by accident. FC-A14 closes the last two of these
+    /// (`MANUAL_QA.md` QA-BACK-04 lists "ReadingSessions" and "Alignment"
+    /// among what a Clean Restore must verify) -- Collections/Tags and
+    /// Reference-file inclusion were already proven by Tickets 6 and 9.
     #[test]
     fn canonical_user_assets_survive_a_real_backup_and_restore_round_trip() {
         let dir = scratch_dir("canonical-asset-round-trip");
@@ -364,6 +368,31 @@ mod tests {
         seeded_db(&db_path);
         {
             let conn = Connection::open(&db_path).unwrap();
+            conn.execute("INSERT INTO book (id, title) VALUES ('book-2', 'Second Test Book')", []).unwrap();
+            conn.execute(
+                "INSERT INTO book_file (book_id, path, fingerprint, format, ownership_mode)
+                 VALUES ('book-2', 'elsewhere.txt', 'fp-2', 'txt', 'reference')",
+                [],
+            )
+            .unwrap();
+            crate::actual_reading_time::save_actual_reading_time(
+                &conn,
+                "book-1",
+                &crate::actual_reading_time::ActualReadingTime::new(std::time::Duration::from_secs(8_280)),
+            )
+            .unwrap();
+            crate::alignment::import_package(
+                &conn,
+                "align-1",
+                &crate::alignment::AlignmentPackageFile {
+                    book_a_fingerprint: "fp-1".into(),
+                    book_b_fingerprint: "fp-2".into(),
+                    lang_a: "en".into(),
+                    lang_b: "zh".into(),
+                    mappings: vec![crate::alignment::AlignmentMapping { a: vec![1], b: vec![1] }],
+                },
+            )
+            .unwrap();
             crate::assets::create_asset(
                 &conn,
                 &crate::assets::ReadingAsset {
@@ -424,6 +453,21 @@ mod tests {
             crate::collections::list_tags_for_book(&conn, "book-1").unwrap(),
             vec!["to-reread".to_string()],
             "FC-A01: Collections/Tags are canonical user data (PRODUCT_SPEC.md SS3.3) and must survive backup/restore"
+        );
+
+        assert_eq!(
+            crate::actual_reading_time::load_actual_reading_time(&conn, "book-1").unwrap().total,
+            std::time::Duration::from_secs(8_280),
+            "FC-A14: Actual Reading Time (MANUAL_QA.md QA-BACK-04 'ReadingSessions') must survive backup/restore"
+        );
+
+        let alignment = crate::alignment::find_package_for_book(&conn, "book-1").unwrap().unwrap();
+        assert_eq!(alignment.book_id_a, "book-1");
+        assert_eq!(alignment.book_id_b, "book-2");
+        assert_eq!(
+            alignment.mappings,
+            vec![crate::alignment::AlignmentMapping { a: vec![1], b: vec![1] }],
+            "FC-A14: an Alignment Package must survive backup/restore"
         );
     }
 
