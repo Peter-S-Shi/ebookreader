@@ -502,6 +502,10 @@ function App() {
           openBookAtLocation(detailsBook.book_id, null);
           setDetailsBook(null);
         }}
+        onOpenBilingual={() => {
+          const b = books?.find((item) => item.book_id === detailsBook.book_id);
+          if (b) openBilingualForBook(b);
+        }}
       />
     );
   }
@@ -1054,6 +1058,19 @@ function App() {
             );
           })()}
         </section>
+      )}
+      {bilingualError && (
+        <div className="bilingual-error-overlay" role="dialog" aria-labelledby="bilingual-error-title">
+          <div className="bilingual-error-card">
+            <h3 id="bilingual-error-title">Bilingual Reading Alignment Notice</h3>
+            <p>{bilingualError}</p>
+            <div className="bilingual-error-actions">
+              <button type="button" className="btn-primary" onClick={() => setBilingualError(null)}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   </main>

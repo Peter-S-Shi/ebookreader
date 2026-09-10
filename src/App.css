@@ -2680,12 +2680,131 @@ a:hover {
   }
 }
 
+/* B8 Canonical Theme-Aware Persistent Highlight Contrast */
 mark.reader-highlight,
 .reader-highlight {
-  background-color: color-mix(in srgb, var(--accent, #3e6690) 35%, #ffe066) !important;
+  background-color: rgba(255, 215, 0, 0.38) !important;
   color: inherit !important;
   border-radius: 2px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.25);
+  transition: background-color 0.18s ease;
 }
+
+[data-theme="dark"] mark.reader-highlight,
+[data-theme="dark"] .reader-highlight {
+  background-color: rgba(234, 179, 8, 0.35) !important;
+  color: inherit !important;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) mark.reader-highlight,
+  :root:not([data-theme="light"]) .reader-highlight {
+    background-color: rgba(234, 179, 8, 0.35) !important;
+    color: inherit !important;
+    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+  }
+}
+
+/* B8 Dismissible Scanned-PDF Notice */
+.pdf-ocr-panel {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pdf-ocr-panel-collapsed {
+  padding: 6px 14px;
+  background: var(--surface2);
+}
+
+.pdf-degraded-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pdf-degraded-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pdf-degraded-collapsed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.pdf-degraded-pill {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* B8 Bilingual Error Modal Overlay */
+.bilingual-error-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.18s ease-out;
+}
+
+.bilingual-error-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.bilingual-error-card h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.bilingual-error-card p {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.bilingual-error-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* B8 Motion & Interactive States Convergence */
+.nav, .btn, .btn-sm, .detailCard, .quickCard {
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent, #3e6690);
+  outline-offset: 2px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 

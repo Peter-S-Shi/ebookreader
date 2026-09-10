@@ -48,6 +48,7 @@ interface BookDetailsProps {
   book: BookDetailsBook;
   onClose: () => void;
   onRead: () => void;
+  onOpenBilingual?: () => void;
 }
 
 /// `DESIGN.md` `ER-BOOK-001` "Book Details": "Reading/file/OCR summary
@@ -57,7 +58,7 @@ interface BookDetailsProps {
 /// the first place Book Hours and Actual Reading Time are actually
 /// presented to the user (both commands already existed; nothing called
 /// them from the UI).
-export function BookDetails({ book, onClose, onRead }: BookDetailsProps) {
+export function BookDetails({ book, onClose, onRead, onOpenBilingual }: BookDetailsProps) {
   const [progress, setProgress] = useState<ReadingProgressDTO | null>(null);
   const [actualTime, setActualTime] = useState<ActualReadingTimeDTO | null>(null);
   const [bookHours, setBookHours] = useState<BookHoursDTO | null>(null);
@@ -161,6 +162,11 @@ export function BookDetails({ book, onClose, onRead }: BookDetailsProps) {
             <button type="button" className="btn" onClick={onRead}>
               ▶ Read / Resume
             </button>
+            {onOpenBilingual && (
+              <button type="button" className="btn" onClick={onOpenBilingual}>
+                ⇄ Open Bilingual Reading
+              </button>
+            )}
             <button type="button" className="btn" onClick={() => setNotebookOpen(true)}>
               ✎ Open Notebook
             </button>

@@ -93,6 +93,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [ocrDraft, setOcrDraft] = useState("");
   const [ocrEditing, setOcrEditing] = useState(false);
   const [ocrWorkspaceOpen, setOcrWorkspaceOpen] = useState(false);
+  const [noticeCollapsed, setNoticeCollapsed] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
@@ -471,12 +472,33 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         </p>
       )}
       {hasExtractableText === false && viewMode === "single" && (
-        <div className="pdf-ocr-panel">
-          <p className="pdf-degraded-notice" role="status">
-            Scanned PDF -- no extractable text found on this page. Visual reading works normally; search, text
-            selection, and Excerpt/Annotation are unavailable for pages without OCR text. Open the OCR Workspace
-            (toolbar) to run OCR.
-          </p>
+        <div className={`pdf-ocr-panel${noticeCollapsed ? " pdf-ocr-panel-collapsed" : ""}`}>
+          {noticeCollapsed ? (
+            <div className="pdf-degraded-collapsed-row">
+              <span className="pdf-degraded-pill">Scanned PDF — no extractable text on page {pageNumber}</span>
+              <button type="button" className="btn-sm" onClick={() => setNoticeCollapsed(false)}>
+                Show notice
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="pdf-degraded-header">
+                <p className="pdf-degraded-notice" role="status">
+                  Scanned PDF -- no extractable text found on this page. Visual reading works normally; search, text
+                  selection, and Excerpt/Annotation are unavailable for pages without OCR text. Open the OCR Workspace
+                  (toolbar) to run OCR.
+                </p>
+                <button
+                  type="button"
+                  className="pdf-degraded-dismiss"
+                  aria-label="Collapse notice"
+                  onClick={() => setNoticeCollapsed(true)}
+                >
+                  ✕ Collapse
+                </button>
+              </div>
+            </>
+          )}
           {ocrText !== null && !ocrEditing && (
             <div className="pdf-ocr-result">
               <p ref={ocrTextRef} className="pdf-ocr-result-text">
