@@ -112,6 +112,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("paginated-double");
+  const viewModeRef = useRef<ViewMode>("paginated-double");
   const [selection, setSelection] = useState<ActiveSelection | null>(null);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
@@ -127,9 +128,25 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   useEffect(() => {
     advanceRef.current = advance;
   }, [advance]);
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
 
   useEffect(() => {
     let cancelled = false;
+    const readingInputDocs = new WeakSet<Document>();
+    const readingInputCleanups: Array<() => void> = [];
+
+    function attachReadingInput(doc: Document) {
+      if (readingInputDocs.has(doc)) return;
+      readingInputDocs.add(doc);
+      doc.addEventListener("keydown", handleReadingKeyDown);
+      doc.addEventListener("wheel", handleReadingWheel, { passive: false });
+      readingInputCleanups.push(() => {
+        doc.removeEventListener("keydown", handleReadingKeyDown);
+        doc.removeEventListener("wheel", handleReadingWheel);
+      });
+    }
 
     (async () => {
       // @ts-expect-error -- foliate-js has no published type declarations
@@ -157,6 +174,49 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         view.renderer?.setStyles(toEpubCss(initialTypography, isDarkModeActive()));
         if (view.renderer) applyViewMode(view.renderer, viewMode);
       }
+
+      // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11:
+      // "text selection exposes lightweight Highlight / Excerpt / Note
+      // actions"). foliate-js renders each section into its own document
+      // (an iframe under the shadow root), so selection and reading input
+      // must be tracked per-document as sections load, before the first
+      // goTo/goToTextStart call can load the initial section.
+      view.addEventListener("load", (event: Event) => {
+        const detail = (event as CustomEvent).detail ?? {};
+        const doc: Document | undefined = detail.doc;
+        const index: number = detail.index;
+        if (!doc) return;
+        attachReadingInput(doc);
+        doc.addEventListener("selectionchange", () => {
+          const sel = doc.getSelection?.();
+          if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+            const text = sel.toString();
+            if (text.trim()) {
+              setSelection({ doc, range: sel.getRangeAt(0).cloneRange(), text, index });
+              return;
+            }
+          }
+          setSelection(null);
+        });
+      });
+
+      view.addEventListener("relocate", (event: Event) => {
+        const detail = (event as CustomEvent).detail ?? {};
+        const cfi = detail.cfi ?? view.lastLocation?.cfi;
+        if (!cfi) return;
+        playPageTurnRef.current();
+        const fraction = typeof detail.fraction === "number" ? detail.fraction : 0;
+        const location: DocumentLocationDTO = {
+          book_id: bookId,
+          format: "epub",
+          progression_hint: fraction,
+          primary_anchor: cfi,
+          fallback_anchors: [],
+          context_selector: null,
+        };
+        invoke("save_reading_location_command", { location }).catch(() => {});
+        advanceRef.current(fraction);
+      });
 
       if (initialAnchor?.primary_anchor) {
         // FC-C01/FC-C02: an exact jump takes priority over the resume
@@ -220,85 +280,49 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
           }
         }
       })();
-
-      // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11:
-      // "text selection exposes lightweight Highlight / Excerpt / Note
-      // actions"). foliate-js renders each section into its own document
-      // (an iframe under the shadow root), so selection must be tracked
-      // per-document as sections load, not once on the top-level view.
-      view.addEventListener("load", (event: Event) => {
-        const detail = (event as CustomEvent).detail ?? {};
-        const doc: Document | undefined = detail.doc;
-        const index: number = detail.index;
-        if (!doc) return;
-        doc.addEventListener("selectionchange", () => {
-          const sel = doc.getSelection?.();
-          if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-            const text = sel.toString();
-            if (text.trim()) {
-              setSelection({ doc, range: sel.getRangeAt(0).cloneRange(), text, index });
-              return;
-            }
-          }
-          setSelection(null);
-        });
-      });
-
-      view.addEventListener("relocate", (event: Event) => {
-        const detail = (event as CustomEvent).detail ?? {};
-        const cfi = detail.cfi ?? view.lastLocation?.cfi;
-        if (!cfi) return;
-        playPageTurnRef.current();
-        const fraction = typeof detail.fraction === "number" ? detail.fraction : 0;
-        const location: DocumentLocationDTO = {
-          book_id: bookId,
-          format: "epub",
-          progression_hint: fraction,
-          primary_anchor: cfi,
-          fallback_anchors: [],
-          context_selector: null,
-        };
-        invoke("save_reading_location_command", { location }).catch(() => {});
-        advanceRef.current(fraction);
-      });
     })();
 
     return () => {
       cancelled = true;
+      readingInputCleanups.forEach((cleanup) => cleanup());
     };
   }, [bookId, title]);
 
   function shouldLetTargetHandleInput(target: EventTarget | null): boolean {
-    if (!(target instanceof Element)) return false;
+    const element = target && typeof (target as Element).closest === "function" ? (target as Element) : null;
+    if (!element) return false;
     return Boolean(
-      target.closest(
+      element.closest(
         "input, textarea, select, button, [contenteditable='true'], .typography-panel, .toc-panel, .notebook-panel, .selection-toolbar, .completion-prompt",
       ),
     );
   }
 
   function isPaginatedMode() {
-    return viewMode !== "scrolled";
+    return viewModeRef.current !== "scrolled";
   }
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
-        return;
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        viewRef.current?.goRight().catch(() => {});
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        viewRef.current?.goLeft().catch(() => {});
-      }
+  function handleReadingKeyDown(event: KeyboardEvent) {
+    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
     }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [viewMode]);
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      viewRef.current?.goRight().catch(() => {});
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      viewRef.current?.goLeft().catch(() => {});
+    }
+  }
 
-  function handleReaderWheel(event: React.WheelEvent<HTMLDivElement>) {
+  interface ReadingWheelEvent {
+    deltaX: number;
+    deltaY: number;
+    target: EventTarget | null;
+    preventDefault(): void;
+  }
+
+  function handleReadingWheel(event: ReadingWheelEvent) {
     if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target)) return;
     const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     if (Math.abs(dominantDelta) < 10) return;
@@ -308,6 +332,15 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     } else {
       viewRef.current?.prev(Math.abs(dominantDelta)).catch(() => {});
     }
+  }
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleReadingKeyDown);
+    return () => document.removeEventListener("keydown", handleReadingKeyDown);
+  }, []);
+
+  function handleReaderWheel(event: React.WheelEvent<HTMLDivElement>) {
+    handleReadingWheel(event);
   }
 
   // HA-007: "Match System" theme mode means Dark can turn on/off while

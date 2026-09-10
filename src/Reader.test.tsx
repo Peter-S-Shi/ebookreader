@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 // to resolve without doing anything.
 vi.mock("foliate-js/view.js", () => ({}));
 
-interface FakeFoliateView {
+interface FakeFoliateView extends HTMLElement {
   open: ReturnType<typeof vi.fn>;
   goTo: ReturnType<typeof vi.fn>;
   goToTextStart: ReturnType<typeof vi.fn>;
@@ -21,17 +21,16 @@ interface FakeFoliateView {
   next: ReturnType<typeof vi.fn>;
   getCFI: ReturnType<typeof vi.fn>;
   setStyles: ReturnType<typeof vi.fn>;
-  addEventListener: ReturnType<typeof vi.fn>;
-  removeChild?: unknown;
-  style: Record<string, unknown>;
   book: { toc: unknown[]; sections: unknown[] };
   isFixedLayout: boolean;
   renderer: { setStyles: ReturnType<typeof vi.fn>; setAttribute: ReturnType<typeof vi.fn>; removeAttribute: ReturnType<typeof vi.fn> };
   lastLocation?: { cfi?: string; fraction?: number };
+  emitSectionLoad(doc: Document, index?: number): void;
 }
 
 function mockFoliateView(): FakeFoliateView {
-  const fakeView: FakeFoliateView = {
+  const fakeView = realCreateElement("div") as unknown as FakeFoliateView;
+  Object.assign(fakeView, {
     open: vi.fn().mockResolvedValue(undefined),
     goTo: vi.fn().mockResolvedValue({}),
     goToTextStart: vi.fn().mockResolvedValue(undefined),
@@ -41,18 +40,25 @@ function mockFoliateView(): FakeFoliateView {
     next: vi.fn().mockResolvedValue(undefined),
     getCFI: vi.fn().mockReturnValue("epubcfi(/6/2!/4)"),
     setStyles: vi.fn(),
-    addEventListener: vi.fn(),
-    style: {},
     book: { toc: [], sections: [] },
     isFixedLayout: false,
     renderer: { setStyles: vi.fn(), setAttribute: vi.fn(), removeAttribute: vi.fn() },
     lastLocation: undefined,
-  };
+    emitSectionLoad(doc: Document, index = 0) {
+      fakeView.dispatchEvent(new CustomEvent("load", { detail: { doc, index } }));
+    },
+  });
   document.createElement = ((tag: string, options?: ElementCreationOptions) => {
     if (tag === "foliate-view") return fakeView as unknown as HTMLElement;
     return realCreateElement(tag, options);
   }) as typeof document.createElement;
   return fakeView;
+}
+
+function makeSectionDocument(markup = "<main><p tabindex='0'>Readable EPUB content</p></main>") {
+  const doc = document.implementation.createHTMLDocument("EPUB section");
+  doc.body.innerHTML = markup;
+  return doc;
 }
 
 const realCreateElement = document.createElement.bind(document);
@@ -170,6 +176,35 @@ describe("Reader — paginated reading input (HA-011)", () => {
     expect(fakeView.goLeft).toHaveBeenCalledTimes(1);
   });
 
+  it("uses foliate-js directional navigation for ArrowLeft/ArrowRight from the rendered EPUB document", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="EPUB Keyboard Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument();
+    fakeView.emitSectionLoad(sectionDoc);
+    const paragraph = sectionDoc.querySelector("p")!;
+
+    paragraph.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    paragraph.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+
+    expect(fakeView.goRight).toHaveBeenCalledTimes(1);
+    expect(fakeView.goLeft).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not miss the EPUB document that loads during the initial fresh-open navigation", async () => {
+    const fakeView = mockFoliateView();
+    const sectionDoc = makeSectionDocument();
+    fakeView.goToTextStart.mockImplementation(async () => {
+      fakeView.emitSectionLoad(sectionDoc);
+    });
+    render(<Reader bookId="b1" title="Initial Load Keyboard Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.goToTextStart).toHaveBeenCalled());
+
+    sectionDoc.querySelector("p")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+
+    expect(fakeView.goRight).toHaveBeenCalledTimes(1);
+  });
+
   it("does not hijack keyboard navigation while the user is editing a form control", async () => {
     const fakeView = mockFoliateView();
     render(
@@ -199,6 +234,66 @@ describe("Reader — paginated reading input (HA-011)", () => {
     expect(fakeView.prev).toHaveBeenCalledTimes(1);
   });
 
+  it("uses foliate-js reading-order navigation for mouse wheel from the rendered EPUB document", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="EPUB Wheel Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument();
+    fakeView.emitSectionLoad(sectionDoc);
+    const paragraph = sectionDoc.querySelector("p")!;
+
+    paragraph.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+    paragraph.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true, cancelable: true }));
+
+    expect(fakeView.next).toHaveBeenCalledTimes(1);
+    expect(fakeView.prev).toHaveBeenCalledTimes(1);
+  });
+
+  it("supports the same EPUB document wheel navigation in Single Page mode", async () => {
+    const fakeView = mockFoliateView();
+    const { container } = render(<Reader bookId="b1" title="Single Page EPUB Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument();
+    fakeView.emitSectionLoad(sectionDoc);
+
+    const select = container.querySelector("select[aria-label='View mode']") as HTMLSelectElement;
+    select.value = "paginated-single";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    sectionDoc.querySelector("p")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+
+    expect(fakeView.next).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps foliate relocate persistence active after keyboard page turns from the rendered EPUB document", async () => {
+    const fakeView = mockFoliateView();
+    fakeView.goRight.mockImplementation(async () => {
+      fakeView.dispatchEvent(
+        new CustomEvent("relocate", {
+          detail: { cfi: "epubcfi(/6/4!/2)", fraction: 0.42 },
+        }),
+      );
+    });
+    render(<Reader bookId="b1" title="Persistent EPUB Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument();
+    fakeView.emitSectionLoad(sectionDoc);
+
+    sectionDoc.querySelector("p")!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("save_reading_location_command", {
+        location: {
+          book_id: "b1",
+          format: "epub",
+          progression_hint: 0.42,
+          primary_anchor: "epubcfi(/6/4!/2)",
+          fallback_anchors: [],
+          context_selector: null,
+        },
+      }),
+    );
+  });
+
   it("keeps Continuous Scroll as natural scrolling instead of remapping wheel input to page turns", async () => {
     const fakeView = mockFoliateView();
     const { container } = render(<Reader bookId="b1" title="Scrolled Book" onBack={vi.fn()} />);
@@ -211,5 +306,36 @@ describe("Reader — paginated reading input (HA-011)", () => {
 
     expect(fakeView.next).not.toHaveBeenCalled();
     expect(fakeView.prev).not.toHaveBeenCalled();
+  });
+
+  it("keeps Continuous Scroll natural for mouse wheel from the rendered EPUB document", async () => {
+    const fakeView = mockFoliateView();
+    const { container } = render(<Reader bookId="b1" title="Scrolled EPUB Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument();
+    fakeView.emitSectionLoad(sectionDoc);
+
+    const select = container.querySelector("select[aria-label='View mode']") as HTMLSelectElement;
+    select.value = "scrolled";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    sectionDoc.querySelector("p")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+
+    expect(fakeView.next).not.toHaveBeenCalled();
+    expect(fakeView.prev).not.toHaveBeenCalled();
+  });
+
+  it("does not hijack EPUB form controls for page turns", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="EPUB Form Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const sectionDoc = makeSectionDocument("<label>Search <input /></label>");
+    fakeView.emitSectionLoad(sectionDoc);
+    const input = sectionDoc.querySelector("input")!;
+
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    input.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
+
+    expect(fakeView.goRight).not.toHaveBeenCalled();
+    expect(fakeView.next).not.toHaveBeenCalled();
   });
 });
