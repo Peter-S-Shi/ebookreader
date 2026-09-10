@@ -4,7 +4,7 @@ Last Updated: 2026-09-10 (Post-UI Residual 1 — PDF Open Performance Optimizati
 
 Current Phase: **Post-UI Engineering Residual Resolution — Residual 1 (PDF Open Performance Optimization) Complete**. C0/C1/C2 B1–B8 Canonical UI Migration is human-PASSed; Post-UI residual resolution is in progress:
 1. B1–B8 Canonical UI Migration: Complete & Human-Accepted (PASS, commit `2b7724a`)
-2. Post-UI Residual 1: PDF Open Performance Optimization (Complete, commit `[PENDING]`, awaiting human retest)
+2. Post-UI Residual 1: PDF Open Performance Optimization (Complete, commit `114d3d0`, awaiting human retest)
 3. Post-UI Residual 2: OCR Engine Compatibility / Quality Investigation on Scanned PDF (Unstarted — blocked on Residual 1 retest)
 4. Deferred Product Enhancement: User-Editable Highlight Colors (Deferred)
 
