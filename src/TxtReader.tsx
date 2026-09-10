@@ -240,6 +240,41 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     setNotebookRefreshKey((k) => k + 1);
   }
 
+  async function handleRemoveHighlight() {
+    if (!selection) return;
+
+    const sel = document.getSelection();
+    const containerNode = sel?.anchorNode?.nodeType === 1
+      ? (sel.anchorNode as HTMLElement)
+      : sel?.anchorNode?.parentElement;
+    const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+
+    if (existingMark) {
+      const parent = existingMark.parentNode;
+      while (existingMark.firstChild) {
+        parent?.insertBefore(existingMark.firstChild, existingMark);
+      }
+      existingMark.remove();
+    }
+
+    try {
+      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
+      const targetText = selection.text.trim().toLowerCase();
+      const match = assets.find(
+        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
+      );
+      if (match) {
+        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
+      }
+    } catch {
+      // ignore orphan error
+    }
+
+    document.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
+  }
+
   function handleScroll() {
     const container = containerRef.current;
     if (!container || text === null) return;
@@ -342,6 +377,13 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
                 }}
               />
             ))}
+            <button
+              type="button"
+              className="highlight-swatch highlight-swatch--clear"
+              aria-label="Remove highlight"
+              title="Remove highlight"
+              onClick={handleRemoveHighlight}
+            />
           </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight

@@ -227,7 +227,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
           .catch(() => {});
 
         doc.addEventListener("selectionchange", () => {
-          const sel = doc.getSelection?.();
+          const sel = doc.getSelection?.() || (doc.defaultView || window).getSelection?.();
           if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
             const text = sel.toString();
             if (text.trim()) {
@@ -456,6 +456,41 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     setNotebookRefreshKey((k) => k + 1);
   }
 
+  async function handleRemoveHighlight() {
+    const active = selection;
+    if (!active) return;
+
+    const containerNode = active.range.startContainer.nodeType === 1
+      ? (active.range.startContainer as HTMLElement)
+      : active.range.startContainer.parentElement;
+    const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+
+    if (existingMark) {
+      const parent = existingMark.parentNode;
+      while (existingMark.firstChild) {
+        parent?.insertBefore(existingMark.firstChild, existingMark);
+      }
+      existingMark.remove();
+    }
+
+    try {
+      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
+      const targetText = active.text.trim().toLowerCase();
+      const match = assets.find(
+        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
+      );
+      if (match) {
+        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
+      }
+    } catch {
+      // ignore orphan error
+    }
+
+    active.doc.getSelection?.()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
+  }
+
   function handleViewModeChange(next: ViewMode) {
     setViewMode(next);
     const renderer = viewRef.current?.renderer;
@@ -562,6 +597,13 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
                 }}
               />
             ))}
+            <button
+              type="button"
+              className="highlight-swatch highlight-swatch--clear"
+              aria-label="Remove highlight"
+              title="Remove highlight"
+              onClick={handleRemoveHighlight}
+            />
           </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight

@@ -2780,6 +2780,23 @@ button.highlight-swatch--blue, .highlight-swatch--blue { background-color: #64b5
 button.highlight-swatch--purple, .highlight-swatch--purple { background-color: #ba68c8 !important; }
 button.highlight-swatch--orange, .highlight-swatch--orange { background-color: #ffb74d !important; }
 
+button.highlight-swatch--clear, .highlight-swatch--clear {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.highlight-swatch--clear::after, .highlight-swatch--clear::after {
+  content: "×";
+  color: #e53935;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* B8 Canonical Theme-Aware Persistent Highlight Contrast & Color Variants */
 mark.reader-highlight,
 .reader-highlight {

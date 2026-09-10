@@ -350,3 +350,33 @@ describe("Reader — paginated reading input (HA-011)", () => {
     expect(fakeView.next).not.toHaveBeenCalled();
   });
 });
+
+describe("Reader — Highlight Management", () => {
+  it("includes a clear/remove highlight swatch button in selection toolbar", async () => {
+    const fakeView = mockFoliateView();
+    const sectionDoc = makeSectionDocument();
+    fakeView.goToTextStart.mockImplementation(async () => {
+      fakeView.emitSectionLoad(sectionDoc);
+    });
+    render(<Reader bookId="b1" title="Clear Swatch Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.goToTextStart).toHaveBeenCalled());
+
+    // Trigger selection
+    const textNode = sectionDoc.querySelector("p")!.firstChild!;
+    const range = sectionDoc.createRange();
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, 8);
+    sectionDoc.getSelection = () =>
+      ({
+        isCollapsed: false,
+        rangeCount: 1,
+        toString: () => "Selected text",
+        getRangeAt: () => range,
+        removeAllRanges: vi.fn(),
+      } as unknown as Selection);
+
+    sectionDoc.dispatchEvent(new Event("selectionchange"));
+
+    await waitFor(() => expect(document.querySelector(".highlight-swatch--clear")).not.toBeNull());
+  });
+});

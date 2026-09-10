@@ -354,6 +354,37 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     setNotebookRefreshKey((k) => k + 1);
   }
 
+  async function handleRemoveHighlight() {
+    if (!selection) return;
+
+    try {
+      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
+      const targetText = selection.text.trim().toLowerCase();
+      const match = assets.find(
+        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
+      );
+      if (match) {
+        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
+      }
+    } catch {
+      // ignore orphan error
+    }
+
+    if (textLayerRef.current) {
+      const spans = Array.from(textLayerRef.current.querySelectorAll("span.reader-highlight"));
+      for (const span of spans) {
+        if (span.textContent?.toLowerCase().includes(selection.text.trim().toLowerCase())) {
+          span.classList.remove("reader-highlight");
+          delete (span as HTMLElement).dataset.color;
+        }
+      }
+    }
+
+    document.getSelection()?.removeAllRanges();
+    setSelection(null);
+    setNotebookRefreshKey((k) => k + 1);
+  }
+
   // Continuous mode: render every page into a scrollable stack, and jump
   // to the saved page once on entry.
   useEffect(() => {
@@ -642,6 +673,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                 }}
               />
             ))}
+            <button
+              type="button"
+              className="highlight-swatch highlight-swatch--clear"
+              aria-label="Remove highlight"
+              title="Remove highlight"
+              onClick={handleRemoveHighlight}
+            />
           </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight
