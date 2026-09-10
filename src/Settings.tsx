@@ -38,6 +38,7 @@ import {
 } from "./appSettings";
 import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
+import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 
 /// `DESIGN.md` "Settings": the canonical top-level management surface.
 /// FC-C05 corrective ticket: this is the first real, persisted section --
@@ -59,6 +60,8 @@ export function Settings() {
   const [readingCheckpointEnabled, setReadingCheckpointEnabled] = useState(DEFAULT_READING_CHECKPOINT_ENABLED);
   const [defaultImportMode, setDefaultImportMode] = useState<ImportMode>(DEFAULT_IMPORT_MODE);
   const [loaded, setLoaded] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -167,6 +170,13 @@ export function Settings() {
     await saveDefaultImportMode(next);
   }
 
+  async function runUpdateCheck() {
+    setCheckingUpdate(true);
+    const result = await checkForUpdate(CURRENT_VERSION, REPO_OWNER, REPO_NAME);
+    setUpdateResult(result);
+    setCheckingUpdate(false);
+  }
+
   if (!loaded) return null;
 
   return (
@@ -198,8 +208,10 @@ export function Settings() {
           />
         </label>
       </section>
-      <section aria-label="Update Awareness">
-        <h2>Update Awareness</h2>
+      <section aria-label="About & Updates">
+        <h2>About &amp; Updates</h2>
+        <p>Current version: {CURRENT_VERSION}</p>
+        <p>Release channel: Stable</p>
         <label>
           <input
             type="checkbox"
@@ -208,6 +220,25 @@ export function Settings() {
           />
           Check for updates on startup
         </label>
+        <button type="button" onClick={runUpdateCheck} disabled={checkingUpdate}>
+          {checkingUpdate ? "Checking…" : "Check Now"}
+        </button>
+        {updateResult && (
+          <p role="status">
+            {updateResult.status === "up_to_date" && "Up To Date."}
+            {updateResult.status === "check_failed" && "Check Failed. You may be offline."}
+            {updateResult.status === "update_available" && (
+              <>
+                Update Available: {updateResult.latestVersion}.{" "}
+                {updateResult.releaseUrl && (
+                  <a href={updateResult.releaseUrl} target="_blank" rel="noreferrer">
+                    Release notes
+                  </a>
+                )}
+              </>
+            )}
+          </p>
+        )}
       </section>
       <section aria-label="Actual Reading Time">
         <h2>Actual Reading Time</h2>

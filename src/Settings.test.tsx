@@ -281,6 +281,51 @@ describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
   });
 });
 
+describe("Settings — About & Updates (DESIGN.md 'About & Updates'; FC-A16)", () => {
+  it("shows the current version and Stable release channel", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("group", { name: "Typography" })).toBeInTheDocument();
+    expect(screen.getByText(/current version:/i)).toBeInTheDocument();
+    expect(screen.getByText(/release channel: stable/i)).toBeInTheDocument();
+  });
+
+  it("Check Now reports Up To Date", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: "v0.1.0", html_url: "https://example.invalid/releases/v0.1.0" }),
+    } as Response);
+    render(<Settings />);
+    await screen.findByRole("group", { name: "Typography" });
+
+    await user.click(screen.getByRole("button", { name: "Check Now" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Up To Date.");
+  });
+
+  it("Check Now reports an available update with a release-notes link", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tag_name: "v99.0.0", html_url: "https://example.invalid/releases/v99.0.0" }),
+    } as Response);
+    render(<Settings />);
+    await screen.findByRole("group", { name: "Typography" });
+
+    await user.click(screen.getByRole("button", { name: "Check Now" }));
+
+    expect(await screen.findByText(/update available: 99\.0\.0/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Release notes" })).toHaveAttribute(
+      "href",
+      "https://example.invalid/releases/v99.0.0",
+    );
+  });
+});
+
 describe("Settings — Files & Data (DESIGN.md 'Files & Data'; PRODUCT_SPEC.md 'Default V1 import mode: Reference.'; FC-A15)", () => {
   it("defaults to Reference when nothing is persisted yet", async () => {
     invokeMock.mockResolvedValue(null);
