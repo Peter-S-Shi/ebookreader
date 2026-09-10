@@ -262,16 +262,20 @@ pub fn delete_managed_copy_file_command(app: AppHandle, state: State<DbState>, b
     delete_managed_copy_file(&conn, &book_id).map_err(|e| format!("delete managed-copy file failed: {e}"))
 }
 
+use tauri::ipc::Response;
+
 /// Read a Book's file bytes off disk so the Reader can hand them to the
 /// format-specific renderer (`foliate-js` for EPUB, `pdf.js` for PDF) in
-/// the webview, which cannot read local paths directly.
+/// the webview, which cannot read local paths directly. Returns a native
+/// binary IPC Response to eliminate Vec<u8> -> JSON string integer array overhead.
 #[tauri::command]
-pub fn read_book_file_command(state: State<DbState>, book_id: String) -> Result<Vec<u8>, String> {
+pub fn read_book_file_command(state: State<DbState>, book_id: String) -> Result<Response, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     let book = get_book(&conn, &book_id)
         .map_err(|e| format!("could not look up book: {e}"))?
         .ok_or_else(|| format!("no such book: {book_id}"))?;
-    std::fs::read(&book.path).map_err(|e| format!("could not read {}: {e}", book.path))
+    let bytes = std::fs::read(&book.path).map_err(|e| format!("could not read {}: {e}", book.path))?;
+    Ok(Response::new(bytes))
 }
 
 /// Save the current reading position for a Book (`ARCHITECTURE.md` SS5

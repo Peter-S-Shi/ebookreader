@@ -105,9 +105,10 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const bytes = await invoke<number[]>("read_book_file_command", { bookId });
+      const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
-      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise;
+      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
+      const pdf = await pdfjsLib.getDocument({ data: uint8Bytes }).promise;
       if (cancelled) return;
       pdfRef.current = pdf;
       setPdfDoc(pdf);
@@ -116,28 +117,52 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
       // An anchor that fails to parse to a valid in-range page is reported
       // truthfully rather than silently opening at page one.
+      let startPage = 1;
       if (initialAnchor?.primary_anchor) {
         const targetPage = parseInt(initialAnchor.primary_anchor, 10);
         const valid = Number.isFinite(targetPage) && targetPage >= 1 && targetPage <= pdf.numPages;
         if (!cancelled) {
-          setPageNumber(valid ? targetPage : 1);
+          startPage = valid ? targetPage : 1;
+          setPageNumber(startPage);
           setJumpFailed(!valid);
         }
       } else {
         const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
         const savedPage = saved?.primary_anchor ? parseInt(saved.primary_anchor, 10) : NaN;
-        const startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
+        startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
         if (!cancelled) setPageNumber(startPage);
       }
 
-      // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
-      // "supported book text" is a required Library-wide Search source),
-      // one entry per page so results stay reasonably scoped. Runs in the
-      // background, sequentially, so it doesn't compete with rendering.
+      // Check text content of initial target page immediately for text selection state.
+      // Entire-document scanned state (hasExtractableText = false) remains unknown
+      // until the background whole-document inspection below completes.
+      try {
+        const page1 = await pdf.getPage(startPage);
+        const tc1 = await page1.getTextContent();
+        const hasText = tc1.items.some((item) => "str" in item && (item as { str: string }).str.trim().length > 0);
+        if (hasText && !cancelled) {
+          setHasExtractableText(true);
+        }
+      } catch {
+        // ignore page text check failure
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
+
+  // Deferred whole-book text extraction into search index and scanned-PDF detection.
+  // Runs asynchronously after Reader reaches Ready state to avoid competing with Page 1 paint.
+  useEffect(() => {
+    if (status !== "Ready" || !pdfDoc) return;
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
       let anyPageHasText = false;
-      for (let i = 1; i <= pdf.numPages; i++) {
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
         if (cancelled) return;
-        const page = await pdf.getPage(i);
+        const page = await pdfDoc.getPage(i);
         if (cancelled) return;
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
@@ -146,7 +171,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           const anchor: DocumentLocationDTO = {
             book_id: bookId,
             format: "pdf",
-            progression_hint: pdf.numPages > 0 ? i / pdf.numPages : 0,
+            progression_hint: pdfDoc.numPages > 0 ? i / pdfDoc.numPages : 0,
             primary_anchor: String(i),
             fallback_anchors: [],
             context_selector: null,
@@ -160,12 +185,16 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           }).catch(() => {});
         }
       }
-      if (!cancelled) setHasExtractableText(anyPageHasText);
-    })();
+      if (!cancelled) {
+        setHasExtractableText(anyPageHasText);
+      }
+    }, 100);
+
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [bookId]);
+  }, [status, pdfDoc, bookId]);
 
   function refreshOcrText() {
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber })

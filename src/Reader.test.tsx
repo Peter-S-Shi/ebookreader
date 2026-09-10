@@ -69,7 +69,7 @@ beforeEach(() => {
   invokeMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
       case "read_book_file_command":
-        return [0, 1, 2, 3];
+        return new Uint8Array([0, 1, 2, 3]);
       case "load_reading_location_command":
         return null;
       case "reading_session_status_command":
@@ -99,7 +99,7 @@ describe("Reader — EPUB navigation on open (HA-002 / PRODUCT_SPEC.md SS7 'Read
 
   it("resumes the saved location instead of the text start when one exists", async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
-      if (cmd === "read_book_file_command") return [0, 1, 2, 3];
+      if (cmd === "read_book_file_command") return new Uint8Array([0, 1, 2, 3]);
       if (cmd === "load_reading_location_command") {
         return { book_id: "b1", format: "epub", progression_hint: 0.4, primary_anchor: "epubcfi(/6/8!/4)", fallback_anchors: [], context_selector: null };
       }

@@ -55,9 +55,10 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const bytes = await invoke<number[]>("read_book_file_command", { bookId });
+      const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
-      const decoded = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
+      const decoded = new TextDecoder("utf-8").decode(uint8Bytes);
       setText(decoded);
       loadPerBookTypography(bookId).then((loaded) => {
         if (!cancelled) setTypography(loaded);

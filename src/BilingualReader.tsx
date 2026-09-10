@@ -53,8 +53,8 @@ interface FoliateView extends HTMLElement {
 /// joined with a blank line so the plain-text pane at least shows
 /// paragraph-ish breaks.
 async function extractBookText(bookId: string, format: string): Promise<string> {
-  const bytes = await invoke<number[]>("read_book_file_command", { bookId });
-  const data = new Uint8Array(bytes);
+  const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
+  const data = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
 
   if (format === "txt") {
     return new TextDecoder("utf-8").decode(data);
@@ -76,7 +76,7 @@ async function extractBookText(bookId: string, format: string): Promise<string> 
   // never attached visibly, only used to reach book.sections.
   // @ts-expect-error -- foliate-js has no published type declarations
   await import("foliate-js/view.js");
-  const file = new File([data], "book.epub", { type: "application/epub+zip" });
+  const file = new File([new Uint8Array(data)], "book.epub", { type: "application/epub+zip" });
   const view = document.createElement("foliate-view") as FoliateView;
   await view.open(file);
   const sections = view.book?.sections ?? [];

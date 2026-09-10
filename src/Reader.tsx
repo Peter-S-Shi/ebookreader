@@ -153,9 +153,10 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       await import("foliate-js/view.js");
       if (cancelled) return;
 
-      const bytes = await invoke<number[]>("read_book_file_command", { bookId });
+      const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
-      const file = new File([new Uint8Array(bytes)], `${title}.epub`, { type: "application/epub+zip" });
+      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
+      const file = new File([new Uint8Array(uint8Bytes)], `${title}.epub`, { type: "application/epub+zip" });
 
       const view = document.createElement("foliate-view") as FoliateView;
       view.style.cssText = "width:100%;height:100%;display:block";

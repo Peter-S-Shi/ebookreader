@@ -6,8 +6,8 @@ import { BilingualReader } from "./BilingualReader";
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
-function bytesOf(text: string): number[] {
-  return Array.from(new TextEncoder().encode(text));
+function bytesOf(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
 }
 
 const pkg = {
