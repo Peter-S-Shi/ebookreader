@@ -159,8 +159,57 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
   }, []);
 
+  useEffect(() => {
+    if (text === null) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
+      .then((assets) => {
+        const annotations = assets.filter((a) => a.kind === "annotation" && a.text?.trim());
+        for (const ann of annotations) {
+          const query = ann.text.trim();
+          if (!query || !container) continue;
+          const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+          let node: Node | null;
+          while ((node = walker.nextNode())) {
+            if (node.parentElement?.classList.contains("reader-highlight")) continue;
+            const textVal = node.nodeValue;
+            if (textVal && textVal.includes(query)) {
+              try {
+                const range = document.createRange();
+                const idx = textVal.indexOf(query);
+                range.setStart(node, idx);
+                range.setEnd(node, idx + query.length);
+                const mark = document.createElement("mark");
+                mark.className = "reader-highlight";
+                range.surroundContents(mark);
+              } catch {
+                // fallback
+              }
+              break;
+            }
+          }
+        }
+      })
+      .catch(() => {});
+  }, [text, bookId, notebookRefreshKey]);
+
   async function handleCaptureSelection(kind: "annotation" | "excerpt") {
     if (!selection || text === null) return;
+    if (kind === "annotation") {
+      try {
+        const sel = document.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const mark = document.createElement("mark");
+          mark.className = "reader-highlight";
+          range.surroundContents(mark);
+        }
+      } catch {
+        // fallback
+      }
+    }
     const anchor: DocumentLocationDTO = {
       book_id: bookId,
       format: "txt",

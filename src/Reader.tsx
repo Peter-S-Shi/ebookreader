@@ -187,6 +187,38 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         const index: number = detail.index;
         if (!doc) return;
         attachReadingInput(doc);
+
+        // Rehydrate persistent highlights into section document
+        invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
+          .then((assets) => {
+            const annotations = assets.filter((a) => a.kind === "annotation" && a.text?.trim());
+            for (const ann of annotations) {
+              const query = ann.text.trim();
+              if (!query || !doc.body) continue;
+              const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+              let node: Node | null;
+              while ((node = walker.nextNode())) {
+                if (node.parentElement?.classList.contains("reader-highlight")) continue;
+                const textVal = node.nodeValue;
+                if (textVal && textVal.includes(query)) {
+                  try {
+                    const range = doc.createRange();
+                    const idx = textVal.indexOf(query);
+                    range.setStart(node, idx);
+                    range.setEnd(node, idx + query.length);
+                    const mark = doc.createElement("mark");
+                    mark.className = "reader-highlight";
+                    range.surroundContents(mark);
+                  } catch {
+                    // range boundary fallback
+                  }
+                  break;
+                }
+              }
+            }
+          })
+          .catch(() => {});
+
         doc.addEventListener("selectionchange", () => {
           const sel = doc.getSelection?.();
           if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
@@ -374,6 +406,16 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     const active = selection;
     const view = viewRef.current;
     if (!active || !view) return;
+
+    if (kind === "annotation") {
+      try {
+        const mark = active.doc.createElement("mark");
+        mark.className = "reader-highlight";
+        active.range.surroundContents(mark);
+      } catch {
+        // Fallback for complex ranges across nodes
+      }
+    }
 
     const cfi = view.getCFI(active.index, active.range);
     const anchor: DocumentLocationDTO = {

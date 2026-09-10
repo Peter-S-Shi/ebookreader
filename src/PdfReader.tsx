@@ -94,6 +94,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [ocrEditing, setOcrEditing] = useState(false);
   const [ocrWorkspaceOpen, setOcrWorkspaceOpen] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
@@ -108,6 +109,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise;
       if (cancelled) return;
       pdfRef.current = pdf;
+      setPdfDoc(pdf);
       setPageCount(pdf.numPages);
 
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
@@ -140,9 +142,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
         if (pageText.trim()) {
           anyPageHasText = true;
-          // FC-C01: the page number itself is a real, resolvable anchor
-          // (this is exactly the primary_anchor scheme `saveLocation`
-          // below already uses for reading-position durability).
           const anchor: DocumentLocationDTO = {
             book_id: bookId,
             format: "pdf",
@@ -167,11 +166,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     };
   }, [bookId]);
 
-  // Once a scanned page has been established, check for an already-saved
-  // OCR result/correction so a returning reader doesn't have to re-run OCR
-  // every visit (`get_ocr_effective_text_command`: correction > raw result
-  // > null). `OcrWorkspace` calls `onOcrUpdated` (which re-runs this same
-  // fetch) after a job completes or a correction is saved.
   function refreshOcrText() {
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber })
       .then((text) => setOcrText(text))
@@ -208,7 +202,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   // Single-page mode: render only the current page.
   useEffect(() => {
     if (viewMode !== "single") return;
-    const pdf = pdfRef.current;
+    const pdf = pdfDoc || pdfRef.current;
     if (!pdf || !canvasRef.current) return;
     let cancelled = false;
 
@@ -223,13 +217,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       await page.render({ canvasContext: context, viewport, canvas }).promise;
       if (cancelled) return;
 
-      // Text layer: an invisible, selectable text overlay matched to the
-      // canvas's rendered geometry, so PRODUCT_SPEC.md SS11's "text
-      // selection exposes lightweight Highlight / Excerpt / Note actions"
-      // holds for Text PDF. On a scanned page this renders empty (there is
-      // no text to lay out) -- combined with the hasExtractableText check
-      // above, that is exactly SS13.2's degraded state: nothing here
-      // pretends selection/search/excerpt work when there is no text.
       const textLayerDiv = textLayerRef.current;
       if (textLayerDiv) {
         textLayerDiv.replaceChildren();
@@ -239,6 +226,31 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         const textContent = await page.streamTextContent();
         if (cancelled) return;
         await new pdfjsLib.TextLayer({ textContentSource: textContent, container: textLayerDiv, viewport }).render();
+
+        // Rehydrate persistent highlights for this page in textLayer
+        try {
+          const assets = await invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>(
+            "list_reading_assets_command",
+            { bookId },
+          );
+          if (!cancelled && textLayerDiv) {
+            const pageAnnotations = assets.filter(
+              (a) => a.kind === "annotation" && a.anchor?.primary_anchor === String(pageNumber),
+            );
+            for (const ann of pageAnnotations) {
+              if (!ann.text?.trim()) continue;
+              const query = ann.text.trim().toLowerCase();
+              const spans = Array.from(textLayerDiv.querySelectorAll("span"));
+              for (const span of spans) {
+                if (span.textContent && span.textContent.toLowerCase().includes(query)) {
+                  span.classList.add("reader-highlight");
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore highlight rehydration error if assets fail
+        }
       }
       if (cancelled) return;
 
@@ -249,7 +261,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [viewMode, pageNumber, bookId]);
+  }, [viewMode, pageNumber, bookId, pdfDoc]);
 
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
   // Single-page mode only this checkpoint -- continuous mode would need

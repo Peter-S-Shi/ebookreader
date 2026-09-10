@@ -2679,3 +2679,13 @@ a:hover {
     grid-template-columns: 170px 1fr;
   }
 }
+
+mark.reader-highlight,
+.reader-highlight {
+  background-color: color-mix(in srgb, var(--accent, #3e6690) 35%, #ffe066) !important;
+  color: inherit !important;
+  border-radius: 2px;
+  padding: 1px 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
