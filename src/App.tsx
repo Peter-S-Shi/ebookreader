@@ -11,6 +11,7 @@ import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
 import { loadAndApplyMotionPreference, loadDefaultImportMode, loadUpdateCheckOnStartupPreference } from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
+import { formatSearchSnippet } from "./searchUtils";
 import "./App.css";
 
 interface BookSummary {
@@ -633,11 +634,18 @@ function App() {
                     const book = books?.find((b) => b.book_id === hit.book_id);
                     return (
                       <li key={`${hit.book_id}-${hit.kind}-${i}`}>
-                        <button type="button" onClick={() => openBookAtLocation(hit.book_id, hit.anchor)}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openBookAtLocation(hit.book_id, hit.anchor);
+                            setSearchResults(null);
+                            setSearchQuery("");
+                          }}
+                        >
                           {book?.title ?? hit.book_id}
                         </button>
                         <span className="search-hit-kind"> ({hit.kind})</span>
-                        <p>{hit.content}</p>
+                        <p>{formatSearchSnippet(hit.content, searchQuery)}</p>
                       </li>
                     );
                   })

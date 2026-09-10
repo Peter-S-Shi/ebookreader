@@ -5,6 +5,7 @@ interface ReaderShellProps {
   onBack: () => void;
   onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
   status?: string;
+  progressPercent?: number;
   /** Format-specific toolbar controls (Aa, page navigation, ...). Hidden in Focus mode. */
   toolbarExtra?: ReactNode;
   /** Anything that should render below/beside the toolbar (e.g. an open Typography panel). */
@@ -17,8 +18,18 @@ interface ReaderShellProps {
 // ("side panels hidden; minimal reader chrome; no modal dashboard overlay" --
 // Focus is an interaction state, not a separate product area, hence a toggle
 // here rather than a route).
-export function ReaderShell({ title, onBack, onWheel, status, toolbarExtra, overlay, children }: ReaderShellProps) {
+export function ReaderShell({
+  title,
+  onBack,
+  onWheel,
+  status,
+  progressPercent,
+  toolbarExtra,
+  overlay,
+  children,
+}: ReaderShellProps) {
   const [focusMode, setFocusMode] = useState(false);
+  const clampedProgress = typeof progressPercent === "number" ? Math.min(100, Math.max(0, progressPercent)) : null;
 
   return (
     <div className={`reader${focusMode ? " reader--focus" : ""}`} onWheel={onWheel}>
@@ -33,6 +44,18 @@ export function ReaderShell({ title, onBack, onWheel, status, toolbarExtra, over
             </span>
             <span className="reader-toolbar-controls">
               {toolbarExtra}
+              {clampedProgress !== null && (
+                <div
+                  className="reader-progress-affordance"
+                  aria-label={`Reading progress: ${Math.round(clampedProgress)}%`}
+                  title={`Reading progress: ${Math.round(clampedProgress)}%`}
+                >
+                  <span className="reader-progress-text">{`${Math.round(clampedProgress)}%`}</span>
+                  <div className="reader-progress-bar-track">
+                    <div className="reader-progress-bar-fill" style={{ width: `${clampedProgress}%` }} />
+                  </div>
+                </div>
+              )}
               {status && <span className="reader-status">{status}</span>}
             </span>
           </>

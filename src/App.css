@@ -309,7 +309,6 @@ a:hover {
 }
 
 /* Global Lists */
-.search-results,
 .global-notes-list,
 .library-book-list,
 .continue-reading-list {
@@ -319,42 +318,110 @@ a:hover {
   text-align: left;
 }
 
-.collection-filter-list {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  margin: 0.5em 0;
-  padding: 0;
-}
-
-.collection-filter-list li {
+.topbar-search {
   display: flex;
   align-items: center;
-  gap: 0.25em;
+  position: relative;
 }
 
-.collection-filter-list button[aria-current="true"] {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-  font-weight: 600;
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: left;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
 
-.search-results li,
-.global-notes-list li,
-.library-book-list li {
-  padding: 0.5em 0;
+.search-results li {
+  padding: 8px 0;
   border-bottom: 1px solid rgba(127, 127, 127, 0.2);
 }
 
-.search-results p,
-.global-notes-list p {
-  margin: 0.25em 0 0;
+.search-results li:last-child {
+  border-bottom: none;
+}
+
+.search-results p {
+  margin: 4px 0 0;
+  font-size: 0.85em;
+  opacity: 0.85;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
 }
 
 .search-hit-kind {
   font-size: 0.85em;
   opacity: 0.7;
+}
+
+/* Compact In-Reader Reading Progress Affordance */
+.reader-progress-affordance {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 8px;
+}
+
+.reader-progress-text {
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 32px;
+  text-align: right;
+}
+
+.reader-progress-bar-track {
+  width: 60px;
+  height: 4px;
+  background: rgba(127, 127, 127, 0.25);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.reader-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+/* Lightweight Page-Turn Visual Transition */
+@keyframes pageTurnSlide {
+  0% {
+    opacity: 0.7;
+    transform: translateX(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.page-turn-animating {
+  animation: pageTurnSlide 0.15s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-turn-animating {
+    animation: none !important;
+  }
+}
+
+:root[data-motion="reduced"] .page-turn-animating {
+  animation: none !important;
 }
 
 /* Reader composition (DESIGN.md SS5): a compact toolbar above a Reading
@@ -2680,7 +2747,40 @@ a:hover {
   }
 }
 
-/* B8 Canonical Theme-Aware Persistent Highlight Contrast */
+/* Residual 1.5 Highlight Color Swatches & Preset Palette */
+.selection-toolbar-colors {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.highlight-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease;
+}
+
+.highlight-swatch:hover {
+  transform: scale(1.2);
+}
+
+.highlight-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.highlight-swatch--yellow { background-color: #ffd54f; }
+.highlight-swatch--green { background-color: #81c784; }
+.highlight-swatch--blue { background-color: #64b5f6; }
+.highlight-swatch--purple { background-color: #ba68c8; }
+.highlight-swatch--orange { background-color: #ffb74d; }
+
+/* B8 Canonical Theme-Aware Persistent Highlight Contrast & Color Variants */
 mark.reader-highlight,
 .reader-highlight {
   background-color: rgba(255, 215, 0, 0.38) !important;
@@ -2691,11 +2791,55 @@ mark.reader-highlight,
   transition: background-color 0.18s ease;
 }
 
+mark.reader-highlight[data-color="green"],
+.reader-highlight[data-color="green"] {
+  background-color: rgba(76, 175, 80, 0.38) !important;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.25) !important;
+}
+
+mark.reader-highlight[data-color="blue"],
+.reader-highlight[data-color="blue"] {
+  background-color: rgba(33, 150, 243, 0.38) !important;
+  box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.25) !important;
+}
+
+mark.reader-highlight[data-color="purple"],
+.reader-highlight[data-color="purple"] {
+  background-color: rgba(156, 39, 176, 0.38) !important;
+  box-shadow: 0 0 0 1px rgba(156, 39, 176, 0.25) !important;
+}
+
+mark.reader-highlight[data-color="orange"],
+.reader-highlight[data-color="orange"] {
+  background-color: rgba(255, 152, 0, 0.38) !important;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25) !important;
+}
+
 [data-theme="dark"] mark.reader-highlight,
 [data-theme="dark"] .reader-highlight {
   background-color: rgba(234, 179, 8, 0.35) !important;
   color: inherit !important;
   box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+}
+
+[data-theme="dark"] mark.reader-highlight[data-color="green"],
+[data-theme="dark"] .reader-highlight[data-color="green"] {
+  background-color: rgba(76, 175, 80, 0.35) !important;
+}
+
+[data-theme="dark"] mark.reader-highlight[data-color="blue"],
+[data-theme="dark"] .reader-highlight[data-color="blue"] {
+  background-color: rgba(33, 150, 243, 0.35) !important;
+}
+
+[data-theme="dark"] mark.reader-highlight[data-color="purple"],
+[data-theme="dark"] .reader-highlight[data-color="purple"] {
+  background-color: rgba(156, 39, 176, 0.35) !important;
+}
+
+[data-theme="dark"] mark.reader-highlight[data-color="orange"],
+[data-theme="dark"] .reader-highlight[data-color="orange"] {
+  background-color: rgba(255, 152, 0, 0.35) !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2704,6 +2848,26 @@ mark.reader-highlight,
     background-color: rgba(234, 179, 8, 0.35) !important;
     color: inherit !important;
     box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+  }
+
+  :root:not([data-theme="light"]) mark.reader-highlight[data-color="green"],
+  :root:not([data-theme="light"]) .reader-highlight[data-color="green"] {
+    background-color: rgba(76, 175, 80, 0.35) !important;
+  }
+
+  :root:not([data-theme="light"]) mark.reader-highlight[data-color="blue"],
+  :root:not([data-theme="light"]) .reader-highlight[data-color="blue"] {
+    background-color: rgba(33, 150, 243, 0.35) !important;
+  }
+
+  :root:not([data-theme="light"]) mark.reader-highlight[data-color="purple"],
+  :root:not([data-theme="light"]) .reader-highlight[data-color="purple"] {
+    background-color: rgba(156, 39, 176, 0.35) !important;
+  }
+
+  :root:not([data-theme="light"]) mark.reader-highlight[data-color="orange"],
+  :root:not([data-theme="light"]) .reader-highlight[data-color="orange"] {
+    background-color: rgba(255, 152, 0, 0.35) !important;
   }
 }
 

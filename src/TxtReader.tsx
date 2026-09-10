@@ -12,6 +12,7 @@ import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
+import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -47,7 +48,8 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; startOffset: number } | null>(null);
-  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const [highlightColor, setHighlightColor] = useState<HighlightColor>("yellow");
+  const { progress, showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
   useRecordBookOpened(bookId);
   useActualReadingTimeHeartbeat(bookId);
@@ -151,10 +153,12 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
         setSelection(null);
         return;
       }
-      const startRange = document.createRange();
-      startRange.selectNodeContents(container);
-      startRange.setEnd(range.startContainer, range.startOffset);
-      setSelection({ text: selectedText, startOffset: startRange.toString().length });
+      const preRange = document.createRange();
+      preRange.selectNodeContents(container);
+      preRange.setEnd(range.startContainer, range.startOffset);
+      const startOffset = preRange.toString().length;
+
+      setSelection({ text: selectedText, startOffset });
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
@@ -171,6 +175,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
         for (const ann of annotations) {
           const query = ann.text.trim();
           if (!query || !container) continue;
+          const color = extractHighlightColor(ann.anchor?.context_selector);
           const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
           let node: Node | null;
           while ((node = walker.nextNode())) {
@@ -184,6 +189,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
                 range.setEnd(node, idx + query.length);
                 const mark = document.createElement("mark");
                 mark.className = "reader-highlight";
+                mark.dataset.color = color;
                 range.surroundContents(mark);
               } catch {
                 // fallback
@@ -196,8 +202,9 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       .catch(() => {});
   }, [text, bookId, notebookRefreshKey]);
 
-  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+  async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection || text === null) return;
+    const color = selectedColor ?? highlightColor;
     if (kind === "annotation") {
       try {
         const sel = document.getSelection();
@@ -205,6 +212,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
           const range = sel.getRangeAt(0);
           const mark = document.createElement("mark");
           mark.className = "reader-highlight";
+          mark.dataset.color = color;
           range.surroundContents(mark);
         }
       } catch {
@@ -217,7 +225,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       progression_hint: text.length > 0 ? selection.startOffset / text.length : 0,
       primary_anchor: String(selection.startOffset),
       fallback_anchors: [],
-      context_selector: selection.text.slice(0, 80),
+      context_selector: formatContextSelector(selection.text, color),
     };
     await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
     document.getSelection()?.removeAllRanges();
@@ -255,6 +263,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     <ReaderShell
       title={title}
       onBack={() => checkpoint.requestBack(onBack)}
+      progressPercent={progress?.active_pass_progress}
       toolbarExtra={
         <>
           <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
@@ -312,6 +321,21 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       )}
       {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <div className="selection-toolbar-colors" aria-label="Highlight color preset palette">
+            {HIGHLIGHT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`highlight-swatch highlight-swatch--${c}`}
+                aria-label={`${c} highlight`}
+                aria-pressed={highlightColor === c}
+                onClick={() => {
+                  setHighlightColor(c);
+                  handleCaptureSelection("annotation", c);
+                }}
+              />
+            ))}
+          </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight
           </button>

@@ -14,6 +14,7 @@ import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
+import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -115,12 +116,13 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const viewModeRef = useRef<ViewMode>("paginated-double");
   const [selection, setSelection] = useState<ActiveSelection | null>(null);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
+  const [highlightColor, setHighlightColor] = useState<HighlightColor>("yellow");
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const playPageTurnRef = useRef(playPageTurn);
   useEffect(() => {
     playPageTurnRef.current = playPageTurn;
   }, [playPageTurn]);
-  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const { progress, showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   useActualReadingTimeHeartbeat(bookId);
   const checkpoint = useReadingCheckpoint();
   useRecordBookOpened(bookId);
@@ -153,15 +155,17 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       await import("foliate-js/view.js");
       if (cancelled) return;
 
-      const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
-      if (cancelled) return;
-      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
-      const file = new File([new Uint8Array(uint8Bytes)], `${title}.epub`, { type: "application/epub+zip" });
+      if (!hostRef.current || cancelled) return;
+      hostRef.current.innerHTML = "";
 
-      const view = document.createElement("foliate-view") as FoliateView;
-      view.style.cssText = "width:100%;height:100%;display:block";
-      hostRef.current?.replaceChildren(view);
+      const fileData = await invoke<ArrayBuffer | Uint8Array>("read_book_file_command", { bookId });
+      if (cancelled) return;
+      const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
+      const file = new File([uint8.buffer as ArrayBuffer], `${title}.epub`, { type: "application/epub+zip" });
+
+      const view = document.createElement("foliate-view") as unknown as FoliateView;
       viewRef.current = view;
+      hostRef.current.appendChild(view);
 
       await view.open(file);
       if (cancelled) return;
@@ -184,8 +188,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       // goTo/goToTextStart call can load the initial section.
       view.addEventListener("load", (event: Event) => {
         const detail = (event as CustomEvent).detail ?? {};
-        const doc: Document | undefined = detail.doc;
-        const index: number = detail.index;
+        const doc = detail.doc as Document | undefined;
         if (!doc) return;
         attachReadingInput(doc);
 
@@ -196,6 +199,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
             for (const ann of annotations) {
               const query = ann.text.trim();
               if (!query || !doc.body) continue;
+              const color = extractHighlightColor(ann.anchor?.context_selector);
               const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
               let node: Node | null;
               while ((node = walker.nextNode())) {
@@ -209,6 +213,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
                     range.setEnd(node, idx + query.length);
                     const mark = doc.createElement("mark");
                     mark.className = "reader-highlight";
+                    mark.dataset.color = color;
                     range.surroundContents(mark);
                   } catch {
                     // range boundary fallback
@@ -225,7 +230,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
           if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
             const text = sel.toString();
             if (text.trim()) {
-              setSelection({ doc, range: sel.getRangeAt(0).cloneRange(), text, index });
+              setSelection({ doc, range: sel.getRangeAt(0).cloneRange(), text, index: 0 });
               return;
             }
           }
@@ -238,6 +243,14 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
         if (!cfi) return;
         playPageTurnRef.current();
+        if (hostRef.current && (viewModeRef.current as string) !== "continuous") {
+          hostRef.current.classList.remove("page-turn-animating");
+          void hostRef.current.offsetWidth;
+          hostRef.current.classList.add("page-turn-animating");
+          setTimeout(() => {
+            hostRef.current?.classList.remove("page-turn-animating");
+          }, 160);
+        }
         const fraction = typeof detail.fraction === "number" ? detail.fraction : 0;
         const location: DocumentLocationDTO = {
           book_id: bookId,
@@ -403,15 +416,17 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     setOpenPanel(null);
   }
 
-  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+  async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     const active = selection;
     const view = viewRef.current;
     if (!active || !view) return;
 
+    const color = selectedColor ?? highlightColor;
     if (kind === "annotation") {
       try {
         const mark = active.doc.createElement("mark");
         mark.className = "reader-highlight";
+        mark.dataset.color = color;
         active.range.surroundContents(mark);
       } catch {
         // Fallback for complex ranges across nodes
@@ -425,7 +440,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       progression_hint: view.lastLocation?.fraction ?? 0,
       primary_anchor: cfi,
       fallback_anchors: [],
-      context_selector: active.text.slice(0, 80),
+      context_selector: formatContextSelector(active.text, color),
     };
 
     await invoke("create_reading_asset_command", { bookId, kind, text: active.text, anchor }).catch(() => {});
@@ -446,6 +461,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       onWheel={handleReaderWheel}
       onBack={() => checkpoint.requestBack(onBack)}
       status={status}
+      progressPercent={progress?.active_pass_progress}
       toolbarExtra={
         <>
           {toc.length > 0 && (
@@ -525,6 +541,21 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       )}
       {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <div className="selection-toolbar-colors" aria-label="Highlight color preset palette">
+            {HIGHLIGHT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`highlight-swatch highlight-swatch--${c}`}
+                aria-label={`${c} highlight`}
+                aria-pressed={highlightColor === c}
+                onClick={() => {
+                  setHighlightColor(c);
+                  handleCaptureSelection("annotation", c);
+                }}
+              />
+            ))}
+          </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight
           </button>

@@ -13,21 +13,27 @@ export function createPageTurnSound(): () => void {
     if (typeof window === "undefined" || typeof window.AudioContext === "undefined") return;
     ctx ??= new AudioContext();
 
-    const duration = 0.12;
+    const duration = 0.08;
     const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const progress = i / bufferSize;
+      // Soft quadratic envelope decay
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 2.5);
     }
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
+    
+    // Lowpass filter around 1000Hz removes harsh high frequencies
     const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.value = 2500;
+    filter.type = "lowpass";
+    filter.frequency.value = 1000;
+    
+    // Soft, restrained peak gain
     const gain = ctx.createGain();
-    gain.gain.value = 0.12;
+    gain.gain.value = 0.035;
 
     source.connect(filter).connect(gain).connect(ctx.destination);
     source.start();

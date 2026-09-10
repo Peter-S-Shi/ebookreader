@@ -96,4 +96,15 @@ describe("ReaderShell Focus mode", () => {
 
     expect(screen.queryByText("Typography Panel")).not.toBeInTheDocument();
   });
+
+  it("renders a compact reading progress affordance when progressPercent is supplied", () => {
+    render(
+      <ReaderShell title="My Book" onBack={vi.fn()} progressPercent={42.8}>
+        <p>content</p>
+      </ReaderShell>,
+    );
+
+    expect(screen.getByLabelText("Reading progress: 43%")).toBeInTheDocument();
+    expect(screen.getByText("43%")).toBeInTheDocument();
+  });
 });

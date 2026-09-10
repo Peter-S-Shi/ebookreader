@@ -13,6 +13,7 @@ import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
+import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -96,8 +97,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [noticeCollapsed, setNoticeCollapsed] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [highlightColor, setHighlightColor] = useState<HighlightColor>("yellow");
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
-  const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const { progress, showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
   useRecordBookOpened(bookId);
   useActualReadingTimeHeartbeat(bookId);
@@ -273,10 +275,12 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             for (const ann of pageAnnotations) {
               if (!ann.text?.trim()) continue;
               const query = ann.text.trim().toLowerCase();
+              const color = extractHighlightColor(ann.anchor?.context_selector);
               const spans = Array.from(textLayerDiv.querySelectorAll("span"));
               for (const span of spans) {
                 if (span.textContent && span.textContent.toLowerCase().includes(query)) {
                   span.classList.add("reader-highlight");
+                  span.dataset.color = color;
                 }
               }
             }
@@ -333,15 +337,16 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
   }, [viewMode, pageNumber, ocrText]);
 
-  async function handleCaptureSelection(kind: "annotation" | "excerpt") {
+  async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection) return;
+    const color = selectedColor ?? highlightColor;
     const anchor: DocumentLocationDTO = {
       book_id: bookId,
       format: "pdf",
       progression_hint: pageCount > 0 ? selection.page / pageCount : 0,
       primary_anchor: String(selection.page),
       fallback_anchors: [],
-      context_selector: selection.text.slice(0, 80),
+      context_selector: formatContextSelector(selection.text, color),
     };
     await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
     document.getSelection()?.removeAllRanges();
@@ -392,6 +397,18 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     saveLocation(current, pdf.numPages);
   }
 
+  function triggerPageTurnAnimation() {
+    const container = canvasRef.current?.parentElement;
+    if (container) {
+      container.classList.remove("page-turn-animating");
+      void container.offsetWidth;
+      container.classList.add("page-turn-animating");
+      setTimeout(() => {
+        container.classList.remove("page-turn-animating");
+      }, 160);
+    }
+  }
+
   function switchViewMode(next: PdfViewMode) {
     setViewMode(next);
   }
@@ -401,6 +418,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       title={title}
       onBack={() => checkpoint.requestBack(onBack)}
       status={status}
+      progressPercent={pageCount > 0 ? (pageNumber / pageCount) * 100 : progress?.active_pass_progress}
       toolbarExtra={
         <>
           <select
@@ -419,6 +437,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                 onClick={() => {
                   setPageNumber((p) => p - 1);
                   playPageTurn();
+                  triggerPageTurnAnimation();
                 }}
               >
                 Previous
@@ -433,6 +452,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                 onClick={() => {
                   setPageNumber((p) => p + 1);
                   playPageTurn();
+                  triggerPageTurnAnimation();
                 }}
               >
                 Next
@@ -504,70 +524,103 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           Could not jump to the exact location — opened the Book instead.
         </p>
       )}
-      {hasExtractableText === false && viewMode === "single" && (
-        <div className={`pdf-ocr-panel${noticeCollapsed ? " pdf-ocr-panel-collapsed" : ""}`}>
+      {hasExtractableText === false && (
+        <div
+          className={`pdf-ocr-notice ${noticeCollapsed ? "pdf-ocr-notice--collapsed" : ""}`}
+          role="region"
+          aria-label="Scanned document notice"
+        >
           {noticeCollapsed ? (
-            <div className="pdf-degraded-collapsed-row">
-              <span className="pdf-degraded-pill">Scanned PDF — no extractable text on page {pageNumber}</span>
-              <button type="button" className="btn-sm" onClick={() => setNoticeCollapsed(false)}>
-                Show notice
-              </button>
-            </div>
+            <button
+              type="button"
+              className="pdf-ocr-notice-expand"
+              onClick={() => setNoticeCollapsed(false)}
+              title="Expand Scanned PDF Notice"
+            >
+              Scanned PDF (no text layer) — Expand notice
+            </button>
           ) : (
-            <>
-              <div className="pdf-degraded-header">
-                <p className="pdf-degraded-notice" role="status">
-                  Scanned PDF -- no extractable text found on this page. Visual reading works normally; search, text
-                  selection, and Excerpt/Annotation are unavailable for pages without OCR text. Open the OCR Workspace
-                  (toolbar) to run OCR.
-                </p>
+            <div className="pdf-ocr-notice-body">
+              <span>
+                Scanned PDF — no extractable text found on this page. Visual reading works normally; search, text
+                selection, and exports require OCR.
+              </span>
+              {ocrText ? (
+                <div className="pdf-ocr-result">
+                  <b>OCR text for Page {pageNumber}:</b>
+                  {ocrEditing ? (
+                    <div className="pdf-ocr-edit">
+                      <textarea value={ocrDraft} onChange={(e) => setOcrDraft(e.target.value)} rows={4} />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await invoke("save_ocr_correction_command", { bookId, pageNumber, correctedText: ocrDraft }).catch(() => {});
+                          setOcrText(ocrDraft);
+                          setOcrEditing(false);
+                        }}
+                      >
+                        Save correction
+                      </button>
+                      <button type="button" onClick={() => setOcrEditing(false)}>
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="pdf-ocr-text-display">
+                      <p ref={ocrTextRef}>{ocrText}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOcrDraft(ocrText);
+                          setOcrEditing(true);
+                        }}
+                      >
+                        Edit OCR correction
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <button
                   type="button"
-                  className="pdf-degraded-dismiss"
-                  aria-label="Collapse notice"
-                  onClick={() => setNoticeCollapsed(true)}
+                  onClick={async () => {
+                    if (!pdfRef.current) return;
+                    setStatus("Running OCR…");
+                    try {
+                      const page = await pdfRef.current.getPage(pageNumber);
+                      const viewport = page.getViewport({ scale: 2.0 });
+                      const canvas = document.createElement("canvas");
+                      canvas.width = viewport.width;
+                      canvas.height = viewport.height;
+                      const ctx = canvas.getContext("2d");
+                      if (!ctx) return;
+                      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+                      const dataUrl = canvas.toDataURL("image/png");
+
+                      const recognized = await invoke<string>("run_ocr_command", { imageBase64: dataUrl });
+                      setOcrText(recognized);
+                      await invoke("save_ocr_correction_command", {
+                        bookId,
+                        pageNumber,
+                        correctedText: recognized,
+                      }).catch(() => {});
+                    } catch {
+                      // OCR failed
+                    } finally {
+                      setStatus("Ready");
+                    }
+                  }}
                 >
-                  ✕ Collapse
+                  Run OCR on Page {pageNumber}
                 </button>
-              </div>
-            </>
-          )}
-          {ocrText !== null && !ocrEditing && (
-            <div className="pdf-ocr-result">
-              <p ref={ocrTextRef} className="pdf-ocr-result-text">
-                {ocrText || "(no text recognized on this page)"}
-              </p>
+              )}
               <button
                 type="button"
-                onClick={() => {
-                  setOcrDraft(ocrText);
-                  setOcrEditing(true);
-                }}
+                className="pdf-ocr-notice-dismiss"
+                onClick={() => setNoticeCollapsed(true)}
+                title="Collapse notice"
               >
-                Correct text
-              </button>
-            </div>
-          )}
-          {ocrEditing && (
-            <div className="pdf-ocr-correction">
-              <textarea
-                value={ocrDraft}
-                onChange={(e) => setOcrDraft(e.target.value)}
-                rows={6}
-                aria-label="Correct OCR text"
-              />
-              <button
-                type="button"
-                onClick={async () => {
-                  await invoke("save_ocr_correction_command", { bookId, pageNumber, correctedText: ocrDraft }).catch(() => {});
-                  setOcrText(ocrDraft);
-                  setOcrEditing(false);
-                }}
-              >
-                Save correction
-              </button>
-              <button type="button" onClick={() => setOcrEditing(false)}>
-                Cancel
+                ×
               </button>
             </div>
           )}
@@ -575,6 +628,21 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       )}
       {viewMode === "single" && selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
+          <div className="selection-toolbar-colors" aria-label="Highlight color preset palette">
+            {HIGHLIGHT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`highlight-swatch highlight-swatch--${c}`}
+                aria-label={`${c} highlight`}
+                aria-pressed={highlightColor === c}
+                onClick={() => {
+                  setHighlightColor(c);
+                  handleCaptureSelection("annotation", c);
+                }}
+              />
+            ))}
+          </div>
           <button type="button" onClick={() => handleCaptureSelection("annotation")}>
             Highlight
           </button>
