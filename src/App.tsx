@@ -659,41 +659,49 @@ function App() {
           )}
 
           {destination === "notes" && (
-            <section aria-label="Notes">
-              <label>
-                Filter
-                <select
-                  aria-label="Filter Notes by type"
-                  value={notesKindFilter}
-                  onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
-                >
-                  <option value="">All</option>
-                  <option value="note">Note</option>
-                  <option value="excerpt">Excerpt</option>
-                  <option value="annotation">Annotation</option>
-                </select>
-              </label>
+            <section aria-label="Notes" className="notes-wrap">
+              <div className="notes-toolbar">
+                <label className="filter-label">
+                  <span>Filter</span>
+                  <select
+                    aria-label="Filter Notes by type"
+                    value={notesKindFilter}
+                    onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
+                  >
+                    <option value="">All</option>
+                    <option value="note">Note</option>
+                    <option value="excerpt">Excerpt</option>
+                    <option value="annotation">Annotation</option>
+                  </select>
+                </label>
+              </div>
               <ul className="global-notes-list">
-            {globalNotes.length === 0 ? (
-              <li>No Notebook assets yet.</li>
-            ) : (
-              globalNotes.map((asset) => {
-                const book = books?.find((b) => b.book_id === asset.book_id);
-                return (
-                  <li key={asset.id}>
-                    <button type="button" onClick={() => openBookAtLocation(asset.book_id, asset.anchor)}>
-                      {book?.title ?? asset.book_id}
-                    </button>
-                    <span className="search-hit-kind"> ({asset.kind})</span>
-                    {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
-                    <p>{asset.text}</p>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        </section>
-      )}
+                {globalNotes.length === 0 ? (
+                  <li className="empty-notes-item">No Notebook assets yet.</li>
+                ) : (
+                  globalNotes.map((asset) => {
+                    const book = books?.find((b) => b.book_id === asset.book_id);
+                    return (
+                      <li key={asset.id} className="global-note-card">
+                        <div className="note-card-head">
+                          <button
+                            type="button"
+                            className="note-source-btn"
+                            onClick={() => openBookAtLocation(asset.book_id, asset.anchor)}
+                          >
+                            {book?.title ?? asset.book_id}
+                          </button>
+                          <span className="search-hit-kind"> ({asset.kind})</span>
+                          {asset.orphaned && <span className="notebook-asset-orphaned">Detached</span>}
+                        </div>
+                        <p>{asset.text}</p>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </section>
+          )}
 
       {destination === "calendar" && (
         <section aria-label="Calendar">
