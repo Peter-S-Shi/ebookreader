@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
@@ -175,8 +175,15 @@ describe("Settings — Typography defaults (PRODUCT_SPEC.md SS7.4; FC-A08)", () 
     });
     render(<Settings />);
     await screen.findByRole("group", { name: "Typography" });
+    // TypographyPanel's own system-font fetch is a separate async effect
+    // that mounts after Settings' own load resolves -- wait for the
+    // option to actually exist in the Font Source select before selecting
+    // it, rather than racing it. Scoped to that select since "Georgia
+    // (SYSTEM)" also appears as an option in the CJK Font Override select.
+    const fontSourceSelect = screen.getByLabelText("Font Source");
+    await within(fontSourceSelect).findByRole("option", { name: "Georgia (SYSTEM)" });
 
-    await user.selectOptions(screen.getByLabelText("Font Source"), "SYSTEM:Georgia");
+    await user.selectOptions(fontSourceSelect, "SYSTEM:Georgia");
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
