@@ -865,7 +865,7 @@ describe("Settings", () => {
     invokeMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null); // get_setting_command x2
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
-    expect(await screen.findByText("Appearance")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Appearance" })).toBeInTheDocument();
     expect(invokeMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
   });
 });

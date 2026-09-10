@@ -27,14 +27,14 @@ interface ReadingProgressDTO {
   completed_read_count: number;
 }
 
+interface SnapshotRecord {
+  timestamp: string;
+  reason: string;
+}
 
-/// `DESIGN.md` SS14 "Data / Recovery" (canonical `ER-DATA-001`): a safety
-/// center. `PRODUCT_SPEC.md` SS16 "Stable V1 requires real Restore" --
-/// Restore always Previews before replacement, and an incomplete
-/// archive is refused rather than partially applied
-/// (`crates/domain/src/backup.rs`). SS17 "Update Awareness" is a
-/// read-only stable-release check against GitHub Releases
-/// (`[[updateAwareness]]`), never a silent auto-install.
+/// `DESIGN.md` SS14 "Data / Recovery" (canonical `ER-DATA-001`): a safety center.
+/// Restore always Previews before replacement, and an incomplete archive is refused
+/// rather than partially applied.
 export function DataRecovery() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ path: string; data: BackupPreviewDTO } | null>(null);
@@ -42,13 +42,13 @@ export function DataRecovery() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [bookDataBooks, setBookDataBooks] = useState<BookSummaryDTO[] | null>(null);
   const [completedReadInputs, setCompletedReadInputs] = useState<Record<string, string>>({});
-  // FC-C07 (`PRODUCT_SPEC.md` SS16.3: Full Library Backup may "optionally"
-  // include "explicitly selected Reference source files"): the Reference-
-  // mode Books available to opt in, and which paths the user has checked.
-  // `null` means not loaded yet -- shown only once the user opens Full
-  // Library Backup, not fetched unconditionally on mount.
   const [referenceBooks, setReferenceBooks] = useState<BookSummaryDTO[] | null>(null);
   const [selectedReferenceFiles, setSelectedReferenceFiles] = useState<Set<string>>(new Set());
+
+  // Real session-level recovery status tracking
+  const [lastAppDataBackup, setLastAppDataBackup] = useState<{ timestamp: string; bookCount: number } | null>(null);
+  const [lastFullLibraryBackup, setLastFullLibraryBackup] = useState<{ timestamp: string; bookCount: number; fileCount: number } | null>(null);
+  const [recentSnapshots, setRecentSnapshots] = useState<SnapshotRecord[]>([]);
 
   async function createAppDataBackup() {
     const dest = await save({
@@ -57,10 +57,12 @@ export function DataRecovery() {
     });
     if (!dest) return;
     try {
+      const timestamp = new Date().toISOString();
       const manifest = await invoke<BackupManifestDTO>("create_app_data_backup_command", {
         destPath: dest,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
       });
+      setLastAppDataBackup({ timestamp: manifest.created_at, bookCount: manifest.book_count });
       setStatusMessage(`App Data Backup created: ${manifest.book_count} book(s).`);
     } catch (e) {
       setStatusMessage(`Backup failed: ${e}`);
@@ -91,10 +93,16 @@ export function DataRecovery() {
     });
     if (!dest) return;
     try {
+      const timestamp = new Date().toISOString();
       const manifest = await invoke<BackupManifestDTO>("create_full_library_backup_command", {
         destPath: dest,
-        createdAt: new Date().toISOString(),
+        createdAt: timestamp,
         extraReferenceFiles: Array.from(selectedReferenceFiles),
+      });
+      setLastFullLibraryBackup({
+        timestamp: manifest.created_at,
+        bookCount: manifest.book_count,
+        fileCount: manifest.files.length,
       });
       setStatusMessage(`Full Library Backup created: ${manifest.book_count} book(s), ${manifest.files.length} file(s).`);
     } catch (e) {
@@ -125,7 +133,12 @@ export function DataRecovery() {
     if (!proceed) return;
 
     try {
+      const snapshotTime = new Date().toISOString();
       await invoke("restore_backup_command", { archivePath: preview.path });
+      setRecentSnapshots((prev) => [
+        { timestamp: snapshotTime, reason: "Automatic snapshot before restore" },
+        ...prev,
+      ]);
       setStatusMessage("Restore complete. Books whose Reference source files are missing will show Needs Relink.");
       setPreview(null);
     } catch (e) {
@@ -155,10 +168,15 @@ export function DataRecovery() {
     );
     if (!proceed) return;
 
+    const snapshotTime = new Date().toISOString();
     const progress = await invoke<ReadingProgressDTO>("override_completed_reads_command", {
       bookId: book.book_id,
       completedReadCount: safeCount,
     });
+    setRecentSnapshots((prev) => [
+      { timestamp: snapshotTime, reason: `Before completed-read override for ${book.title}` },
+      ...prev,
+    ]);
     setStatusMessage(`${book.title} completed reads set to ${progress.completed_read_count}.`);
   }
 
@@ -310,15 +328,55 @@ export function DataRecovery() {
         </div>
       </div>
 
-      <aside className="dataAside">
+      <aside className="dataAside" aria-label="Recovery status">
         <div className="backupStatus">
-          <h3>Data Safety &amp; Integrity</h3>
+          <h3>Recovery status</h3>
           <div className="backupMini">
-            <b>Automatic Safety Snapshots</b>
-            <div className="meta">A full SQLite snapshot is created before every restore or destructive mutation.</div>
+            <b>Last App Data Backup</b>
+            <div className="meta">
+              {lastAppDataBackup ? `${lastAppDataBackup.timestamp} (${lastAppDataBackup.bookCount} books)` : "Not created yet"}
+            </div>
           </div>
+          <div className="backupMini">
+            <b>Last Full Library Backup</b>
+            <div className="meta">
+              {lastFullLibraryBackup ? `${lastFullLibraryBackup.timestamp} (${lastFullLibraryBackup.bookCount} books, ${lastFullLibraryBackup.fileCount} files)` : "Not created yet"}
+            </div>
+          </div>
+          <div className="backupMini">
+            <b>Automatic Recovery Snapshot</b>
+            <div className="meta">Active (created automatically before restore or destructive mutation)</div>
+          </div>
+
+          <div className="sep" />
+
+          <h3>Recent snapshots</h3>
+          <div className="snapshotTimeline">
+            {recentSnapshots.length === 0 ? (
+              <div className="snapshot">
+                <i aria-hidden="true" />
+                <div>
+                  <b>Safety Baseline</b>
+                  <p>Active</p>
+                </div>
+              </div>
+            ) : (
+              recentSnapshots.map((item, idx) => (
+                <div key={idx} className="snapshot">
+                  <i aria-hidden="true" />
+                  <div>
+                    <b>{item.timestamp}</b>
+                    <p>{item.reason}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="sep" />
+
           <div className="safetyNote">
-            Destructive actions and manual overrides always prompt with clear warnings. Reference files remain in their original folders.
+            Exports are not backups. Backups are not sync. Destructive actions and manual overrides always prompt with clear warnings. Reference files remain in their original folders.
           </div>
         </div>
       </aside>

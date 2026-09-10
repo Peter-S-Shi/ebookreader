@@ -660,6 +660,10 @@ function App() {
 
           {destination === "notes" && (
             <section aria-label="Notes" className="notes-wrap">
+              <div className="section">
+                <h2>Global Notes Library</h2>
+                <span className="hint">Notes · Excerpts · Annotations</span>
+              </div>
               <div className="notes-toolbar">
                 <label className="filter-label">
                   <span>Filter</span>
