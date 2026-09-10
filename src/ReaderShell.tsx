@@ -12,10 +12,11 @@ interface ReaderShellProps {
   children: ReactNode;
 }
 
-// Shared Reader chrome: DESIGN.md SS5 (compact toolbar + Reading Surface)
-// and SS6 Focus Reading ("side panels hidden; minimal reader chrome; ...
-// no modal dashboard overlay" -- Focus is an interaction state, not a
-// separate product area, hence a toggle here rather than a route).
+// Shared Reader chrome (canonical surface ER-READER-001, ER-FOCUS-001; C2 Batch 7):
+// DESIGN.md SS5 (compact toolbar + Reading Surface) and SS6 Focus Reading
+// ("side panels hidden; minimal reader chrome; no modal dashboard overlay" --
+// Focus is an interaction state, not a separate product area, hence a toggle
+// here rather than a route).
 export function ReaderShell({ title, onBack, onWheel, status, toolbarExtra, overlay, children }: ReaderShellProps) {
   const [focusMode, setFocusMode] = useState(false);
 
