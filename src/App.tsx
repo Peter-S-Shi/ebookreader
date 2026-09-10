@@ -9,7 +9,7 @@ import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
-import { loadAndApplyMotionPreference, loadUpdateCheckOnStartupPreference } from "./appSettings";
+import { loadAndApplyMotionPreference, loadDefaultImportMode, loadUpdateCheckOnStartupPreference } from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import "./App.css";
 
@@ -343,7 +343,8 @@ function App() {
     if (!path || Array.isArray(path)) {
       return;
     }
-    const result = await invoke<ImportBookResult>("import_book_command", { path, ownershipMode: "reference" });
+    const ownershipMode = await loadDefaultImportMode();
+    const result = await invoke<ImportBookResult>("import_book_command", { path, ownershipMode });
     if (result.kind === "duplicate") {
       setDuplicateImport({ bookId: result.book_id, title: result.title, path });
       return;

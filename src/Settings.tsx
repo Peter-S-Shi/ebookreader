@@ -7,6 +7,7 @@ import {
   DEFAULT_ACCENT_COLOR,
   DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY,
   DEFAULT_COUNT_NOTE_TAKING,
+  DEFAULT_IMPORT_MODE,
   DEFAULT_PAUSE_ON_BACKGROUND,
   DEFAULT_READING_CHECKPOINT_ENABLED,
   DEFAULT_THEME_MODE,
@@ -18,18 +19,21 @@ import {
   loadAndApplyAppearance,
   loadAndApplyMotionPreference,
   loadBooleanSetting,
+  loadDefaultImportMode,
   loadGlobalTypography,
   loadUpdateCheckOnStartupPreference,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   saveBooleanSetting,
+  saveDefaultImportMode,
   saveGlobalTypography,
   saveUpdateCheckOnStartupPreference,
   setSetting,
   SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
   TRACK_ACTUAL_READING_TIME_KEY,
+  type ImportMode,
   type ThemeMode,
 } from "./appSettings";
 import { TypographyPanel } from "./TypographyPanel";
@@ -53,6 +57,7 @@ export function Settings() {
   const [soundPageTurnEnabled, setSoundPageTurnEnabled] = useState(DEFAULT_SOUND_PAGE_TURN_ENABLED);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_REDUCED_MOTION);
   const [readingCheckpointEnabled, setReadingCheckpointEnabled] = useState(DEFAULT_READING_CHECKPOINT_ENABLED);
+  const [defaultImportMode, setDefaultImportMode] = useState<ImportMode>(DEFAULT_IMPORT_MODE);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export function Settings() {
       loadBooleanSetting(SOUND_PAGE_TURN_ENABLED_KEY, DEFAULT_SOUND_PAGE_TURN_ENABLED),
       loadAndApplyMotionPreference(),
       loadBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, DEFAULT_READING_CHECKPOINT_ENABLED),
+      loadDefaultImportMode(),
     ]).then(
       ([
         { themeMode, accentColor },
@@ -79,6 +85,7 @@ export function Settings() {
         soundEnabled,
         motionReduced,
         checkpointEnabled,
+        importMode,
       ]) => {
         setThemeMode(themeMode);
         setAccentColor(accentColor);
@@ -91,6 +98,7 @@ export function Settings() {
         setSoundPageTurnEnabled(soundEnabled);
         setReducedMotion(motionReduced);
         setReadingCheckpointEnabled(checkpointEnabled);
+        setDefaultImportMode(importMode);
         setLoaded(true);
       },
     );
@@ -152,6 +160,11 @@ export function Settings() {
   async function updateReadingCheckpointEnabled(next: boolean) {
     setReadingCheckpointEnabled(next);
     await saveBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, next);
+  }
+
+  async function updateDefaultImportMode(next: ImportMode) {
+    setDefaultImportMode(next);
+    await saveDefaultImportMode(next);
   }
 
   if (!loaded) return null;
@@ -269,6 +282,30 @@ export function Settings() {
           />
           Prompt for a reflection when leaving a Reader session
         </label>
+      </section>
+      <section aria-label="Files & Data">
+        <h2>Files &amp; Data</h2>
+        <fieldset>
+          <legend>Default Import Mode</legend>
+          <label>
+            <input
+              type="radio"
+              name="default-import-mode"
+              checked={defaultImportMode === "reference"}
+              onChange={() => updateDefaultImportMode("reference")}
+            />
+            Reference
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="default-import-mode"
+              checked={defaultImportMode === "managed_copy"}
+              onChange={() => updateDefaultImportMode("managed_copy")}
+            />
+            Managed Copy
+          </label>
+        </fieldset>
       </section>
     </div>
   );

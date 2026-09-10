@@ -37,7 +37,17 @@ const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheck
   updateCheckPrefMock: vi.fn(),
 }));
 
-const MOUNT_TIME_SETTING_KEYS = new Set(["update_awareness.check_on_startup", "motion.reduced"]);
+// FC-A15: `importBook()` also reads this setting (not at mount, but on
+// every import) -- routed through the same mock/default mechanism as the
+// mount-time keys below so pre-existing import tests' invokeMock queues
+// stay valid; a "false" default resolves to DEFAULT_IMPORT_MODE
+// ("reference") via `loadDefaultImportMode`'s fallback, matching this
+// suite's prior hardcoded behavior.
+const MOUNT_TIME_SETTING_KEYS = new Set([
+  "update_awareness.check_on_startup",
+  "motion.reduced",
+  "files.default_import_mode",
+]);
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: [string, ...unknown[]]) => {
@@ -157,6 +167,30 @@ describe("Library", () => {
       path: "C:/books/new-book.epub",
       ownershipMode: "reference",
     });
+  });
+
+  it("imports using the persisted default import mode (FC-A15)", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([]); // initial list on mount
+    updateCheckPrefMock.mockImplementation(async (_cmd: string, args: { key?: string }) => {
+      if (args?.key === "files.default_import_mode") return "managed_copy";
+      return "false";
+    });
+    openMock.mockResolvedValueOnce("C:/books/new-book.epub");
+    invokeMock.mockResolvedValueOnce({ kind: "imported", book_id: "new-book-id" }); // import_book_command
+    invokeMock.mockResolvedValueOnce([]); // refreshed list
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await user.click(screen.getByRole("button", { name: /import book/i }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("import_book_command", {
+        path: "C:/books/new-book.epub",
+        ownershipMode: "managed_copy",
+      }),
+    );
   });
 
   it("shows Needs Relink for a book whose file is missing, not for one that's present", async () => {

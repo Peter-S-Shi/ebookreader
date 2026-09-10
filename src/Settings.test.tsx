@@ -6,6 +6,7 @@ import {
   ACCENT_COLOR_KEY,
   AUTO_PAUSE_AFTER_INACTIVITY_KEY,
   COUNT_NOTE_TAKING_KEY,
+  DEFAULT_IMPORT_MODE_KEY,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
   REDUCED_MOTION_KEY,
@@ -276,6 +277,42 @@ describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: READING_CHECKPOINT_ENABLED_KEY, value: "true" }),
+    );
+  });
+});
+
+describe("Settings — Files & Data (DESIGN.md 'Files & Data'; PRODUCT_SPEC.md 'Default V1 import mode: Reference.'; FC-A15)", () => {
+  it("defaults to Reference when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Reference" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Managed Copy" })).not.toBeChecked();
+  });
+
+  it("loads a persisted Managed Copy preference", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === DEFAULT_IMPORT_MODE_KEY) return "managed_copy";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Managed Copy" })).toBeChecked();
+  });
+
+  it("persists selecting Managed Copy", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    await screen.findByRole("radio", { name: "Reference" });
+
+    await user.click(screen.getByRole("radio", { name: "Managed Copy" }));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: DEFAULT_IMPORT_MODE_KEY,
+        value: "managed_copy",
+      }),
     );
   });
 });

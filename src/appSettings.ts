@@ -27,6 +27,10 @@ export const REDUCED_MOTION_KEY = "motion.reduced";
 // prompt at session end, not a streak/rating mechanic.
 export const READING_CHECKPOINT_ENABLED_KEY = "reading_checkpoint.enabled";
 export const TYPOGRAPHY_GLOBAL_KEY = "typography.global_default";
+// FC-A15: DESIGN.md SS-"Files & Data" lists a default import mode
+// setting; PRODUCT_SPEC.md "Default V1 import mode: Reference." names
+// the unset default.
+export const DEFAULT_IMPORT_MODE_KEY = "files.default_import_mode";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -50,6 +54,9 @@ export const DEFAULT_REDUCED_MOTION = false;
 // persistence to verify, but every ticket description and DESIGN.md's
 // bare mention agree it starts Off.
 export const DEFAULT_READING_CHECKPOINT_ENABLED = false;
+export type ImportMode = "reference" | "managed_copy";
+// PRODUCT_SPEC.md "Default V1 import mode: Reference."
+export const DEFAULT_IMPORT_MODE: ImportMode = "reference";
 
 export async function getSetting(key: string): Promise<string | null> {
   return await invoke<string | null>("get_setting_command", { key });
@@ -150,4 +157,17 @@ export async function loadAndApplyMotionPreference(): Promise<boolean> {
   const reduced = await loadBooleanSetting(REDUCED_MOTION_KEY, DEFAULT_REDUCED_MOTION);
   applyMotionPreference(reduced);
   return reduced;
+}
+
+/// FC-A15: a stale/corrupt stored value (anything other than exactly
+/// "reference" or "managed_copy") resolves to `DEFAULT_IMPORT_MODE`
+/// rather than being coerced.
+export async function loadDefaultImportMode(): Promise<ImportMode> {
+  const stored = await getSetting(DEFAULT_IMPORT_MODE_KEY);
+  if (stored === "reference" || stored === "managed_copy") return stored;
+  return DEFAULT_IMPORT_MODE;
+}
+
+export async function saveDefaultImportMode(mode: ImportMode): Promise<void> {
+  await setSetting(DEFAULT_IMPORT_MODE_KEY, mode);
 }
