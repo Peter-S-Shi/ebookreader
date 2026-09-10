@@ -47,6 +47,42 @@ describe("ReaderShell Focus mode", () => {
     expect(screen.getByRole("button", { name: "Back to Library" })).toBeInTheDocument();
   });
 
+  it("truncates a long title (via CSS class + tooltip) instead of crowding out toolbar controls (HA-004)", () => {
+    const longTitle =
+      "A Very Long Book Title That Would Otherwise Push Every Toolbar Control Off-screen Or Onto A Second Line";
+    render(
+      <ReaderShell
+        title={longTitle}
+        onBack={vi.fn()}
+        status="Ready"
+        toolbarExtra={
+          <>
+            <button type="button">Contents</button>
+            <button type="button">Aa</button>
+            <button type="button" aria-label="Toggle page-turn sound">
+              Sound: On
+            </button>
+            <button type="button">Notebook</button>
+          </>
+        }
+      >
+        <p>content</p>
+      </ReaderShell>,
+    );
+
+    const titleEl = screen.getByText(longTitle);
+    expect(titleEl).toHaveClass("reader-title");
+    expect(titleEl).toHaveAttribute("title", longTitle);
+    // Every entry point must stay reachable regardless of title length --
+    // the title truncates via CSS ellipsis, never these controls.
+    expect(screen.getByRole("button", { name: "Back to Library" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Contents" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aa" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle page-turn sound" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Notebook" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Focus" })).toBeInTheDocument();
+  });
+
   it("hides the overlay (e.g. an open Typography panel) while in Focus mode", async () => {
     const user = userEvent.setup();
     render(

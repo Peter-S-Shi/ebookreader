@@ -60,8 +60,16 @@ nav[aria-label="Main"] button[aria-current="page"] {
   font-weight: 600;
 }
 
+/* HA-001: two Library lists had no `list-style: none` rule at all --
+   `.collection-filter-list` (a "Collections" filter row that renders
+   unconditionally, in every Library state, which is why the stray
+   bullet marker was reported regardless of whether the Library held any
+   Books) had a class name with no matching CSS rule; the Library's own
+   book list didn't even have a class. Both showed a bare bullet marker
+   to the left of the Library. */
 .search-results,
-.global-notes-list {
+.global-notes-list,
+.library-book-list {
   list-style: none;
   margin: 0.5em auto 0;
   padding: 0;
@@ -69,8 +77,30 @@ nav[aria-label="Main"] button[aria-current="page"] {
   text-align: left;
 }
 
+.collection-filter-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin: 0.5em 0;
+  padding: 0;
+}
+
+.collection-filter-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.collection-filter-list button[aria-current="true"] {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
 .search-results li,
-.global-notes-list li {
+.global-notes-list li,
+.library-book-list li {
   padding: 0.5em 0;
   border-bottom: 1px solid rgba(127, 127, 127, 0.2);
 }
@@ -134,14 +164,47 @@ button {
   height: 100vh;
 }
 
+/* HA-004: a long Book title must not push toolbar controls out of view
+   or off-screen. The toolbar stays a single row (no wrap, so its height
+   -- and therefore overlay panels' fixed offset below it, HA-003 -- stays
+   predictable); the title is the one flexible/shrinkable item and
+   truncates with an ellipsis (its own `title` attribute carries the full
+   text as a tooltip), while `.reader-back`/`.reader-toolbar-controls`/
+   `.focus-toggle` never shrink, so every entry point (Focus/Contents/Aa/
+   Notebook) stays reachable regardless of title length. */
 .reader-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 0.75em;
   padding: 0.5em 1em;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
   flex-shrink: 0;
   transition: opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.reader-back {
+  flex-shrink: 0;
+}
+
+.reader-title {
+  flex: 1 1 auto;
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  flex-shrink: 0;
+}
+
+.reader-status {
+  opacity: 0.7;
+  font-size: 0.9em;
 }
 
 .reader-surface {
@@ -480,22 +543,49 @@ button {
   }
 }
 
-/* Typography panel (DESIGN.md SS8 "Aa"): a small overlay panel anchored
-   under the reader toolbar. */
+/* HA-003: zero-height positioning context sitting exactly at the
+   toolbar's own rendered bottom edge (see ReaderShell.tsx) -- overlay
+   panels anchor `top` to this, not to `.reader`, so they never depend on
+   guessing the toolbar's height. */
+.reader-overlay-anchor {
+  position: relative;
+  height: 0;
+}
+
+/* Typography panel (DESIGN.md SS8 "Aa"): `TypographyPanel` is one shared
+   component used in two different hosting contexts (`showHeader` picks
+   between them) -- a small overlay anchored under the Reader toolbar,
+   and an inline section embedded directly in Settings' own document flow
+   (`DESIGN.md` "Global defaults live in Settings -> Typography. Per-Book
+   overrides live in Reader `Aa`"). The base rule below is the Settings
+   composition: normal flow, so it never covers the rest of the page
+   (HA-008). `.reader .typography-panel` below overrides it back to a
+   positioned overlay for the Reader-only usage. */
 .typography-panel {
-  position: absolute;
-  top: 3em;
-  right: 1em;
-  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 0.5em;
   padding: 1em;
   border-radius: 8px;
   border: 1px solid rgba(127, 127, 127, 0.3);
+  min-width: 220px;
+}
+
+/* HA-006: the Reader overlay must stay compact -- unlike Settings'
+   inline section, it floats over the Reading Surface, so an oversized
+   panel obscures the very content it's adjusting. Capped width/height
+   with its own scroll (matching `.toc-panel`'s existing pattern) instead
+   of letting every control's natural height stack unbounded. */
+.reader .typography-panel {
+  position: absolute;
+  top: 0.5em;
+  right: 1em;
+  z-index: 10;
+  max-width: 260px;
+  max-height: 70vh;
+  overflow: auto;
   background-color: #f6f6f6;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 220px;
 }
 
 .typography-panel-header {
@@ -517,7 +607,7 @@ button {
    toolbar on the opposite side from Typography. */
 .toc-panel {
   position: absolute;
-  top: 3em;
+  top: 0.5em;
   left: 1em;
   z-index: 10;
   max-height: 70vh;
@@ -531,10 +621,14 @@ button {
   text-align: left;
 }
 
+/* HA-003: explicit gap (not just `space-between`, which collapses to no
+   visible separation if a parent ever constrains this row to content
+   width) keeps the title and Close control from visually touching. */
 .toc-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1em;
   font-weight: 500;
   margin-bottom: 0.5em;
 }
@@ -587,7 +681,7 @@ button {
    the current single-overlay-slot chrome). */
 .notebook-panel {
   position: absolute;
-  top: 3em;
+  top: 0.5em;
   right: 1em;
   z-index: 10;
   display: flex;
@@ -1060,4 +1154,72 @@ button {
   flex-direction: column;
   gap: 8px;
   min-width: 180px;
+}
+
+/* HA-005 (FC-C05 canonical Settings surface): previously `.settings-panel`
+   had no rules at all, so every section rendered as bare native form
+   controls -- a long row of unrelated checkboxes with no grouping, no
+   spacing hierarchy, no visual separation between sections. Reuses the
+   same restrained card language `.detail-card` already established
+   (border/radius/padding) rather than inventing a second visual system.
+   Scoped with direct-child combinators (`> section >`, `> fieldset >`) so
+   these compact rules never bleed into `TypographyPanel`'s own internal
+   layout (HA-006) when it's embedded here -- that component keeps its
+   own `.typography-panel label` styling regardless of host. */
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.settings-panel > section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #8883;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.settings-panel > section > h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.settings-panel > section > fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.settings-panel > section > fieldset > legend {
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.settings-panel > section > label,
+.settings-panel > section > fieldset > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95em;
+}
+
+.settings-panel > section > label > input[type="color"] {
+  width: 2.4em;
+  height: 1.6em;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.settings-panel > section > p {
+  margin: 0;
+  font-size: 0.9em;
 }

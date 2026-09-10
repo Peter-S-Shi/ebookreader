@@ -60,6 +60,7 @@ interface FoliateView extends HTMLElement {
   // catches internally and resolves to `undefined` -- so a resolved
   // (non-undefined) return is the only failure signal available.
   goTo(target: string): Promise<unknown>;
+  goToTextStart(): Promise<unknown>;
   getCFI(index: number, range: Range): string;
   lastLocation?: { cfi?: string; fraction?: number };
   isFixedLayout?: boolean;
@@ -68,6 +69,19 @@ interface FoliateView extends HTMLElement {
 }
 
 type OpenPanel = "typography" | "toc" | "notebook" | null;
+
+// HA-007: the app's currently-effective Dark theme (`Settings.tsx`
+// Appearance applies an explicit choice as `data-theme` on <html>;
+// "Match System" leaves it unset and falls through to the OS
+// `prefers-color-scheme`), computed the same way `App.css`'s own CSS
+// cascade already does -- but in JS, since this needs to reach
+// `toEpubCss`, not just a stylesheet.
+function isDarkModeActive(): boolean {
+  const theme = document.documentElement.dataset.theme;
+  if (theme === "dark") return true;
+  if (theme === "light") return false;
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
 
 interface ActiveSelection {
   doc: Document;
@@ -136,7 +150,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       setIsFixedLayout(Boolean(view.isFixedLayout));
       setToc(view.book?.toc ?? []);
       if (!view.isFixedLayout) {
-        view.renderer?.setStyles(toEpubCss(initialTypography));
+        view.renderer?.setStyles(toEpubCss(initialTypography, isDarkModeActive()));
         if (view.renderer) applyViewMode(view.renderer, viewMode);
       }
 
@@ -150,8 +164,17 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         if (!cancelled) setJumpFailed(resolved === undefined);
       } else {
         const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
-        if (!cancelled && saved?.primary_anchor) {
+        if (cancelled) return;
+        if (saved?.primary_anchor) {
           await view.goTo(saved.primary_anchor).catch(() => {});
+        } else {
+          // HA-002: `view.open()` only sets up foliate-js's renderer -- it
+          // never renders any section by itself. A fresh Book has no saved
+          // location yet, so without an explicit navigation call the
+          // reading surface stays blank even though the TOC is already
+          // populated. Show the Book's real text start (its own bodymatter
+          // landmark, falling back to the first linear section).
+          await view.goToTextStart().catch(() => {});
         }
       }
 
@@ -241,9 +264,25 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     };
   }, [bookId, title]);
 
+  // HA-007: "Match System" theme mode means Dark can turn on/off while
+  // the Reader is already open, if the OS preference itself changes --
+  // re-apply the EPUB's color override live, same as the app shell's own
+  // `@media (prefers-color-scheme: dark)` CSS already does automatically.
+  useEffect(() => {
+    if (isFixedLayout) return;
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const handler = () => {
+      if (document.documentElement.dataset.theme) return; // an explicit choice overrides the OS signal
+      viewRef.current?.renderer?.setStyles(toEpubCss(typography, isDarkModeActive()));
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [typography, isFixedLayout]);
+
   function handleTypographyChange(next: TypographySettings) {
     setTypography(next);
-    viewRef.current?.renderer?.setStyles(toEpubCss(next));
+    viewRef.current?.renderer?.setStyles(toEpubCss(next, isDarkModeActive()));
     savePerBookTypography(bookId, next).catch(() => {});
   }
 

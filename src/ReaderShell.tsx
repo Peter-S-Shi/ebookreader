@@ -23,12 +23,16 @@ export function ReaderShell({ title, onBack, status, toolbarExtra, overlay, chil
       <div className="reader-toolbar">
         {!focusMode && (
           <>
-            <button type="button" onClick={onBack}>
+            <button type="button" className="reader-back" onClick={onBack}>
               Back to Library
             </button>
-            <span>{title}</span>
-            {toolbarExtra}
-            {status && <span>{status}</span>}
+            <span className="reader-title" title={title}>
+              {title}
+            </span>
+            <span className="reader-toolbar-controls">
+              {toolbarExtra}
+              {status && <span className="reader-status">{status}</span>}
+            </span>
           </>
         )}
         <button
@@ -40,7 +44,15 @@ export function ReaderShell({ title, onBack, status, toolbarExtra, overlay, chil
           {focusMode ? "Exit Focus" : "Focus"}
         </button>
       </div>
-      {!focusMode && overlay}
+      {/* HA-003: anchor overlay panels to the toolbar's own actual
+          rendered bottom edge, not a guessed fixed `top` offset -- a
+          fixed em value can under-clear the toolbar (e.g. a wrapped or
+          taller-than-assumed row), letting a panel's header visually
+          collide with the toolbar's own controls. This wrapper sits in
+          normal flow right after the toolbar (zero height, so it doesn't
+          add visible space) and panels position `absolute` relative to
+          it instead of `.reader`. */}
+      {!focusMode && <div className="reader-overlay-anchor">{overlay}</div>}
       {children}
     </div>
   );

@@ -768,7 +768,7 @@ function App() {
             return visibleBooks.length === 0 ? (
               <p>No Books in this Collection.</p>
             ) : (
-              <ul>
+              <ul className="library-book-list">
                 {visibleBooks.map((book) => {
                   const canOpen = book.available && READABLE_FORMATS.has(book.format);
                   return (

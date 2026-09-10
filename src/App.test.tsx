@@ -148,6 +148,17 @@ describe("Library", () => {
     expect(await screen.findByText("Alice's Adventures in Wonderland")).toBeInTheDocument();
   });
 
+  it("renders the book list without a bare bullet marker (HA-001)", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "abc", title: "Alice's Adventures in Wonderland", path: "C:/books/alice.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+    render(<App />);
+    await screen.findByText("Alice's Adventures in Wonderland");
+
+    const list = screen.getByText("Alice's Adventures in Wonderland").closest("ul");
+    expect(list).toHaveClass("library-book-list");
+  });
+
   it("imports a book via the native file picker and refreshes the list", async () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([]); // initial list on mount

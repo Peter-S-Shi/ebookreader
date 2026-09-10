@@ -99,12 +99,30 @@ function familyStack(settings: TypographySettings): string | null {
   return families.length > 0 ? families.map(quoteCss).join(", ") : null;
 }
 
+// HA-007: foliate-js renders each EPUB section into its own isolated
+// document (an iframe under the view's shadow root), so the app shell's
+// `data-theme`/`prefers-color-scheme` CSS cascade never reaches it -- a
+// Book's own light-on-white (or unset) styling stays exactly as
+// published regardless of the app's Dark theme, which can make text
+// unreadable against whatever background that section renders (or the
+// UA-default white page showing through a dark app chrome). These are
+// the exact values `App.css` already uses for the app shell's own Dark
+// theme, kept in sync so the reading surface and the chrome around it
+// agree. This overrides color only, never font-family -- Publisher
+// typography (SS7.4/ARCHITECTURE.md SS14) is a font-provenance choice,
+// unrelated to the orthogonal need for the text to stay legible.
+const DARK_MODE_FOREGROUND = "#f6f6f6";
+const DARK_MODE_BACKGROUND = "#1a1a1a";
+
 /// Build the CSS foliate-js's `renderer.setStyles()` expects for a
 /// reflowable EPUB: a `body` rule reflecting the current settings. When
 /// the primary font is Publisher / Original, no primary font-family rule is
 /// emitted at all, so the publication's own embedded/original styling
 /// wins (ARCHITECTURE.md SS14 PUBLISHER: "use within the publication").
-export function toEpubCss(settings: TypographySettings): string {
+/// `darkMode` (the app's own currently-effective Dark theme, computed by
+/// the caller) forces a readable foreground/background on the rendered
+/// section regardless of font source -- see HA-007 above.
+export function toEpubCss(settings: TypographySettings, darkMode = false): string {
   const rules: string[] = [
     `font-size: ${settings.fontSizePercent}%`,
     `line-height: ${settings.lineHeight}`,
@@ -114,12 +132,24 @@ export function toEpubCss(settings: TypographySettings): string {
     `padding-left: ${settings.marginPercent}%`,
     `padding-right: ${settings.marginPercent}%`,
   ];
+  if (darkMode) {
+    rules.push("color-scheme: dark");
+  }
   const stack = familyStack(settings);
   if (stack) {
     rules.push(`font-family: ${stack}`);
   }
   const faces = [fontFace(settings.font), settings.cjkFont ? fontFace(settings.cjkFont) : null].filter(Boolean);
-  return [...faces, `body { ${rules.join("; ")}; }`].join("\n");
+  const bodyRule = `body { ${rules.join("; ")}; }`;
+  // `!important` because a Book's own embedded stylesheet frequently sets
+  // `color`/`background-color` on `body` (or `html`) with higher
+  // specificity than this single element selector -- without it, dark
+  // mode legibility would depend on the publication's CSS never doing
+  // so, which is exactly the failure HA-007 reports.
+  const colorOverride = darkMode
+    ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }`
+    : "";
+  return [...faces, bodyRule, colorOverride].filter(Boolean).join("\n");
 }
 
 export function toTextStyle(settings: TypographySettings): Record<string, string | number | undefined> {

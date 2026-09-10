@@ -54,6 +54,32 @@ describe("toEpubCss", () => {
     expect(css).toContain('@font-face { font-family: "My Reader Font"; src: url("C:/fonts/my-reader-font.otf"); }');
     expect(css).toContain('font-family: "My Reader Font"');
   });
+
+  describe("dark mode color override (HA-007)", () => {
+    it("emits no color override by default (darkMode omitted or false)", () => {
+      expect(toEpubCss(DEFAULT_TYPOGRAPHY)).not.toContain("color");
+      expect(toEpubCss(DEFAULT_TYPOGRAPHY, false)).not.toContain("color");
+    });
+
+    it("forces a readable foreground/background when darkMode is true, matching App.css's own Dark theme colors", () => {
+      const css = toEpubCss(DEFAULT_TYPOGRAPHY, true);
+      expect(css).toContain("color: #f6f6f6 !important");
+      expect(css).toContain("background-color: #1a1a1a !important");
+      expect(css).toContain("color-scheme: dark");
+    });
+
+    it("overrides color with Publisher / Original font untouched -- no font-family rule is added", () => {
+      const css = toEpubCss(DEFAULT_TYPOGRAPHY, true);
+      expect(css).not.toContain("font-family");
+      expect(css).toContain("color: #f6f6f6 !important");
+    });
+
+    it("overrides color alongside a chosen font, not instead of it", () => {
+      const css = toEpubCss({ ...DEFAULT_TYPOGRAPHY, font: { source: "SYSTEM", family: "Georgia" } }, true);
+      expect(css).toContain('font-family: "Georgia"');
+      expect(css).toContain("color: #f6f6f6 !important");
+    });
+  });
 });
 
 describe("typography persistence", () => {
