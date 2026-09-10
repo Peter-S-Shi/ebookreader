@@ -57,8 +57,8 @@ describe("toEpubCss", () => {
 
   describe("dark mode color override (HA-007)", () => {
     it("emits no color override by default (darkMode omitted or false)", () => {
-      expect(toEpubCss(DEFAULT_TYPOGRAPHY)).not.toContain("color");
-      expect(toEpubCss(DEFAULT_TYPOGRAPHY, false)).not.toContain("color");
+      expect(toEpubCss(DEFAULT_TYPOGRAPHY)).not.toContain("color: #f6f6f6");
+      expect(toEpubCss(DEFAULT_TYPOGRAPHY, false)).not.toContain("color: #f6f6f6");
     });
 
     it("forces a readable foreground/background when darkMode is true, matching App.css's own Dark theme colors", () => {
@@ -93,6 +93,22 @@ describe("toEpubCss", () => {
       const css = toEpubCss(DEFAULT_TYPOGRAPHY, true);
       const descendantColorRule = /(?:html|body)\s*\*[^{]*\{[^}]*color:\s*#f6f6f6\s*!important/;
       expect(css).toMatch(descendantColorRule);
+    });
+
+    it("includes highlight color preset CSS rules for reader-highlight elements in EPUB documents", () => {
+      const lightCss = toEpubCss(DEFAULT_TYPOGRAPHY, false);
+      expect(lightCss).toContain(".reader-highlight");
+      expect(lightCss).toContain('data-color="green"');
+      expect(lightCss).toContain('data-color="blue"');
+      expect(lightCss).toContain('data-color="purple"');
+      expect(lightCss).toContain('data-color="orange"');
+
+      const darkCss = toEpubCss(DEFAULT_TYPOGRAPHY, true);
+      expect(darkCss).toContain(".reader-highlight");
+      expect(darkCss).toContain('data-color="green"');
+      expect(darkCss).toContain('data-color="blue"');
+      expect(darkCss).toContain('data-color="purple"');
+      expect(darkCss).toContain('data-color="orange"');
     });
   });
 });

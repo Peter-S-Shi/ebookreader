@@ -430,7 +430,13 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         mark.dataset.color = color;
         active.range.surroundContents(mark);
       } catch {
-        // Fallback for complex ranges across nodes
+        const containerNode = active.range.startContainer.nodeType === 1
+          ? (active.range.startContainer as HTMLElement)
+          : active.range.startContainer.parentElement;
+        const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+        if (existingMark) {
+          existingMark.dataset.color = color;
+        }
       }
     }
 

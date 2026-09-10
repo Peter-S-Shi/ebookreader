@@ -216,7 +216,14 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
           range.surroundContents(mark);
         }
       } catch {
-        // fallback
+        const sel = document.getSelection();
+        const containerNode = sel?.anchorNode?.nodeType === 1
+          ? (sel.anchorNode as HTMLElement)
+          : sel?.anchorNode?.parentElement;
+        const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+        if (existingMark) {
+          existingMark.dataset.color = color;
+        }
       }
     }
     const anchor: DocumentLocationDTO = {

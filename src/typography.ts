@@ -158,11 +158,22 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
   // every descendant, so a publisher's own deliberate highlight/callout
   // background is preserved -- only legibility (foreground) is forced,
   // matching "must not fix color by breaking Publisher typography".
+  const highlightCss = darkMode
+    ? `\nmark.reader-highlight, .reader-highlight { background-color: rgba(255, 215, 0, 0.45) !important; color: #ffffff !important; box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.5) !important; border-radius: 2px; padding: 1px 2px; }` +
+      `\nmark.reader-highlight[data-color="green"], .reader-highlight[data-color="green"] { background-color: rgba(76, 217, 100, 0.45) !important; color: #ffffff !important; box-shadow: 0 0 0 1px rgba(76, 217, 100, 0.5) !important; }` +
+      `\nmark.reader-highlight[data-color="blue"], .reader-highlight[data-color="blue"] { background-color: rgba(64, 169, 255, 0.45) !important; color: #ffffff !important; box-shadow: 0 0 0 1px rgba(64, 169, 255, 0.5) !important; }` +
+      `\nmark.reader-highlight[data-color="purple"], .reader-highlight[data-color="purple"] { background-color: rgba(186, 104, 200, 0.45) !important; color: #ffffff !important; box-shadow: 0 0 0 1px rgba(186, 104, 200, 0.5) !important; }` +
+      `\nmark.reader-highlight[data-color="orange"], .reader-highlight[data-color="orange"] { background-color: rgba(255, 152, 0, 0.45) !important; color: #ffffff !important; box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.5) !important; }`
+    : `\nmark.reader-highlight, .reader-highlight { background-color: rgba(255, 215, 0, 0.42) !important; box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.3) !important; border-radius: 2px; padding: 1px 2px; }` +
+      `\nmark.reader-highlight[data-color="green"], .reader-highlight[data-color="green"] { background-color: rgba(76, 175, 80, 0.42) !important; box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.3) !important; }` +
+      `\nmark.reader-highlight[data-color="blue"], .reader-highlight[data-color="blue"] { background-color: rgba(33, 150, 243, 0.42) !important; box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.3) !important; }` +
+      `\nmark.reader-highlight[data-color="purple"], .reader-highlight[data-color="purple"] { background-color: rgba(156, 39, 176, 0.42) !important; box-shadow: 0 0 0 1px rgba(156, 39, 176, 0.3) !important; }` +
+      `\nmark.reader-highlight[data-color="orange"], .reader-highlight[data-color="orange"] { background-color: rgba(255, 152, 0, 0.42) !important; box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.3) !important; }`;
   const colorOverride = darkMode
     ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }` +
       `\nhtml *, body * { color: ${DARK_MODE_FOREGROUND} !important; }`
     : "";
-  return [...faces, bodyRule, colorOverride].filter(Boolean).join("\n");
+  return [...faces, bodyRule, colorOverride, highlightCss].filter(Boolean).join("\n");
 }
 
 export function toTextStyle(settings: TypographySettings): Record<string, string | number | undefined> {

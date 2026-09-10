@@ -170,7 +170,7 @@ describe("Reader — Dark theme propagation into the rendered EPUB (HA-007)", ()
 
     await waitFor(() => expect(fakeView.renderer.setStyles).toHaveBeenCalled());
     const css = fakeView.renderer.setStyles.mock.calls[0][0] as string;
-    expect(css).not.toContain("color:");
+    expect(css).not.toContain("color: #f6f6f6 !important");
   });
 });
 

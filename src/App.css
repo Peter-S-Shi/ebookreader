@@ -2774,100 +2774,108 @@ a:hover {
   outline-offset: 1px;
 }
 
-.highlight-swatch--yellow { background-color: #ffd54f; }
-.highlight-swatch--green { background-color: #81c784; }
-.highlight-swatch--blue { background-color: #64b5f6; }
-.highlight-swatch--purple { background-color: #ba68c8; }
-.highlight-swatch--orange { background-color: #ffb74d; }
+button.highlight-swatch--yellow, .highlight-swatch--yellow { background-color: #ffd54f !important; }
+button.highlight-swatch--green, .highlight-swatch--green { background-color: #81c784 !important; }
+button.highlight-swatch--blue, .highlight-swatch--blue { background-color: #64b5f6 !important; }
+button.highlight-swatch--purple, .highlight-swatch--purple { background-color: #ba68c8 !important; }
+button.highlight-swatch--orange, .highlight-swatch--orange { background-color: #ffb74d !important; }
 
 /* B8 Canonical Theme-Aware Persistent Highlight Contrast & Color Variants */
 mark.reader-highlight,
 .reader-highlight {
-  background-color: rgba(255, 215, 0, 0.38) !important;
+  background-color: rgba(255, 215, 0, 0.42) !important;
   color: inherit !important;
   border-radius: 2px;
   padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.25);
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.3) !important;
   transition: background-color 0.18s ease;
 }
 
 mark.reader-highlight[data-color="green"],
 .reader-highlight[data-color="green"] {
-  background-color: rgba(76, 175, 80, 0.38) !important;
-  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.25) !important;
+  background-color: rgba(76, 175, 80, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.3) !important;
 }
 
 mark.reader-highlight[data-color="blue"],
 .reader-highlight[data-color="blue"] {
-  background-color: rgba(33, 150, 243, 0.38) !important;
-  box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.25) !important;
+  background-color: rgba(33, 150, 243, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.3) !important;
 }
 
 mark.reader-highlight[data-color="purple"],
 .reader-highlight[data-color="purple"] {
-  background-color: rgba(156, 39, 176, 0.38) !important;
-  box-shadow: 0 0 0 1px rgba(156, 39, 176, 0.25) !important;
+  background-color: rgba(156, 39, 176, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(156, 39, 176, 0.3) !important;
 }
 
 mark.reader-highlight[data-color="orange"],
 .reader-highlight[data-color="orange"] {
-  background-color: rgba(255, 152, 0, 0.38) !important;
-  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.25) !important;
+  background-color: rgba(255, 152, 0, 0.42) !important;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.3) !important;
 }
 
 [data-theme="dark"] mark.reader-highlight,
 [data-theme="dark"] .reader-highlight {
-  background-color: rgba(234, 179, 8, 0.35) !important;
-  color: inherit !important;
-  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+  background-color: rgba(255, 215, 0, 0.45) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.5) !important;
 }
 
 [data-theme="dark"] mark.reader-highlight[data-color="green"],
 [data-theme="dark"] .reader-highlight[data-color="green"] {
-  background-color: rgba(76, 175, 80, 0.35) !important;
+  background-color: rgba(76, 217, 100, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(76, 217, 100, 0.5) !important;
 }
 
 [data-theme="dark"] mark.reader-highlight[data-color="blue"],
 [data-theme="dark"] .reader-highlight[data-color="blue"] {
-  background-color: rgba(33, 150, 243, 0.35) !important;
+  background-color: rgba(64, 169, 255, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(64, 169, 255, 0.5) !important;
 }
 
 [data-theme="dark"] mark.reader-highlight[data-color="purple"],
 [data-theme="dark"] .reader-highlight[data-color="purple"] {
-  background-color: rgba(156, 39, 176, 0.35) !important;
+  background-color: rgba(186, 104, 200, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(186, 104, 200, 0.5) !important;
 }
 
 [data-theme="dark"] mark.reader-highlight[data-color="orange"],
 [data-theme="dark"] .reader-highlight[data-color="orange"] {
-  background-color: rgba(255, 152, 0, 0.35) !important;
+  background-color: rgba(255, 152, 0, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.5) !important;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) mark.reader-highlight,
   :root:not([data-theme="light"]) .reader-highlight {
-    background-color: rgba(234, 179, 8, 0.35) !important;
-    color: inherit !important;
-    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.3);
+    background-color: rgba(255, 215, 0, 0.45) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.5) !important;
   }
 
   :root:not([data-theme="light"]) mark.reader-highlight[data-color="green"],
   :root:not([data-theme="light"]) .reader-highlight[data-color="green"] {
-    background-color: rgba(76, 175, 80, 0.35) !important;
+    background-color: rgba(76, 217, 100, 0.45) !important;
+    box-shadow: 0 0 0 1px rgba(76, 217, 100, 0.5) !important;
   }
 
   :root:not([data-theme="light"]) mark.reader-highlight[data-color="blue"],
   :root:not([data-theme="light"]) .reader-highlight[data-color="blue"] {
-    background-color: rgba(33, 150, 243, 0.35) !important;
+    background-color: rgba(64, 169, 255, 0.45) !important;
+    box-shadow: 0 0 0 1px rgba(64, 169, 255, 0.5) !important;
   }
 
   :root:not([data-theme="light"]) mark.reader-highlight[data-color="purple"],
   :root:not([data-theme="light"]) .reader-highlight[data-color="purple"] {
-    background-color: rgba(156, 39, 176, 0.35) !important;
+    background-color: rgba(186, 104, 200, 0.45) !important;
+    box-shadow: 0 0 0 1px rgba(186, 104, 200, 0.5) !important;
   }
 
   :root:not([data-theme="light"]) mark.reader-highlight[data-color="orange"],
   :root:not([data-theme="light"]) .reader-highlight[data-color="orange"] {
-    background-color: rgba(255, 152, 0, 0.35) !important;
+    background-color: rgba(255, 152, 0, 0.45) !important;
+    box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.5) !important;
   }
 }
 
