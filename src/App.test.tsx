@@ -25,23 +25,24 @@ const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheck
     "remove_tag_from_book_command",
     "list_tags_for_book_command",
   ]),
-  // FC-C08: App also reads this one setting on every mount to decide
-  // whether to run the startup Update Awareness check. Routed separately
-  // (keyed on the `get_setting_command` call's specific `key` argument,
-  // not the whole command, since Settings-destination tests already
-  // exercise `get_setting_command` for other keys through invokeMock)
-  // and defaulted to "false" in beforeEach so pre-existing tests never
-  // trigger a real `fetch` via `checkForUpdate`.
+  // FC-C08 / FC-A09: App also reads these settings on every mount
+  // (whether to run the startup Update Awareness check; the Reduced
+  // Motion preference). Routed separately (keyed on the
+  // `get_setting_command` call's specific `key` argument, not the whole
+  // command, since Settings-destination tests already exercise
+  // `get_setting_command` for other keys through invokeMock) and
+  // defaulted in beforeEach so pre-existing tests never trigger a real
+  // `fetch` via `checkForUpdate` and never see an extra queue-shifting
+  // call for a setting they don't know about.
   updateCheckPrefMock: vi.fn(),
 }));
+
+const MOUNT_TIME_SETTING_KEYS = new Set(["update_awareness.check_on_startup", "motion.reduced"]);
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: [string, ...unknown[]]) => {
     const [cmd, callArgs] = args;
-    if (
-      cmd === "get_setting_command" &&
-      (callArgs as { key?: string } | undefined)?.key === "update_awareness.check_on_startup"
-    ) {
+    if (cmd === "get_setting_command" && MOUNT_TIME_SETTING_KEYS.has((callArgs as { key?: string } | undefined)?.key ?? "")) {
       return updateCheckPrefMock(...args);
     }
     return (COLLECTIONS_COMMANDS.has(cmd) ? collectionsMock : invokeMock)(...args);
@@ -110,6 +111,7 @@ beforeEach(() => {
     }
   });
   updateCheckPrefMock.mockResolvedValue("false");
+  delete document.documentElement.dataset.motion;
 });
 
 describe("App shell", () => {
@@ -337,6 +339,21 @@ describe("Library", () => {
       expect(invokeMock).not.toHaveBeenCalledWith("relink_book_command", expect.anything());
       expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
     });
+  });
+});
+
+describe("Reduced Motion reachability (DESIGN.md SS17; FC-A09)", () => {
+  it("applies a persisted Reduced Motion preference to the document on mount, without visiting Settings", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "motion.reduced") return "true";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(document.documentElement.dataset.motion).toBe("reduced"));
   });
 });
 

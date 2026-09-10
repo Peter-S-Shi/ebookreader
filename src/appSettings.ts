@@ -17,6 +17,10 @@ export const TRACK_ACTUAL_READING_TIME_KEY = "actual_reading_time.track_enabled"
 export const PAUSE_ON_BACKGROUND_KEY = "actual_reading_time.pause_on_background";
 export const AUTO_PAUSE_AFTER_INACTIVITY_KEY = "actual_reading_time.auto_pause_after_inactivity";
 export const COUNT_NOTE_TAKING_KEY = "actual_reading_time.count_note_taking";
+// FC-A09: DESIGN.md SS15/SS17/SS18 "Sound & Motion": Page Turn Sound
+// On/Off, Standard / Reduced Motion.
+export const SOUND_PAGE_TURN_ENABLED_KEY = "sound.page_turn_enabled";
+export const REDUCED_MOTION_KEY = "motion.reduced";
 export const TYPOGRAPHY_GLOBAL_KEY = "typography.global_default";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -31,6 +35,12 @@ export const DEFAULT_TRACK_ACTUAL_READING_TIME = true;
 export const DEFAULT_PAUSE_ON_BACKGROUND = true;
 export const DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY = true;
 export const DEFAULT_COUNT_NOTE_TAKING = true;
+export const DEFAULT_SOUND_PAGE_TURN_ENABLED = true;
+// DESIGN.md SS17 "Honor OS reduced-motion preference and product Reduced
+// setting" -- the OS preference already covers most reduced-motion
+// needs, so the app-level setting defaults to Standard (off) rather than
+// forcing Reduced everywhere.
+export const DEFAULT_REDUCED_MOTION = false;
 
 export async function getSetting(key: string): Promise<string | null> {
   return await invoke<string | null>("get_setting_command", { key });
@@ -109,4 +119,26 @@ export async function loadPerBookTypography(bookId: string): Promise<TypographyS
 
 export async function savePerBookTypography(bookId: string, settings: TypographySettings): Promise<void> {
   await setSetting(typographyBookKey(bookId), serializeTypographySettings(settings));
+}
+
+/// FC-A09 (`DESIGN.md` SS17 "Honor OS reduced-motion preference and
+/// product Reduced setting"; `MANUAL_QA.md` QA-UI-04 "must not ...
+/// override system reduced-motion preference"): this only ever adds an
+/// additional way to *request* reduced motion -- it can never force
+/// motion back on when the OS itself prefers reduced motion. CSS
+/// combines this attribute with `@media (prefers-reduced-motion)` via
+/// `AND`, never `OR` in the "allow motion" direction.
+export function applyMotionPreference(reduced: boolean) {
+  const root = document.documentElement;
+  if (reduced) {
+    root.dataset.motion = "reduced";
+  } else {
+    delete root.dataset.motion;
+  }
+}
+
+export async function loadAndApplyMotionPreference(): Promise<boolean> {
+  const reduced = await loadBooleanSetting(REDUCED_MOTION_KEY, DEFAULT_REDUCED_MOTION);
+  applyMotionPreference(reduced);
+  return reduced;
 }

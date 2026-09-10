@@ -448,6 +448,16 @@ button {
   }
 }
 
+/* FC-A09: the app-level "Reduced Motion" setting (`[[appSettings]]`
+   applyMotionPreference) is an additional way to request reduced motion
+   -- it can never force motion back on over the OS's own
+   prefers-reduced-motion (MANUAL_QA.md QA-UI-04), so this only ever
+   disables further transitions, never re-enables one the OS query above
+   already turned off. */
+:root[data-motion="reduced"] .reader-toolbar {
+  transition: none;
+}
+
 /* Motion (DESIGN.md SS17): panels use "Reveal -> Unfold/Glide" -- a brief
    fade + slight rise on mount, honoring prefers-reduced-motion (SS17
    "Reduced Motion: honor OS reduced-motion preference"). */
@@ -463,9 +473,9 @@ button {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .typography-panel,
-  .toc-panel,
-  .notebook-panel {
+  :root:not([data-motion="reduced"]) .typography-panel,
+  :root:not([data-motion="reduced"]) .toc-panel,
+  :root:not([data-motion="reduced"]) .notebook-panel {
     animation: panel-reveal 0.18s ease-out;
   }
 }

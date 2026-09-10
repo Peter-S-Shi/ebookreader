@@ -11,15 +11,21 @@ import {
   DEFAULT_THEME_MODE,
   DEFAULT_TRACK_ACTUAL_READING_TIME,
   DEFAULT_UPDATE_CHECK_ON_STARTUP,
+  applyMotionPreference,
+  DEFAULT_REDUCED_MOTION,
+  DEFAULT_SOUND_PAGE_TURN_ENABLED,
   loadAndApplyAppearance,
+  loadAndApplyMotionPreference,
   loadBooleanSetting,
   loadGlobalTypography,
   loadUpdateCheckOnStartupPreference,
   PAUSE_ON_BACKGROUND_KEY,
+  REDUCED_MOTION_KEY,
   saveBooleanSetting,
   saveGlobalTypography,
   saveUpdateCheckOnStartupPreference,
   setSetting,
+  SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
   TRACK_ACTUAL_READING_TIME_KEY,
   type ThemeMode,
@@ -42,6 +48,8 @@ export function Settings() {
   const [autoPauseAfterInactivity, setAutoPauseAfterInactivity] = useState(DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY);
   const [countNoteTaking, setCountNoteTaking] = useState(DEFAULT_COUNT_NOTE_TAKING);
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
+  const [soundPageTurnEnabled, setSoundPageTurnEnabled] = useState(DEFAULT_SOUND_PAGE_TURN_ENABLED);
+  const [reducedMotion, setReducedMotion] = useState(DEFAULT_REDUCED_MOTION);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -53,17 +61,33 @@ export function Settings() {
       loadBooleanSetting(AUTO_PAUSE_AFTER_INACTIVITY_KEY, DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY),
       loadBooleanSetting(COUNT_NOTE_TAKING_KEY, DEFAULT_COUNT_NOTE_TAKING),
       loadGlobalTypography(),
-    ]).then(([{ themeMode, accentColor }, checkOnStartup, track, pauseBg, autoPause, countNotes, typography]) => {
-      setThemeMode(themeMode);
-      setAccentColor(accentColor);
-      setUpdateCheckOnStartup(checkOnStartup);
-      setTrackActualReadingTime(track);
-      setPauseOnBackground(pauseBg);
-      setAutoPauseAfterInactivity(autoPause);
-      setCountNoteTaking(countNotes);
-      setTypography(typography);
-      setLoaded(true);
-    });
+      loadBooleanSetting(SOUND_PAGE_TURN_ENABLED_KEY, DEFAULT_SOUND_PAGE_TURN_ENABLED),
+      loadAndApplyMotionPreference(),
+    ]).then(
+      ([
+        { themeMode, accentColor },
+        checkOnStartup,
+        track,
+        pauseBg,
+        autoPause,
+        countNotes,
+        typography,
+        soundEnabled,
+        motionReduced,
+      ]) => {
+        setThemeMode(themeMode);
+        setAccentColor(accentColor);
+        setUpdateCheckOnStartup(checkOnStartup);
+        setTrackActualReadingTime(track);
+        setPauseOnBackground(pauseBg);
+        setAutoPauseAfterInactivity(autoPause);
+        setCountNoteTaking(countNotes);
+        setTypography(typography);
+        setSoundPageTurnEnabled(soundEnabled);
+        setReducedMotion(motionReduced);
+        setLoaded(true);
+      },
+    );
   }, []);
 
   async function updateThemeMode(next: ThemeMode) {
@@ -106,6 +130,17 @@ export function Settings() {
   async function updateTypography(next: TypographySettings) {
     setTypography(next);
     await saveGlobalTypography(next);
+  }
+
+  async function updateSoundPageTurnEnabled(next: boolean) {
+    setSoundPageTurnEnabled(next);
+    await saveBooleanSetting(SOUND_PAGE_TURN_ENABLED_KEY, next);
+  }
+
+  async function updateReducedMotion(next: boolean) {
+    setReducedMotion(next);
+    applyMotionPreference(next);
+    await saveBooleanSetting(REDUCED_MOTION_KEY, next);
   }
 
   if (!loaded) return null;
@@ -190,6 +225,28 @@ export function Settings() {
         <div role="group" aria-label="Typography">
           <TypographyPanel settings={typography} onChange={updateTypography} onClose={() => {}} showHeader={false} />
         </div>
+      </section>
+      <section aria-label="Sound & Motion">
+        <h2>Sound &amp; Motion</h2>
+        <label>
+          <input
+            type="checkbox"
+            checked={soundPageTurnEnabled}
+            onChange={(e) => updateSoundPageTurnEnabled(e.target.checked)}
+          />
+          Page Turn Sound
+        </label>
+        <fieldset>
+          <legend>Motion</legend>
+          <label>
+            <input type="radio" name="motion" checked={!reducedMotion} onChange={() => updateReducedMotion(false)} />
+            Standard
+          </label>
+          <label>
+            <input type="radio" name="motion" checked={reducedMotion} onChange={() => updateReducedMotion(true)} />
+            Reduced
+          </label>
+        </fieldset>
       </section>
     </div>
   );

@@ -7,6 +7,8 @@ import {
   AUTO_PAUSE_AFTER_INACTIVITY_KEY,
   COUNT_NOTE_TAKING_KEY,
   PAUSE_ON_BACKGROUND_KEY,
+  REDUCED_MOTION_KEY,
+  SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
   TRACK_ACTUAL_READING_TIME_KEY,
   TYPOGRAPHY_GLOBAL_KEY,
@@ -18,6 +20,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 beforeEach(() => {
   invokeMock.mockReset();
   document.documentElement.removeAttribute("data-theme");
+  delete document.documentElement.dataset.motion;
 });
 
 describe("Settings — Appearance", () => {
@@ -179,6 +182,56 @@ describe("Settings — Typography defaults (PRODUCT_SPEC.md SS7.4; FC-A08)", () 
         key: TYPOGRAPHY_GLOBAL_KEY,
         value: expect.stringContaining('"family":"Georgia"'),
       }),
+    );
+  });
+});
+
+describe("Settings — Sound & Motion (DESIGN.md SS15/SS17/SS18; FC-A09)", () => {
+  it("defaults to Page Turn Sound on and Standard motion when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Page Turn Sound" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Standard" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Reduced" })).not.toBeChecked();
+    expect(document.documentElement.dataset.motion).toBeUndefined();
+  });
+
+  it("loads a persisted Reduced Motion preference and applies it to the document", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === REDUCED_MOTION_KEY) return "true";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Reduced" })).toBeChecked();
+    expect(document.documentElement.dataset.motion).toBe("reduced");
+  });
+
+  it("persists turning off Page Turn Sound", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Page Turn Sound" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: SOUND_PAGE_TURN_ENABLED_KEY, value: "false" }),
+    );
+  });
+
+  it("selecting Reduced persists it and applies it to the document immediately", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    await screen.findByRole("radio", { name: "Standard" });
+
+    await user.click(screen.getByRole("radio", { name: "Reduced" }));
+
+    expect(document.documentElement.dataset.motion).toBe("reduced");
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: REDUCED_MOTION_KEY, value: "true" }),
     );
   });
 });

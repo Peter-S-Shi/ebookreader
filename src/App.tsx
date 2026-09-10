@@ -8,7 +8,7 @@ import { Calendar } from "./Calendar";
 import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
-import { loadUpdateCheckOnStartupPreference } from "./appSettings";
+import { loadAndApplyMotionPreference, loadUpdateCheckOnStartupPreference } from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import "./App.css";
 
@@ -171,6 +171,13 @@ function App() {
     refreshLibrary();
     refreshCollections();
   }, [refreshLibrary, refreshCollections]);
+
+  // FC-A09 (`DESIGN.md` SS17 "Reduced Motion"): applied here, not only
+  // when Settings happens to be visited, so a persisted "Reduced" choice
+  // is actually reachable/effective from the moment the app opens.
+  useEffect(() => {
+    loadAndApplyMotionPreference();
+  }, []);
 
   useEffect(() => {
     loadUpdateCheckOnStartupPreference().then((enabled) => {
