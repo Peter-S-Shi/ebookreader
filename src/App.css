@@ -1283,44 +1283,98 @@ a:hover {
   margin: 0 0 16px;
 }
 
-.book-details-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.book-details-top h1 {
-  flex: 1;
-  font-size: 1.2rem;
-  margin: 0;
-}
-
-.book-details-grid {
-  display: flex;
-  gap: 24px;
-  margin-top: 16px;
-  align-items: flex-start;
-}
-
-.detail-card {
-  border: 1px solid #8883;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-}
-
-.detail-card .stats,
-.detail-card .kv {
+/* Book Details Surface (DESIGN.md SS3, ER-BOOK-001; Prototype v0.5) */
+.detailsGrid {
+  max-width: 1120px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 4px 16px;
+  grid-template-columns: 220px 1fr 240px;
+  gap: 26px;
 }
 
-.book-details-quick-actions {
+.bigCover {
+  width: 190px;
+  aspect-ratio: 3 / 4;
+  border-radius: 18px;
+  background: linear-gradient(155deg, #6f879e, #33495f);
+  color: #fff;
+  padding: 18px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 180px;
+  align-items: flex-end;
+  font: 20px/1.12 Georgia, serif;
+  box-shadow: var(--shadow);
+  word-break: break-word;
+}
+
+.idcol h1 {
+  font-size: 22px;
+  margin: 16px 0 5px;
+}
+
+.detailCard,
+.quickCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+
+.detailCard h3,
+.quickCard h3 {
+  font-size: 13px;
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px;
+}
+
+.stat b {
+  display: block;
+  font-size: 20px;
+  margin-top: 3px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 135px 1fr;
+  gap: 9px 14px;
+  font-size: 13px;
+}
+
+.kv div:nth-child(odd) {
+  color: var(--muted);
+}
+
+.quickCard {
+  height: max-content;
+}
+
+.quickCard button {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.warnBox {
+  font-size: 12px;
+  color: #8e6727;
+  background: rgba(142, 103, 39, 0.07);
+  border: 1px solid rgba(142, 103, 39, 0.25);
+  border-radius: 12px;
+  padding: 11px;
 }
 
 /* HA-005 (FC-C05 canonical Settings surface): previously `.settings-panel`

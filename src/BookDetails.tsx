@@ -81,84 +81,96 @@ export function BookDetails({ book, onClose, onRead }: BookDetailsProps) {
   }, [book.book_id]);
 
   return (
-    <div className="book-details" role="dialog" aria-label="Book Details">
-      <div className="book-details-top">
-        <button type="button" onClick={onClose}>
+    <section className="screen active book-details-screen" id="details" role="dialog" aria-label="Book Details">
+      <div className="top">
+        <button type="button" className="icon" onClick={onClose}>
           ← Back
         </button>
-        <h1>{book.title}</h1>
-        <button type="button" onClick={onRead}>
+        <div className="title">Book Details</div>
+        <div className="grow" />
+        <button type="button" className="primary" onClick={onRead}>
           Read
         </button>
       </div>
 
-      <div className="book-details-grid">
-        <div>
-          <section className="detail-card" aria-label="Reading">
-            <h3>Reading</h3>
-            {progress && (
-              <div className="stats">
-                <div>
-                  <span>Progress</span>
-                  <b>{`${cumulativePercent(progress).toFixed(0)}%`}</b>
-                </div>
-                <div>
-                  <span>Completed reads</span>
-                  <b>{progress.completed_read_count}</b>
-                </div>
-                <div>
-                  <span>Actual time</span>
-                  <b>{actualTime ? formatDuration(actualTime.total) : "0m"}</b>
-                </div>
-              </div>
-            )}
-          </section>
-
-          <section className="detail-card" aria-label="Book Hours">
-            <h3>Book Hours</h3>
-            {bookHours ? (
-              <div className="kv">
-                <div>Base estimate</div>
-                <div>{`${bookHours.base_hours.toFixed(1)}h`}</div>
-                <div>Cumulative progress</div>
-                <div>{`${bookHours.cumulative_reading_percent.toFixed(0)}%`}</div>
-                <div>Current Book Hours</div>
-                <div>{`${bookHours.cumulative_hours.toFixed(1)}h`}</div>
-              </div>
-            ) : (
-              <p>Not configured yet.</p>
-            )}
-          </section>
-
-          <section className="detail-card" aria-label="Library & File">
-            <h3>Library &amp; File</h3>
-            <div className="kv">
-              <div>Ownership</div>
-              <div>{book.ownership_mode === "managed_copy" ? "Managed Copy" : "Reference"}</div>
-              <div>Format</div>
-              <div>{book.format.toUpperCase()}</div>
-              <div>Location</div>
-              <div>{book.path}</div>
-              <div>Status</div>
-              <div>{book.available ? "Available" : "Needs Relink"}</div>
+      <div className="content">
+        <div className="detailsGrid">
+          <div className="idcol">
+            <div className="bigCover">{book.title}</div>
+            <h1>{book.title}</h1>
+            <div className="meta">{book.format.toUpperCase()} Publication</div>
+            <div style={{ marginTop: "11px" }}>
+              <span className="pill">{book.available ? "Text available" : "Needs Relink"}</span>
             </div>
-          </section>
-        </div>
+          </div>
 
-        <aside className="book-details-quick-actions" aria-label="Quick actions">
-          <h3>Quick actions</h3>
-          <button type="button" onClick={onRead}>
-            ▶ Read / Resume
-          </button>
-          <button type="button" onClick={() => setNotebookOpen(true)}>
-            ✎ Open Notebook
-          </button>
-        </aside>
+          <div>
+            <section className="detailCard" aria-label="Reading">
+              <h3>Reading</h3>
+              {progress && (
+                <div className="stats">
+                  <div className="stat">
+                    <span className="meta">Progress</span>
+                    <b>{`${cumulativePercent(progress).toFixed(0)}%`}</b>
+                  </div>
+                  <div className="stat">
+                    <span className="meta">Completed reads</span>
+                    <b>{progress.completed_read_count}</b>
+                  </div>
+                  <div className="stat">
+                    <span className="meta">Actual time</span>
+                    <b>{actualTime ? formatDuration(actualTime.total) : "0m"}</b>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="detailCard" aria-label="Book Hours">
+              <h3>Book Hours</h3>
+              {bookHours ? (
+                <div className="kv">
+                  <div>Base estimate</div>
+                  <div>{`${bookHours.base_hours.toFixed(1)}h`}</div>
+                  <div>Cumulative progress</div>
+                  <div>{`${bookHours.cumulative_reading_percent.toFixed(0)}%`}</div>
+                  <div>Current Book Hours</div>
+                  <div>{`${bookHours.cumulative_hours.toFixed(1)}h`}</div>
+                </div>
+              ) : (
+                <p>Not configured yet.</p>
+              )}
+            </section>
+
+            <section className="detailCard" aria-label="Library & File">
+              <h3>Library &amp; File</h3>
+              <div className="kv">
+                <div>Ownership</div>
+                <div>{book.ownership_mode === "managed_copy" ? "Managed Copy" : "Reference"}</div>
+                <div>Format</div>
+                <div>{book.format.toUpperCase()}</div>
+                <div>Location</div>
+                <div>{book.path}</div>
+                <div>Status</div>
+                <div>{book.available ? "Available" : "Needs Relink"}</div>
+              </div>
+            </section>
+          </div>
+
+          <aside className="quickCard" aria-label="Quick actions">
+            <h3>Quick actions</h3>
+            <button type="button" className="btn" onClick={onRead}>
+              ▶ Read / Resume
+            </button>
+            <button type="button" className="btn" onClick={() => setNotebookOpen(true)}>
+              ✎ Open Notebook
+            </button>
+          </aside>
+        </div>
       </div>
 
       {notebookOpen && (
         <NotebookPanel bookId={book.book_id} bookTitle={book.title} onClose={() => setNotebookOpen(false)} />
       )}
-    </div>
+    </section>
   );
 }
