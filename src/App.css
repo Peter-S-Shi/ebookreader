@@ -19,16 +19,57 @@
    `data-theme` on <html>; "Match System" (the default) leaves it unset and
    falls through to `prefers-color-scheme` below. Semantic success/warning
    /danger/info colors are intentionally not defined here -- FC-C05 requires
-   they stay independent of the user Accent. */
+   they stay independent of the user Accent.
+
+   HA-007 Corrective Batch #2 (real desktop retest): a Vite-template
+   leftover -- an unconditional `@media (prefers-color-scheme: dark) {
+   :root { ... } }` block further down this file -- had equal-or-lower
+   specificity than an explicit Light choice needs to beat, but nothing
+   with higher specificity ever contradicted it for that one case
+   (`:root:not([data-theme="light"])` below explicitly excludes itself
+   from it, and `:root[data-theme="dark"]` only applies when Dark is
+   explicitly chosen). Result: explicit Light on a dark OS still rendered
+   a dark app shell. That leftover block's full content --
+   `a:hover`/`input,button`/`button:active` colors included, not just
+   `:root` itself -- is folded into these two canonical, already-correct
+   rules instead of existing as a third, unguarded competitor. */
 :root[data-theme="dark"] {
   color: #f6f6f6;
   background-color: #1a1a1a;
+}
+
+:root[data-theme="dark"] a:hover {
+  color: #24c8db;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] button {
+  color: #ffffff;
+  background-color: #0f0f0f98;
+}
+
+:root[data-theme="dark"] button:active {
+  background-color: #0f0f0f69;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color: #f6f6f6;
     background-color: #1a1a1a;
+  }
+
+  :root:not([data-theme="light"]) a:hover {
+    color: #24c8db;
+  }
+
+  :root:not([data-theme="light"]) input,
+  :root:not([data-theme="light"]) button {
+    color: #ffffff;
+    background-color: #0f0f0f98;
+  }
+
+  :root:not([data-theme="light"]) button:active {
+    background-color: #0f0f0f69;
   }
 }
 
@@ -588,6 +629,30 @@ button {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* HA-009 (real desktop retest): the `.reader .typography-panel` rule
+   above -- added for HA-008 -- has higher specificity (2 classes) than
+   the pre-existing dark-mode override further down this file (1 class,
+   inside `@media`), so it silently won even in Dark/Match-System-dark
+   Reader mode: the Aa overlay stayed pinned to a light background while
+   its labels inherited the now-correctly-themed (light-in-dark-mode)
+   `:root` foreground -- light text on a light panel, "effectively
+   invisible". These two rules match or exceed that specificity so they
+   correctly win instead, and set foreground explicitly rather than
+   relying on inheritance. `.toc-panel`/`.notebook-panel` never had this
+   problem (they have no higher-specificity competing light-background
+   rule), so they are deliberately left untouched. */
+:root[data-theme="dark"] .reader .typography-panel {
+  background-color: #2f2f2f;
+  color: #f6f6f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .reader .typography-panel {
+    background-color: #2f2f2f;
+    color: #f6f6f6;
+  }
+}
+
 .typography-panel-header {
   display: flex;
   justify-content: space-between;
@@ -1084,26 +1149,6 @@ button {
 
 .data-recovery-warn {
   color: #9a6b27;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
 }
 
 /* FC-A11: Book Details (`DESIGN.md` ER-BOOK-001 "Reading/file/OCR summary

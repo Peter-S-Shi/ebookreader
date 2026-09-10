@@ -79,6 +79,21 @@ describe("toEpubCss", () => {
       expect(css).toContain('font-family: "Georgia"');
       expect(css).toContain("color: #f6f6f6 !important");
     });
+
+    it("HA-007 Corrective Batch #2: forces color on descendant elements too, not just html/body", () => {
+      // Real desktop retest: a publication frequently assigns `color`
+      // directly to its own paragraph/heading elements (not just `body`).
+      // CSS inheritance only applies when a descendant has no explicit
+      // color of its own -- an override on `html, body` alone leaves any
+      // element with the publication's own `color` declaration
+      // unaffected, however high `!important` makes the body rule,
+      // because inheritance never even enters the cascade for an element
+      // that sets its own value. The override must reach descendants
+      // directly, e.g. `html *, body *`, not rely on inheritance.
+      const css = toEpubCss(DEFAULT_TYPOGRAPHY, true);
+      const descendantColorRule = /(?:html|body)\s*\*[^{]*\{[^}]*color:\s*#f6f6f6\s*!important/;
+      expect(css).toMatch(descendantColorRule);
+    });
   });
 });
 

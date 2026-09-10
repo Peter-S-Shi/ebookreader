@@ -146,8 +146,21 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
   // specificity than this single element selector -- without it, dark
   // mode legibility would depend on the publication's CSS never doing
   // so, which is exactly the failure HA-007 reports.
+  //
+  // HA-007 Corrective Batch #2 (real desktop retest): `html, body` alone
+  // was not enough -- CSS inheritance only applies to a descendant that
+  // has no `color` of its own, and publisher stylesheets frequently set
+  // `color` directly on paragraph/heading elements, not just `body`. An
+  // element with its own explicit color never even consults its
+  // inherited value, so no `!important` on `body` can reach it. `html *,
+  // body *` forces every descendant's foreground directly; background is
+  // left at `html, body` only (the whole-page canvas), not forced onto
+  // every descendant, so a publisher's own deliberate highlight/callout
+  // background is preserved -- only legibility (foreground) is forced,
+  // matching "must not fix color by breaking Publisher typography".
   const colorOverride = darkMode
-    ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }`
+    ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }` +
+      `\nhtml *, body * { color: ${DARK_MODE_FOREGROUND} !important; }`
     : "";
   return [...faces, bodyRule, colorOverride].filter(Boolean).join("\n");
 }
