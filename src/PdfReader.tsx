@@ -110,10 +110,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
       const pdf = await pdfjsLib.getDocument({ data: uint8Bytes }).promise;
       if (cancelled) return;
-      pdfRef.current = pdf;
-      setPdfDoc(pdf);
-      setPageCount(pdf.numPages);
-
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
       // An anchor that fails to parse to a valid in-range page is reported
       // truthfully rather than silently opening at page one.
@@ -123,15 +119,19 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         const valid = Number.isFinite(targetPage) && targetPage >= 1 && targetPage <= pdf.numPages;
         if (!cancelled) {
           startPage = valid ? targetPage : 1;
-          setPageNumber(startPage);
           setJumpFailed(!valid);
         }
       } else {
         const saved = await invoke<DocumentLocationDTO | null>("load_reading_location_command", { bookId });
         const savedPage = saved?.primary_anchor ? parseInt(saved.primary_anchor, 10) : NaN;
         startPage = Number.isFinite(savedPage) && savedPage >= 1 && savedPage <= pdf.numPages ? savedPage : 1;
-        if (!cancelled) setPageNumber(startPage);
       }
+
+      if (cancelled) return;
+      pdfRef.current = pdf;
+      setPageCount(pdf.numPages);
+      setPageNumber(startPage);
+      setPdfDoc(pdf);
 
       // Check text content of initial target page immediately for text selection state.
       // Entire-document scanned state (hasExtractableText = false) remains unknown
@@ -235,6 +235,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     const pdf = pdfDoc || pdfRef.current;
     if (!pdf || !canvasRef.current) return;
     let cancelled = false;
+    let renderTask: pdfjsLib.RenderTask | null = null;
 
     (async () => {
       const page = await pdf.getPage(pageNumber);
@@ -244,7 +245,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      await page.render({ canvasContext: context, viewport, canvas }).promise;
+
+      renderTask = page.render({ canvasContext: context, viewport, canvas });
+      await renderTask.promise.catch(() => {});
       if (cancelled) return;
 
       const textLayerDiv = textLayerRef.current;
@@ -290,6 +293,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
     return () => {
       cancelled = true;
+      renderTask?.cancel();
     };
   }, [viewMode, pageNumber, bookId, pdfDoc]);
 
