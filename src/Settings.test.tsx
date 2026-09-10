@@ -7,6 +7,7 @@ import {
   AUTO_PAUSE_AFTER_INACTIVITY_KEY,
   COUNT_NOTE_TAKING_KEY,
   PAUSE_ON_BACKGROUND_KEY,
+  READING_CHECKPOINT_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
@@ -232,6 +233,42 @@ describe("Settings — Sound & Motion (DESIGN.md SS15/SS17/SS18; FC-A09)", () =>
     expect(document.documentElement.dataset.motion).toBe("reduced");
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: REDUCED_MOTION_KEY, value: "true" }),
+    );
+  });
+});
+
+describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
+  it("defaults to Off when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(
+      await screen.findByRole("checkbox", { name: "Prompt for a reflection when leaving a Reader session" }),
+    ).not.toBeChecked();
+  });
+
+  it("loads a persisted On preference", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === READING_CHECKPOINT_ENABLED_KEY) return "true";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(
+      await screen.findByRole("checkbox", { name: "Prompt for a reflection when leaving a Reader session" }),
+    ).toBeChecked();
+  });
+
+  it("persists turning the preference on", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Prompt for a reflection when leaving a Reader session" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: READING_CHECKPOINT_ENABLED_KEY, value: "true" }),
     );
   });
 });

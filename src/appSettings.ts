@@ -21,6 +21,11 @@ export const COUNT_NOTE_TAKING_KEY = "actual_reading_time.count_note_taking";
 // On/Off, Standard / Reduced Motion.
 export const SOUND_PAGE_TURN_ENABLED_KEY = "sound.page_turn_enabled";
 export const REDUCED_MOTION_KEY = "motion.reduced";
+// FC-A10: DESIGN.md SS20 "Derived Screens" lists Reading Checkpoint;
+// PRODUCT_SPEC.md SS15 "V1 does not become a complex habit/gamification
+// system" -- a single optional, default-Off, dismissible reflection
+// prompt at session end, not a streak/rating mechanic.
+export const READING_CHECKPOINT_ENABLED_KEY = "reading_checkpoint.enabled";
 export const TYPOGRAPHY_GLOBAL_KEY = "typography.global_default";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -41,6 +46,10 @@ export const DEFAULT_SOUND_PAGE_TURN_ENABLED = true;
 // needs, so the app-level setting defaults to Standard (off) rather than
 // forcing Reduced everywhere.
 export const DEFAULT_REDUCED_MOTION = false;
+// MANUAL_QA.md SS17 lists Reading Checkpoint alongside other Settings
+// persistence to verify, but every ticket description and DESIGN.md's
+// bare mention agree it starts Off.
+export const DEFAULT_READING_CHECKPOINT_ENABLED = false;
 
 export async function getSetting(key: string): Promise<string | null> {
   return await invoke<string | null>("get_setting_command", { key });

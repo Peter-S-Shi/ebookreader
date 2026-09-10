@@ -9,6 +9,8 @@ import { toTextStyle } from "./typography";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
+import { useReadingCheckpoint } from "./useReadingCheckpoint";
+import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -45,6 +47,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; startOffset: number } | null>(null);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const checkpoint = useReadingCheckpoint();
   useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {
@@ -199,7 +202,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   return (
     <ReaderShell
       title={title}
-      onBack={onBack}
+      onBack={() => checkpoint.requestBack(onBack)}
       toolbarExtra={
         <>
           <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
@@ -241,6 +244,14 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {checkpoint.showPrompt && (
+        <ReadingCheckpointPrompt
+          onDismiss={checkpoint.dismiss}
+          onSaveNote={async (text) => {
+            await invoke("create_reading_asset_command", { bookId, kind: "note", text, anchor: null }).catch(() => {});
+          }}
+        />
       )}
       {jumpFailed && (
         <p role="alert" className="jump-failed-notice">

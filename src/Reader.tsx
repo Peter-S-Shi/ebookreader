@@ -11,6 +11,8 @@ import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
+import { useReadingCheckpoint } from "./useReadingCheckpoint";
+import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -100,6 +102,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   }, [playPageTurn]);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   useActualReadingTimeHeartbeat(bookId);
+  const checkpoint = useReadingCheckpoint();
   const advanceRef = useRef(advance);
   useEffect(() => {
     advanceRef.current = advance;
@@ -277,7 +280,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   return (
     <ReaderShell
       title={title}
-      onBack={onBack}
+      onBack={() => checkpoint.requestBack(onBack)}
       status={status}
       toolbarExtra={
         <>
@@ -342,6 +345,14 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {checkpoint.showPrompt && (
+        <ReadingCheckpointPrompt
+          onDismiss={checkpoint.dismiss}
+          onSaveNote={async (text) => {
+            await invoke("create_reading_asset_command", { bookId, kind: "note", text, anchor: null }).catch(() => {});
+          }}
+        />
       )}
       {jumpFailed && (
         <p role="alert" className="jump-failed-notice">

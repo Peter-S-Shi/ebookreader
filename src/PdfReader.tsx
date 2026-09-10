@@ -10,6 +10,8 @@ import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
+import { useReadingCheckpoint } from "./useReadingCheckpoint";
+import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -93,6 +95,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
+  const checkpoint = useReadingCheckpoint();
   useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {
@@ -348,7 +351,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   return (
     <ReaderShell
       title={title}
-      onBack={onBack}
+      onBack={() => checkpoint.requestBack(onBack)}
       status={status}
       toolbarExtra={
         <>
@@ -439,6 +442,14 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     >
       {showCompletionPrompt && (
         <CompletionPrompt onStartNextRead={startNextRead} onDismiss={dismissCompletionPrompt} />
+      )}
+      {checkpoint.showPrompt && (
+        <ReadingCheckpointPrompt
+          onDismiss={checkpoint.dismiss}
+          onSaveNote={async (text) => {
+            await invoke("create_reading_asset_command", { bookId, kind: "note", text, anchor: null }).catch(() => {});
+          }}
+        />
       )}
       {jumpFailed && (
         <p role="alert" className="jump-failed-notice">
