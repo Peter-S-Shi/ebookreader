@@ -21,8 +21,8 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | CLOSED (`6281332`, CI run 34419014285 success) | — |
 | 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | CLOSED (`0809325`, CI run 34432012895 success) | 1 |
 | 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | CLOSED (`a4c0c62`, CI run 34432709301 success) | 1 |
-| 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | OPEN | 1 |
-| 17 | FC-A11 — Book Details view + Continue Reading section + Book Hours/Actual Reading Time presentation | OPEN | — |
+| 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | CLOSED (`ffd761d`, CI run 34433233529 success) | 1 |
+| 17 | FC-A11 — Book Details view + Continue Reading section + Book Hours/Actual Reading Time presentation | CLOSED (`6bf6f56`, CI run 34476328787 success) | — |
 | 18 | FC-A14 — Close Backup/Restore completeness: ReadingSessions + Alignment Package round-trip tests; Collections/Tags round trip once ticket 6 lands; verify Reference-file round trip once ticket 9 lands | OPEN | 6, 9 |
 
 Closed already (no ticket): FC-A12 (OCR workflow), FC-A13 (Bilingual Alignment workflow).
@@ -276,3 +276,36 @@ Evidence:
 - No Rust changes; `cargo test -p ebookreader-domain --lib` (191 passed, 2 ignored) re-verified as an unaffected-surface sanity check.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (20 files, 166 tests -- 2 new tests in `useSoundToggle.test.ts`, 4 new in `Settings.test.tsx`, 1 new in `App.test.tsx` proving mount-time reachability without visiting Settings). `npx vite build` passed.
 - GitHub Actions: CI run 34432709301 passed on `a4c0c62` (Frontend and Rust jobs green).
+
+## Ticket 16 (FC-A10) — closed 2026-09-10 (`ffd761d`, CI run 34433233529 success)
+
+Failure Attribution: earliest-wrong layer was **product surface** -- genuinely `MISSING`, not a wiring gap. `DESIGN.md` SS20 and `PRODUCT_SPEC.md` SS15 describe a default-Off, minimal session-end reflection prompt on Reader exit; no hook, no dialog, and no preference existed anywhere. `PRODUCT_SPEC.md` SS15 explicitly scopes this as "V1 does not become a complex habit/gamification system," so the correction deliberately reused existing Notebook persistence (`create_reading_asset_command`) rather than inventing new schema.
+
+Landed:
+- `src/appSettings.ts`: `READING_CHECKPOINT_ENABLED_KEY`, default Off, on the existing generic store.
+- `src/useReadingCheckpoint.ts` (new): `requestBack(onBack)`/`dismiss()`/`showPrompt` -- pass-through (instant `onBack`) when the setting is off; withholds `onBack` until the prompt is dismissed when on.
+- `src/ReadingCheckpointPrompt.tsx` (new): reuses `CompletionPrompt`'s dialog pattern; a reflection textarea with Skip/Save & Continue; an empty reflection just dismisses without saving.
+- `src/Reader.tsx` / `src/PdfReader.tsx` / `src/TxtReader.tsx`: each Reader's "Back to Library" now routes through `checkpoint.requestBack(onBack)`; a saved reflection is written as a Note via the already-existing `create_reading_asset_command`.
+- `src/Settings.tsx`: a "Reading Checkpoint" section with the toggle.
+
+Evidence:
+- No Rust changes; `cargo test -p ebookreader-domain --lib` re-verified as an unaffected-surface sanity check, green.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (new tests in `useReadingCheckpoint.test.ts`, `ReadingCheckpointPrompt.test.tsx`, and `Settings.test.tsx`'s new "Reading Checkpoint" describe block: default-Off, loads a persisted On value, persists turning it on). `npx vite build` passed.
+- GitHub Actions: CI run 34433233529 passed on `ffd761d` (Frontend and Rust jobs green).
+
+## Ticket 17 (FC-A11) — closed 2026-09-10 (`6bf6f56`, CI run 34476328787 success; implementation `2edc641`)
+
+Failure Attribution: earliest-wrong layer was split. **Persistence**: `book.last_opened_at` did not exist, so "Continue Reading" (`DESIGN.md` SS4/ER-BOOK-001) had no recency signal to rank by -- a genuine domain gap. **Frontend integration**: `get_reading_progress_command`/`get_actual_reading_time_command`/`get_book_hours_command` already existed and were already correct; no Book Details view ever called them, and the accepted v0.5 UI prototype (`docs/design/EbookReader_UI_Prototype_v0_5.html`) composition was never implemented.
+
+Landed:
+- `crates/domain/src/store.rs`: migration v14 adds `book.last_opened_at`; `record_book_opened(conn, book_id, opened_at)`; `BookSummary`/`list_books`/`get_book` expose it.
+- `src-tauri/src/commands.rs` + `lib.rs`: `record_book_opened_command`.
+- `src/useRecordBookOpened.ts` (new): records once per Reader mount.
+- `src/BookDetails.tsx` (new): Reading / Book Hours / Library & File cards plus a Quick actions aside (Read/Resume, Open Notebook), reusing the accepted v0.5 prototype composition.
+- `src/App.tsx`: `BookSummary` gains `last_opened_at`; a "Details" action per Book row; a client-side "Continue Reading" list -- top-10 `last_opened_at`-recency candidates filtered to `active_read_in_progress === true` via `get_reading_progress_command`, capped at 3 per `DESIGN.md`'s "1-3 items."
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (2 new tests: never-opened has no `last_opened_at`, record-and-re-record updates in place). `cargo build`/`cargo test` in `src-tauri` passed.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (`BookDetails.test.tsx` new; `App.test.tsx`'s new "Book Details + Continue Reading" describe block: Details<->Back navigation, ranks an active in-progress Book and omits a never-opened one, no section when nothing is in progress). `npx vite build` passed.
+- The implementation commit (`2edc641`) initially failed CI on the Frontend job: a pre-existing (Ticket 14-inherited) flaky test in `Settings.test.tsx` raced `TypographyPanel`'s own async `list_system_fonts_command` fetch. Fixed in a follow-up commit (`6bf6f56`) by waiting for the option to exist, scoped to the Font Source select (the same option text also appears in the CJK Font Override select).
+- GitHub Actions: CI run 34433923348 failed (Frontend) on `2edc641`; CI run 34476328787 passed on `6bf6f56` (Frontend and Rust jobs green).
