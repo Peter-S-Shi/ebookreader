@@ -329,7 +329,21 @@ All 18 originally-listed tickets are CLOSED, but before writing the second Featu
 
 | # | Ticket | Status | Depends on |
 |---|---|---|---|
-| 19 | FC-A15 — Default import mode setting (Reference vs Managed-Copy), applied to future imports | OPEN | 1 |
+| 19 | FC-A15 — Default import mode setting (Reference vs Managed-Copy), applied to future imports | CLOSED (`a9a136f`, CI run 34478296463 success) | 1 |
 | 20 | FC-A16 — About & Updates Settings section (version, manual update check, release notes link) | OPEN | 1, 10 |
 
 Per the corrective-pass protocol, these follow the same per-ticket loop as tickets 1-18. Only once FC-A15 and FC-A16 are also CLOSED and the coverage audit shows zero `MISSING`/`PARTIAL`/`BACKEND_ONLY`/`PROTOTYPE_ONLY` rows does the second Feature Complete Candidate package get produced, followed by a HARD STOP for Human Feature Freeze review -- no self-promotion into Feature Freeze or M9 Product Hardening.
+
+## Ticket 19 (FC-A15) — closed 2026-09-10 (`a9a136f`, CI run 34478296463 success)
+
+Failure Attribution: earliest-wrong layer was **frontend persistence/reachability**, not domain/command -- `import_book_command` already fully supports both `OwnershipMode::Reference` and `OwnershipMode::ManagedCopy` (including managed-directory resolution). The entire gap was `App.tsx`'s `importBook()` hardcoding `ownershipMode: "reference"` on every call, with no setting anywhere to change it.
+
+Landed:
+- `src/appSettings.ts`: `DEFAULT_IMPORT_MODE_KEY` on the existing generic `app_setting` store; `ImportMode` type; `loadDefaultImportMode`/`saveDefaultImportMode` (a stored value other than exactly `"reference"`/`"managed_copy"` resolves to the `"reference"` default per `PRODUCT_SPEC.md` "Default V1 import mode: Reference.").
+- `src/Settings.tsx`: a "Files & Data" section (`DESIGN.md`'s own section name) with a Reference/Managed Copy radio group.
+- `src/App.tsx`: `importBook()` now calls `loadDefaultImportMode()` and passes the result as `ownershipMode` instead of the hardcoded literal.
+
+Evidence:
+- No Rust changes; `cargo test -p ebookreader-domain --lib` (193 passed, 2 ignored) and `cargo build` in `src-tauri` re-verified as an unaffected-surface sanity check, both green.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (23 files, 186 tests -- 3 new in `Settings.test.tsx`'s new "Files & Data" describe block: default-Reference, loads a persisted Managed Copy value, persists selecting Managed Copy; 1 new in `App.test.tsx` proving a persisted Managed Copy preference actually reaches `import_book_command`'s `ownershipMode` argument on the next import). The new runtime `get_setting_command` call (keyed on `files.default_import_mode`, only triggered on import, not mount) was routed through the same mount-time-settings mock mechanism `App.test.tsx` already uses for other keys, so the pre-existing import test's `invokeMock` call-order queue needed no edits. `npx vite build` passed.
+- GitHub Actions: CI run 34478296463 passed on `a9a136f` (Frontend and Rust jobs green).
