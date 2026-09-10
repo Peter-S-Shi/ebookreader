@@ -5,6 +5,7 @@ import { TypographyPanel } from "./TypographyPanel";
 import { TocPanel, type TocItem } from "./TocPanel";
 import { NotebookPanel } from "./NotebookPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
+import { loadPerBookTypography, savePerBookTypography } from "./appSettings";
 import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
@@ -123,11 +124,14 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
 
       await view.open(file);
       if (cancelled) return;
+      const initialTypography = await loadPerBookTypography(bookId);
+      if (cancelled) return;
+      setTypography(initialTypography);
       setStatus("Ready");
       setIsFixedLayout(Boolean(view.isFixedLayout));
       setToc(view.book?.toc ?? []);
       if (!view.isFixedLayout) {
-        view.renderer?.setStyles(toEpubCss(DEFAULT_TYPOGRAPHY));
+        view.renderer?.setStyles(toEpubCss(initialTypography));
         if (view.renderer) applyViewMode(view.renderer, viewMode);
       }
 
@@ -235,6 +239,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   function handleTypographyChange(next: TypographySettings) {
     setTypography(next);
     viewRef.current?.renderer?.setStyles(toEpubCss(next));
+    savePerBookTypography(bookId, next).catch(() => {});
   }
 
   function handleTocNavigate(href: string) {

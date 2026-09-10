@@ -13,15 +13,19 @@ import {
   DEFAULT_UPDATE_CHECK_ON_STARTUP,
   loadAndApplyAppearance,
   loadBooleanSetting,
+  loadGlobalTypography,
   loadUpdateCheckOnStartupPreference,
   PAUSE_ON_BACKGROUND_KEY,
   saveBooleanSetting,
+  saveGlobalTypography,
   saveUpdateCheckOnStartupPreference,
   setSetting,
   THEME_MODE_KEY,
   TRACK_ACTUAL_READING_TIME_KEY,
   type ThemeMode,
 } from "./appSettings";
+import { TypographyPanel } from "./TypographyPanel";
+import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
 
 /// `DESIGN.md` "Settings": the canonical top-level management surface.
 /// FC-C05 corrective ticket: this is the first real, persisted section --
@@ -37,6 +41,7 @@ export function Settings() {
   const [pauseOnBackground, setPauseOnBackground] = useState(DEFAULT_PAUSE_ON_BACKGROUND);
   const [autoPauseAfterInactivity, setAutoPauseAfterInactivity] = useState(DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY);
   const [countNoteTaking, setCountNoteTaking] = useState(DEFAULT_COUNT_NOTE_TAKING);
+  const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -47,7 +52,8 @@ export function Settings() {
       loadBooleanSetting(PAUSE_ON_BACKGROUND_KEY, DEFAULT_PAUSE_ON_BACKGROUND),
       loadBooleanSetting(AUTO_PAUSE_AFTER_INACTIVITY_KEY, DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY),
       loadBooleanSetting(COUNT_NOTE_TAKING_KEY, DEFAULT_COUNT_NOTE_TAKING),
-    ]).then(([{ themeMode, accentColor }, checkOnStartup, track, pauseBg, autoPause, countNotes]) => {
+      loadGlobalTypography(),
+    ]).then(([{ themeMode, accentColor }, checkOnStartup, track, pauseBg, autoPause, countNotes, typography]) => {
       setThemeMode(themeMode);
       setAccentColor(accentColor);
       setUpdateCheckOnStartup(checkOnStartup);
@@ -55,6 +61,7 @@ export function Settings() {
       setPauseOnBackground(pauseBg);
       setAutoPauseAfterInactivity(autoPause);
       setCountNoteTaking(countNotes);
+      setTypography(typography);
       setLoaded(true);
     });
   }, []);
@@ -94,6 +101,11 @@ export function Settings() {
   async function updateCountNoteTaking(next: boolean) {
     setCountNoteTaking(next);
     await saveBooleanSetting(COUNT_NOTE_TAKING_KEY, next);
+  }
+
+  async function updateTypography(next: TypographySettings) {
+    setTypography(next);
+    await saveGlobalTypography(next);
   }
 
   if (!loaded) return null;
@@ -172,6 +184,12 @@ export function Settings() {
           />
           Count Note-taking as Reading Time
         </label>
+      </section>
+      <section aria-label="Typography">
+        <h2>Typography</h2>
+        <div role="group" aria-label="Typography">
+          <TypographyPanel settings={typography} onChange={updateTypography} onClose={() => {}} showHeader={false} />
+        </div>
       </section>
     </div>
   );

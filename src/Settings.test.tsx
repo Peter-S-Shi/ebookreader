@@ -2,7 +2,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Settings } from "./Settings";
-import { ACCENT_COLOR_KEY, AUTO_PAUSE_AFTER_INACTIVITY_KEY, COUNT_NOTE_TAKING_KEY, PAUSE_ON_BACKGROUND_KEY, THEME_MODE_KEY, TRACK_ACTUAL_READING_TIME_KEY } from "./appSettings";
+import {
+  ACCENT_COLOR_KEY,
+  AUTO_PAUSE_AFTER_INACTIVITY_KEY,
+  COUNT_NOTE_TAKING_KEY,
+  PAUSE_ON_BACKGROUND_KEY,
+  THEME_MODE_KEY,
+  TRACK_ACTUAL_READING_TIME_KEY,
+  TYPOGRAPHY_GLOBAL_KEY,
+} from "./appSettings";
 
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
@@ -125,6 +133,51 @@ describe("Settings — Actual Reading Time (PRODUCT_SPEC.md SS10; FC-A06)", () =
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
         key: AUTO_PAUSE_AFTER_INACTIVITY_KEY,
         value: "false",
+      }),
+    );
+  });
+});
+
+describe("Settings — Typography defaults (PRODUCT_SPEC.md SS7.4; FC-A08)", () => {
+  it("exposes persisted global typography defaults in Settings", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args.key === TYPOGRAPHY_GLOBAL_KEY) {
+        return JSON.stringify({
+          font: { source: "SYSTEM", family: "Georgia" },
+          cjkFont: { source: "SYSTEM", family: "Microsoft YaHei" },
+          fontSizePercent: 115,
+          lineHeight: 1.6,
+          pageWidthCh: 66,
+          marginPercent: 8,
+        });
+      }
+      if (cmd === "list_system_fonts_command") return ["Georgia", "Microsoft YaHei"];
+      return null;
+    });
+
+    render(<Settings />);
+
+    expect(await screen.findByRole("group", { name: "Typography" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Font Source")).toHaveValue("SYSTEM:Georgia");
+    expect(screen.getByLabelText("CJK Font Override")).toHaveValue("SYSTEM:Microsoft YaHei");
+    expect(screen.getByLabelText("Margins")).toHaveValue("8");
+  });
+
+  it("persists a global typography default change", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_system_fonts_command") return ["Georgia"];
+      return null;
+    });
+    render(<Settings />);
+    await screen.findByRole("group", { name: "Typography" });
+
+    await user.selectOptions(screen.getByLabelText("Font Source"), "SYSTEM:Georgia");
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: TYPOGRAPHY_GLOBAL_KEY,
+        value: expect.stringContaining('"family":"Georgia"'),
       }),
     );
   });

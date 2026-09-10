@@ -4,6 +4,8 @@ import { ReaderShell } from "./ReaderShell";
 import { TypographyPanel } from "./TypographyPanel";
 import { NotebookPanel } from "./NotebookPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
+import { loadPerBookTypography, savePerBookTypography } from "./appSettings";
+import { toTextStyle } from "./typography";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
@@ -52,6 +54,9 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       if (cancelled) return;
       const decoded = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
       setText(decoded);
+      loadPerBookTypography(bookId).then((loaded) => {
+        if (!cancelled) setTypography(loaded);
+      });
 
       // Whole-book text into the search index (PRODUCT_SPEC.md SS12:
       // "supported book text" is a required Library-wide Search source).
@@ -184,12 +189,12 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     advance(fraction);
   }
 
-  const textStyle: React.CSSProperties = {
-    fontFamily: typography.fontFamily ?? undefined,
-    fontSize: `${typography.fontSizePercent}%`,
-    lineHeight: typography.lineHeight,
-    maxWidth: `${typography.pageWidthCh}ch`,
-  };
+  function handleTypographyChange(next: TypographySettings) {
+    setTypography(next);
+    savePerBookTypography(bookId, next).catch(() => {});
+  }
+
+  const textStyle: React.CSSProperties = toTextStyle(typography);
 
   return (
     <ReaderShell
@@ -210,7 +215,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
           {typographyOpen && (
             <TypographyPanel
               settings={typography}
-              onChange={setTypography}
+              onChange={handleTypographyChange}
               onClose={() => setTypographyOpen(false)}
             />
           )}

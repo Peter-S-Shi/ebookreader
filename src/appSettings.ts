@@ -1,4 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  DEFAULT_TYPOGRAPHY,
+  deserializeTypographySettings,
+  serializeTypographySettings,
+  type TypographySettings,
+} from "./typography";
 
 // Setting keys, mirroring `crates/domain/src/settings.rs::keys`. Kept in
 // sync manually -- there is no cross-language codegen in this project.
@@ -11,6 +17,7 @@ export const TRACK_ACTUAL_READING_TIME_KEY = "actual_reading_time.track_enabled"
 export const PAUSE_ON_BACKGROUND_KEY = "actual_reading_time.pause_on_background";
 export const AUTO_PAUSE_AFTER_INACTIVITY_KEY = "actual_reading_time.auto_pause_after_inactivity";
 export const COUNT_NOTE_TAKING_KEY = "actual_reading_time.count_note_taking";
+export const TYPOGRAPHY_GLOBAL_KEY = "typography.global_default";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -80,4 +87,26 @@ export async function loadBooleanSetting(key: string, defaultValue: boolean): Pr
 
 export async function saveBooleanSetting(key: string, value: boolean): Promise<void> {
   await setSetting(key, value ? "true" : "false");
+}
+
+export function typographyBookKey(bookId: string): string {
+  return `typography.book.${bookId}`;
+}
+
+export async function loadGlobalTypography(): Promise<TypographySettings> {
+  return deserializeTypographySettings(await getSetting(TYPOGRAPHY_GLOBAL_KEY));
+}
+
+export async function saveGlobalTypography(settings: TypographySettings): Promise<void> {
+  await setSetting(TYPOGRAPHY_GLOBAL_KEY, serializeTypographySettings(settings));
+}
+
+export async function loadPerBookTypography(bookId: string): Promise<TypographySettings> {
+  const perBook = deserializeTypographySettings(await getSetting(typographyBookKey(bookId)));
+  if (perBook !== DEFAULT_TYPOGRAPHY) return perBook;
+  return loadGlobalTypography();
+}
+
+export async function savePerBookTypography(bookId: string, settings: TypographySettings): Promise<void> {
+  await setSetting(typographyBookKey(bookId), serializeTypographySettings(settings));
 }
