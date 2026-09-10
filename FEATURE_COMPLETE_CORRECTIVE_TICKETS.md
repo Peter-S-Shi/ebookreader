@@ -19,7 +19,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 11 | FC-A05 — Book Hours configuration UI + revision history | CLOSED (`135a7ff`, CI run 34416801485 success) | 1 |
 | 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | CLOSED (`bed54ba`, CI run 34417941868 success) | 1 |
 | 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | CLOSED (`6281332`, CI run 34419014285 success) | — |
-| 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | OPEN | 1 |
+| 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | CLOSED (`0809325`, CI run 34432012895 success) | 1 |
 | 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | OPEN | 1 |
 | 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | OPEN | 1 |
 | 17 | FC-A11 — Book Details view + Continue Reading section + Book Hours/Actual Reading Time presentation | OPEN | — |
@@ -244,3 +244,19 @@ Landed:
 Evidence:
 - Domain verification: 4 new recovery-snapshot tests cover byte-copy semantics, immutability after later live-file mutation, retention pruning, and fresh-install no-op behavior.
 - GitHub Actions: CI run 34419014285 passed on `6281332` (Frontend and Rust jobs green).
+
+## Ticket 14 (FC-A08) — closed 2026-09-09 (`0809325`, CI run 34432012895 success)
+
+Failure Attribution: earliest-wrong layer was **frontend application-state/persistence modeling**, not domain storage -- the generic `app_setting` key-value store (already built for FC-C05 Appearance) and `SYSTEM` font enumeration (`list_system_fonts_command`) both already existed and needed no changes. The gap was that `TypographySettings` modeled a font as a bare nullable string with no provenance, no path for a CUSTOM import, no CJK override slot, no Margins field, and was session-only (no persistence at all, global or per-book) -- an application-layer data-modeling gap, confirmed by the fact that closing it required zero new Rust/schema work.
+
+Landed:
+- `src/typography.ts`: `TypographyFont` is now a tagged union (`PUBLISHER`/`BUILT_IN`/`SYSTEM`/`CUSTOM`) carrying its own provenance (`PRODUCT_SPEC.md` SS3.7/SS7.4); PUBLISHER never emits a font-family rule; CUSTOM/BUILT_IN emit an `@font-face` referencing the local path directly rather than copying bytes into app storage (`ARCHITECTURE.md` SS14: "V1 defaults to storing configuration/reference rather than treating unknown font bytes as portable product assets" -- a prior, already-settled licensing decision). `marginPercent` and an independent CJK font layer onto the primary family rather than replacing it. `serializeTypographySettings`/`deserializeTypographySettings` give the model a stable persisted JSON form, defaulting safely on stale/corrupt data. `toTextStyle` gives TXT the same model TXT previously hand-rolled a subset of.
+- `src/appSettings.ts`: `loadGlobalTypography`/`saveGlobalTypography` (Settings) and `loadPerBookTypography`/`savePerBookTypography` (Reader, falling back to the global default when no per-book override is recorded), all built on the existing generic `app_setting` store.
+- `src/TypographyPanel.tsx`: Font Source select (Built-in/System/Custom grouped under Publisher/Original), "Import Custom Font" via the native file picker, a CJK Font Override select, a Margins slider; a new `showHeader` prop lets Settings embed the same panel inline instead of as a floating dialog (`DESIGN.md` SS8: "Global defaults live in Settings -> Typography. Per-Book overrides live in Reader `Aa`" -- one shared component, two hosting contexts).
+- `src/Settings.tsx`: a "Typography" section hosting the panel against the global default.
+- `src/Reader.tsx` / `src/TxtReader.tsx`: load the per-book override (or global fallback) on open; persist on every change.
+
+Evidence:
+- No Rust changes this ticket; `cargo test -p ebookreader-domain --lib` (191 passed, 2 ignored) and `cargo build`/`cargo test` in `src-tauri` re-verified as an unaffected-surface sanity check, all green.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (20 files, 160 tests -- new/updated coverage across `typography.test.ts` (provenance-aware CSS including CUSTOM `@font-face` and CJK layering, serialize/deserialize round-trip and corrupt-data fallback, `toTextStyle`), `appSettings.test.ts` (global load/save, per-book-override-present vs falls-back-to-global in both directions), `TypographyPanel.test.tsx` (provenance labeling, CJK override, Margins, Custom Font import), and `Settings.test.tsx` (persisted global typography display and persisting a change)). `npx vite build` passed.
+- GitHub Actions: CI run 34432012895 passed on `0809325` (Frontend and Rust jobs green).
