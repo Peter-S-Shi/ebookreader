@@ -542,102 +542,138 @@ function App() {
   // Calendar / Data / Settings are the five real destinations; each nav
   // button's own accessible name doubles as which panel is showing, so
   // there is no separate "current page" heading to keep in sync.
-  const destinations: { id: typeof destination; label: string; onSelect: () => void }[] = [
-    { id: "library", label: "Library", onSelect: () => setDestination("library") },
-    { id: "notes", label: "Notes", onSelect: goToNotes },
-    { id: "calendar", label: "Calendar", onSelect: () => setDestination("calendar") },
-    { id: "data", label: "Data", onSelect: () => setDestination("data") },
-    { id: "settings", label: "Settings", onSelect: () => setDestination("settings") },
+  const destinations: { id: typeof destination; label: string; icon: string; onSelect: () => void }[] = [
+    { id: "library", label: "Library", icon: "▦", onSelect: () => setDestination("library") },
+    { id: "notes", label: "Notes", icon: "✎", onSelect: goToNotes },
+    { id: "calendar", label: "Calendar", icon: "◫", onSelect: () => setDestination("calendar") },
+    { id: "data", label: "Data", icon: "◈", onSelect: () => setDestination("data") },
+    { id: "settings", label: "Settings", icon: "⚙", onSelect: () => setDestination("settings") },
   ];
 
+  const destinationTitles: Record<typeof destination, string> = {
+    library: "Library",
+    notes: "Notes",
+    calendar: "Calendar",
+    data: "Data",
+    settings: "Settings",
+  };
+
   return (
-    <main className="container">
-      <h1>EbookReader</h1>
-
-      {startupUpdateResult && !startupUpdateBannerDismissed && (
-        <p role="status" className="startup-update-banner">
-          Update Available: {startupUpdateResult.latestVersion}.{" "}
-          {startupUpdateResult.releaseUrl && (
-            <a href={startupUpdateResult.releaseUrl} target="_blank" rel="noreferrer">
-              Release notes
-            </a>
-          )}
-          <button type="button" onClick={() => setStartupUpdateBannerDismissed(true)}>
-            Dismiss
-          </button>
-        </p>
-      )}
-
-      {/* Search is topbar/context, not a top-level destination
-          (`DESIGN.md`; FC-C06) -- it stays visible across every
-          destination rather than competing with Library/Notes/etc. */}
-      <section aria-label="Search" className="topbar-search">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            runSearch(searchQuery);
-          }}
-        >
-          <input
-            aria-label="Search the library"
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search books, Notes, Excerpts, Annotations…"
-          />
-          <button type="submit">Search</button>
-        </form>
-        {searchResults !== null && (
-          <ul className="search-results">
-            {searchResults.length === 0 ? (
-              <li>No results.</li>
-            ) : (
-              searchResults.map((hit, i) => {
-                const book = books?.find((b) => b.book_id === hit.book_id);
-                return (
-                  <li key={`${hit.book_id}-${hit.kind}-${i}`}>
-                    <button type="button" onClick={() => openBookAtLocation(hit.book_id, hit.anchor)}>
-                      {book?.title ?? hit.book_id}
-                    </button>
-                    <span className="search-hit-kind"> ({hit.kind})</span>
-                    <p>{hit.content}</p>
-                  </li>
-                );
-              })
-            )}
-          </ul>
-        )}
-      </section>
-
-      <nav aria-label="Main">
-        {destinations.map((d) => (
-          <button
-            key={d.id}
-            type="button"
-            aria-current={destination === d.id ? "page" : undefined}
-            onClick={d.onSelect}
-          >
-            {d.label}
-          </button>
-        ))}
-      </nav>
-
-      {destination === "notes" && (
-        <section aria-label="Notes">
-          <label>
-            Filter
-            <select
-              aria-label="Filter Notes by type"
-              value={notesKindFilter}
-              onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
+    <div className="app">
+      <aside className="rail" aria-label="Main navigation">
+        <div className="brand" aria-label="EbookReader">
+          <span>ER</span>
+          <h1 className="visually-hidden">EbookReader</h1>
+        </div>
+        <nav aria-label="Main" className="nav-group">
+          {destinations.slice(0, 3).map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              className={`nav ${destination === d.id ? "active" : ""}`}
+              aria-current={destination === d.id ? "page" : undefined}
+              onClick={d.onSelect}
             >
-              <option value="">All</option>
-              <option value="note">Note</option>
-              <option value="excerpt">Excerpt</option>
-              <option value="annotation">Annotation</option>
-            </select>
-          </label>
-          <ul className="global-notes-list">
+              <span className="nav-icon" aria-hidden="true">{d.icon}</span>
+              {d.label}
+            </button>
+          ))}
+          <div className="spacer" />
+          {destinations.slice(3).map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              className={`nav ${destination === d.id ? "active" : ""}`}
+              aria-current={destination === d.id ? "page" : undefined}
+              onClick={d.onSelect}
+            >
+              <span className="nav-icon" aria-hidden="true">{d.icon}</span>
+              {d.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="main">
+        <header className="top">
+          <div className="title">{destinationTitles[destination]}</div>
+          <div className="grow" />
+
+          {/* Search is topbar/context, not a top-level destination
+              (`DESIGN.md`; FC-C06) -- it stays visible across every
+              destination rather than competing with Library/Notes/etc. */}
+          <section aria-label="Search" className="topbar-search">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                runSearch(searchQuery);
+              }}
+            >
+              <input
+                aria-label="Search the library"
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search books, Notes, Excerpts, Annotations…"
+              />
+              <button type="submit" className="btn">
+                Search
+              </button>
+            </form>
+            {searchResults !== null && (
+              <ul className="search-results">
+                {searchResults.length === 0 ? (
+                  <li>No results.</li>
+                ) : (
+                  searchResults.map((hit, i) => {
+                    const book = books?.find((b) => b.book_id === hit.book_id);
+                    return (
+                      <li key={`${hit.book_id}-${hit.kind}-${i}`}>
+                        <button type="button" onClick={() => openBookAtLocation(hit.book_id, hit.anchor)}>
+                          {book?.title ?? hit.book_id}
+                        </button>
+                        <span className="search-hit-kind"> ({hit.kind})</span>
+                        <p>{hit.content}</p>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            )}
+          </section>
+        </header>
+
+        <div className="content">
+          {startupUpdateResult && !startupUpdateBannerDismissed && (
+            <p role="status" className="startup-update-banner">
+              Update Available: {startupUpdateResult.latestVersion}.{" "}
+              {startupUpdateResult.releaseUrl && (
+                <a href={startupUpdateResult.releaseUrl} target="_blank" rel="noreferrer">
+                  Release notes
+                </a>
+              )}
+              <button type="button" onClick={() => setStartupUpdateBannerDismissed(true)}>
+                Dismiss
+              </button>
+            </p>
+          )}
+
+          {destination === "notes" && (
+            <section aria-label="Notes">
+              <label>
+                Filter
+                <select
+                  aria-label="Filter Notes by type"
+                  value={notesKindFilter}
+                  onChange={(e) => loadGlobalNotes(e.target.value as typeof notesKindFilter)}
+                >
+                  <option value="">All</option>
+                  <option value="note">Note</option>
+                  <option value="excerpt">Excerpt</option>
+                  <option value="annotation">Annotation</option>
+                </select>
+              </label>
+              <ul className="global-notes-list">
             {globalNotes.length === 0 ? (
               <li>No Notebook assets yet.</li>
             ) : (
@@ -949,8 +985,10 @@ function App() {
           })()}
         </section>
       )}
-    </main>
-  );
+    </div>
+  </main>
+</div>
+);
 }
 
 export default App;
