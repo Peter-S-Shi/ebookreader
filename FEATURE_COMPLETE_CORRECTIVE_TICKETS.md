@@ -20,7 +20,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | CLOSED (`bed54ba`, CI run 34417941868 success) | 1 |
 | 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | CLOSED (`6281332`, CI run 34419014285 success) | — |
 | 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | CLOSED (`0809325`, CI run 34432012895 success) | 1 |
-| 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | OPEN | 1 |
+| 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | CLOSED (`a4c0c62`, CI run 34432709301 success) | 1 |
 | 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | OPEN | 1 |
 | 17 | FC-A11 — Book Details view + Continue Reading section + Book Hours/Actual Reading Time presentation | OPEN | — |
 | 18 | FC-A14 — Close Backup/Restore completeness: ReadingSessions + Alignment Package round-trip tests; Collections/Tags round trip once ticket 6 lands; verify Reference-file round trip once ticket 9 lands | OPEN | 6, 9 |
@@ -260,3 +260,19 @@ Evidence:
 - No Rust changes this ticket; `cargo test -p ebookreader-domain --lib` (191 passed, 2 ignored) and `cargo build`/`cargo test` in `src-tauri` re-verified as an unaffected-surface sanity check, all green.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (20 files, 160 tests -- new/updated coverage across `typography.test.ts` (provenance-aware CSS including CUSTOM `@font-face` and CJK layering, serialize/deserialize round-trip and corrupt-data fallback, `toTextStyle`), `appSettings.test.ts` (global load/save, per-book-override-present vs falls-back-to-global in both directions), `TypographyPanel.test.tsx` (provenance labeling, CJK override, Margins, Custom Font import), and `Settings.test.tsx` (persisted global typography display and persisting a change)). `npx vite build` passed.
 - GitHub Actions: CI run 34432012895 passed on `0809325` (Frontend and Rust jobs green).
+
+## Ticket 15 (FC-A09) — closed 2026-09-09 (`a4c0c62`, CI run 34432709301 success)
+
+Failure Attribution: earliest-wrong layer was **frontend persistence/reachability**, not domain storage -- sound playback and the OS `prefers-reduced-motion` query were already real; the toggle was session-only (`useSoundToggle` always started from a hardcoded `true`) and there was no in-app way to additionally request reduced motion, only the OS signal.
+
+Landed:
+- `src/appSettings.ts`: `SOUND_PAGE_TURN_ENABLED_KEY`/`REDUCED_MOTION_KEY` on the existing generic store; `applyMotionPreference`/`loadAndApplyMotionPreference` set/clear a `data-motion="reduced"` document attribute.
+- `src/App.css`: the panel-reveal animation and toolbar transition now require both the OS `prefers-reduced-motion: no-preference` and the absence of `[data-motion="reduced"]` -- the app setting can only ever request additional reduced motion, never force motion back on over the OS's own preference (`MANUAL_QA.md` QA-UI-04).
+- `src/useSoundToggle.ts`: loads the persisted preference on mount, saves on toggle.
+- `src/Settings.tsx`: a "Sound & Motion" section (Page Turn Sound checkbox, Standard/Reduced radio group).
+- `src/App.tsx`: applies Reduced Motion on mount, not only when Settings happens to be visited, so a persisted choice is actually reachable/effective from the moment the app opens.
+
+Evidence:
+- No Rust changes; `cargo test -p ebookreader-domain --lib` (191 passed, 2 ignored) re-verified as an unaffected-surface sanity check.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (20 files, 166 tests -- 2 new tests in `useSoundToggle.test.ts`, 4 new in `Settings.test.tsx`, 1 new in `App.test.tsx` proving mount-time reachability without visiting Settings). `npx vite build` passed.
+- GitHub Actions: CI run 34432709301 passed on `a4c0c62` (Frontend and Rust jobs green).
