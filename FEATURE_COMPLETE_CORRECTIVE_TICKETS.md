@@ -330,7 +330,7 @@ All 18 originally-listed tickets are CLOSED, but before writing the second Featu
 | # | Ticket | Status | Depends on |
 |---|---|---|---|
 | 19 | FC-A15 — Default import mode setting (Reference vs Managed-Copy), applied to future imports | CLOSED (`a9a136f`, CI run 34478296463 success) | 1 |
-| 20 | FC-A16 — About & Updates Settings section (version, manual update check, release notes link) | OPEN | 1, 10 |
+| 20 | FC-A16 — About & Updates Settings section (version, manual update check, release notes link) | CLOSED (`5e3b20b`, CI run 34479082655 success) | 1, 10 |
 
 Per the corrective-pass protocol, these follow the same per-ticket loop as tickets 1-18. Only once FC-A15 and FC-A16 are also CLOSED and the coverage audit shows zero `MISSING`/`PARTIAL`/`BACKEND_ONLY`/`PROTOTYPE_ONLY` rows does the second Feature Complete Candidate package get produced, followed by a HARD STOP for Human Feature Freeze review -- no self-promotion into Feature Freeze or M9 Product Hardening.
 
@@ -347,3 +347,17 @@ Evidence:
 - No Rust changes; `cargo test -p ebookreader-domain --lib` (193 passed, 2 ignored) and `cargo build` in `src-tauri` re-verified as an unaffected-surface sanity check, both green.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (23 files, 186 tests -- 3 new in `Settings.test.tsx`'s new "Files & Data" describe block: default-Reference, loads a persisted Managed Copy value, persists selecting Managed Copy; 1 new in `App.test.tsx` proving a persisted Managed Copy preference actually reaches `import_book_command`'s `ownershipMode` argument on the next import). The new runtime `get_setting_command` call (keyed on `files.default_import_mode`, only triggered on import, not mount) was routed through the same mount-time-settings mock mechanism `App.test.tsx` already uses for other keys, so the pre-existing import test's `invokeMock` call-order queue needed no edits. `npx vite build` passed.
 - GitHub Actions: CI run 34478296463 passed on `a9a136f` (Frontend and Rust jobs green).
+
+## Ticket 20 (FC-A16) — closed 2026-09-10 (`5e3b20b`, CI run 34479082655 success)
+
+Failure Attribution: earliest-wrong layer was **frontend composition/reachability**, not domain -- `updateAwareness.ts`'s `checkForUpdate`/`CURRENT_VERSION`/`compareVersions` were already correct and already proven by both the manual "Check Now" in `DataRecovery.tsx` (M8) and the startup check (Ticket 10). `DESIGN.md`'s "About & Updates" is its own named Settings section listing current version, Stable release channel, Check Now, the startup-check toggle, and Up To Date/Update Available/Check Failed feedback -- none of that existed inside `Settings.tsx` itself; the startup-check toggle lived there alone under a differently-named "Update Awareness" section, and version/manual-check only existed under Data, a different destination.
+
+Landed:
+- `src/Settings.tsx`: renamed the "Update Awareness" section to "About & Updates" and added current version display, "Release channel: Stable", a "Check Now" button, and the same Up To Date/Update Available (with release-notes link)/Check Failed result rendering `DataRecovery.tsx` already uses -- reusing `updateAwareness.ts`'s `checkForUpdate`/`CURRENT_VERSION`/`REPO_OWNER`/`REPO_NAME` directly rather than duplicating that logic.
+
+Evidence:
+- No Rust changes; `cargo test -p ebookreader-domain --lib` and `cargo build` in `src-tauri` re-verified as an unaffected-surface sanity check, both green.
+- Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (23 files, 189 tests -- 3 new in `Settings.test.tsx`'s new "About & Updates" describe block: version/channel display, Check Now reports Up To Date, Check Now reports an available update with a working release-notes link). `npx vite build` passed.
+- GitHub Actions: CI run 34479082655 passed on `5e3b20b` (Frontend and Rust jobs green).
+
+All 20 tickets (18 original + 2 discovered by the post-Ticket-18 reconciliation pass) are now CLOSED. Per the corrective-pass authorization: next is a final coverage-audit re-verification confirming zero `MISSING`/`PARTIAL`/`BACKEND_ONLY`/`PROTOTYPE_ONLY` rows, then the second Feature Complete Candidate package (revised coverage audit, native/manual acceptance report, revised candidate report), then a HARD STOP for Human Feature Freeze review -- no self-promotion into Feature Freeze or M9 Product Hardening.
