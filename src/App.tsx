@@ -722,161 +722,217 @@ function App() {
       )}
 
       {destination === "library" && (
-        <section aria-label="Library">
-          <button type="button" onClick={importBook}>
-            Import Book
-          </button>
-          <button type="button" onClick={importAlignmentPackage}>
-            Import Alignment Package
-          </button>
-          {bilingualError && <p role="alert">{bilingualError}</p>}
+        <section aria-label="Library" className="library-surface">
+          <div className="library-toolbar">
+            <button type="button" className="btn primary" onClick={importBook}>
+              Import Book
+            </button>
+            <button type="button" className="btn" onClick={importAlignmentPackage}>
+              Import Alignment Package
+            </button>
+          </div>
+
+          {bilingualError && <p role="alert" className="notice warn">{bilingualError}</p>}
 
           {duplicateImport && (
-            <div className="duplicate-import-dialog" role="dialog" aria-label="Duplicate Book">
-              <p>This book already exists.</p>
-              <p>{duplicateImport.title}</p>
-              <button type="button" onClick={openExistingDuplicate}>
-                Open Existing
-              </button>
-              <button type="button" onClick={relinkExistingDuplicate}>
-                Relink Existing Book
-              </button>
-              <button type="button" onClick={cancelDuplicateImport}>
-                Cancel
-              </button>
+            <div className="duplicate-import-dialog overlay open" role="dialog" aria-label="Duplicate Book">
+              <div className="modal">
+                <div className="modalHead">
+                  <h2>This book already exists.</h2>
+                </div>
+                <p>{duplicateImport.title}</p>
+                <div className="modalActions">
+                  <button type="button" className="btn primary" onClick={openExistingDuplicate}>
+                    Open Existing
+                  </button>
+                  <button type="button" className="btn" onClick={relinkExistingDuplicate}>
+                    Relink Existing Book
+                  </button>
+                  <button type="button" className="btn" onClick={cancelDuplicateImport}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {continueReading.length > 0 && (
-            <section aria-label="Continue Reading">
-              <h2>Continue Reading</h2>
-              <ul className="continue-reading-list">
+            <section aria-label="Continue Reading" className="continue-reading-section">
+              <div className="section">
+                <h2>Continue Reading</h2>
+                <span className="hint">Pick up where you left off.</span>
+              </div>
+              <ul className="continue-reading-list resume-grid">
                 {continueReading.map(({ book, percent }) => (
-                  <li key={book.book_id}>
-                    <button type="button" onClick={() => setOpenBook(book)}>
-                      {book.title}
-                    </button>
-                    <span className="meta"> — {percent.toFixed(0)}%</span>
+                  <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
+                    <div className="cover" aria-hidden="true">
+                      <span className="cover-format">{book.format.toUpperCase()}</span>
+                    </div>
+                    <div className="resume-body">
+                      <h3>
+                        <button
+                          type="button"
+                          className="resume-title-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenBook(book);
+                          }}
+                        >
+                          {book.title}
+                        </button>
+                      </h3>
+                      <div className="meta">
+                        {book.format.toUpperCase()} · {book.ownership_mode}
+                      </div>
+                      <div className="bar">
+                        <i style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                      </div>
+                      <div className="meta">{percent.toFixed(0)}%</div>
+                    </div>
+                    <div className="resume-action" style={{ color: "var(--accent)", fontWeight: 650 }}>
+                      Continue →
+                    </div>
                   </li>
                 ))}
               </ul>
             </section>
           )}
 
-          <section aria-label="Collections">
-            <label>
-              New Collection
-              <input
-                type="text"
-                value={newCollectionName}
-                onChange={(e) => setNewCollectionName(e.target.value)}
-              />
-            </label>
-            <button type="button" onClick={createCollection}>
-              Create Collection
-            </button>
-            <ul className="collection-filter-list">
-              <li>
-                <button
-                  type="button"
-                  aria-current={collectionFilter === null ? "true" : undefined}
-                  onClick={() => applyCollectionFilter(null)}
-                >
-                  All
-                </button>
-              </li>
+          <section aria-label="Collections" className="collections-section">
+            <div className="section">
+              <h2>Collections</h2>
+            </div>
+            <div className="tools">
+              <button
+                type="button"
+                className={`chip ${collectionFilter === null ? "active" : ""}`}
+                aria-current={collectionFilter === null ? "true" : undefined}
+                onClick={() => applyCollectionFilter(null)}
+              >
+                All
+              </button>
               {collections.map((collection) => (
-                <li key={collection.id}>
+                <span key={collection.id} className="collection-chip-wrap">
                   <button
                     type="button"
+                    className={`chip ${collectionFilter === collection.id ? "active" : ""}`}
                     aria-current={collectionFilter === collection.id ? "true" : undefined}
                     onClick={() => applyCollectionFilter(collection.id)}
                   >
                     {collection.name}
                   </button>
-                  <button type="button" onClick={() => deleteCollection(collection.id)}>
+                  <button
+                    type="button"
+                    className="chip-delete-btn"
+                    onClick={() => deleteCollection(collection.id)}
+                  >
                     Delete Collection
                   </button>
-                </li>
+                </span>
               ))}
-            </ul>
+            </div>
+            <div className="new-collection-form">
+              <label>
+                New Collection
+                <input
+                  type="text"
+                  value={newCollectionName}
+                  onChange={(e) => setNewCollectionName(e.target.value)}
+                />
+              </label>
+              <button type="button" className="btn" onClick={createCollection}>
+                Create Collection
+              </button>
+            </div>
           </section>
 
           {books === null ? null : books.length === 0 ? (
-            <p>Library is empty. Import a book to get started.</p>
+            <p className="empty-state">Library is empty. Import a book to get started.</p>
           ) : (() => {
             const visibleBooks =
               collectionFilterBookIds === null
                 ? books
                 : books.filter((book) => collectionFilterBookIds.has(book.book_id));
             return visibleBooks.length === 0 ? (
-              <p>No Books in this Collection.</p>
+              <p className="empty-state">No Books in this Collection.</p>
             ) : (
-              <ul className="library-book-list">
+              <ul className="grid library-book-list">
                 {visibleBooks.map((book) => {
                   const canOpen = book.available && READABLE_FORMATS.has(book.format);
                   return (
-                    <li key={book.book_id}>
-                      {renamingBookId === book.book_id ? (
-                        <span className="rename-book-form">
-                          <label>
-                            Title
-                            <input
-                              type="text"
-                              value={renameDraft}
-                              onChange={(e) => setRenameDraft(e.target.value)}
-                            />
-                          </label>
-                          <button type="button" onClick={() => saveRenamedBook(book.book_id)}>
-                            Save Title
-                          </button>
-                          <button type="button" onClick={cancelRenamingBook}>
-                            Cancel
-                          </button>
-                        </span>
-                      ) : (
-                        <>
-                          {canOpen ? (
-                            <button type="button" onClick={() => setOpenBook(book)}>
-                              {book.title}
+                    <li key={book.book_id} className="book">
+                      <div className="cover" aria-hidden="true" onClick={() => canOpen && setOpenBook(book)}>
+                        <span className="cover-format">{book.format.toUpperCase()}</span>
+                      </div>
+                      <div className="book-card-body">
+                        {renamingBookId === book.book_id ? (
+                          <span className="rename-book-form">
+                            <label>
+                              Title
+                              <input
+                                type="text"
+                                value={renameDraft}
+                                onChange={(e) => setRenameDraft(e.target.value)}
+                              />
+                            </label>
+                            <button type="button" className="btn-sm primary" onClick={() => saveRenamedBook(book.book_id)}>
+                              Save Title
                             </button>
-                          ) : (
-                            book.title
-                          )}
-                          {!book.available && <span> — Needs Relink</span>}
-                          {canOpen && (
-                            <button type="button" onClick={() => openBilingualForBook(book)}>
-                              Bilingual
+                            <button type="button" className="btn-sm" onClick={cancelRenamingBook}>
+                              Cancel
                             </button>
-                          )}
-                          <button type="button" onClick={() => startRenamingBook(book)}>
-                            Edit Title
-                          </button>
-                        </>
-                      )}
-                      <button type="button" onClick={() => setDetailsBook(book)}>
-                        Details
-                      </button>
-                      <button type="button" onClick={() => toggleOrganizePanel(book.book_id)}>
-                        Organize
-                      </button>
-                      <button type="button" onClick={() => removeBook(book.book_id)}>
-                        Remove from Library
-                      </button>
-                      <button type="button" onClick={() => deleteReadingData(book.book_id)}>
-                        Delete Reading Data
-                      </button>
-                      {book.ownership_mode === "managed_copy" && (
-                        <button type="button" onClick={() => deleteManagedCopyFile(book.book_id)}>
-                          Delete Managed-Copy File
-                        </button>
-                      )}
+                          </span>
+                        ) : (
+                          <>
+                            <h4 className="book-title">
+                              {canOpen ? (
+                                <button type="button" className="book-open-link" onClick={() => setOpenBook(book)}>
+                                  {book.title}
+                                </button>
+                              ) : (
+                                book.title
+                              )}
+                            </h4>
+                            <div className="small">
+                              {book.format.toUpperCase()} · {book.ownership_mode}
+                              {!book.available && <span className="needs-relink"> — Needs Relink</span>}
+                            </div>
+                            <div className="book-actions">
+                              {canOpen && (
+                                <button type="button" className="btn-sm" onClick={() => openBilingualForBook(book)}>
+                                  Bilingual
+                                </button>
+                              )}
+                              <button type="button" className="btn-sm" onClick={() => startRenamingBook(book)}>
+                                Edit Title
+                              </button>
+                              <button type="button" className="btn-sm" onClick={() => setDetailsBook(book)}>
+                                Details
+                              </button>
+                              <button type="button" className="btn-sm" onClick={() => toggleOrganizePanel(book.book_id)}>
+                                Organize
+                              </button>
+                              <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
+                                Remove from Library
+                              </button>
+                              <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
+                                Delete Reading Data
+                              </button>
+                              {book.ownership_mode === "managed_copy" && (
+                                <button type="button" className="btn-sm danger" onClick={() => deleteManagedCopyFile(book.book_id)}>
+                                  Delete Managed-Copy File
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                       {organizeBookId === book.book_id && (
                         <div className="organize-panel" role="region" aria-label={`Organize ${book.title}`}>
-                          <div>
-                            <span>Collections: </span>
+                          <div className="organize-section">
+                            <span className="organize-label">Collections: </span>
                             {organizeBookCollections.length === 0 ? (
-                              <span>None</span>
+                              <span className="organize-none">None</span>
                             ) : (
                               organizeBookCollections.map((collection) => (
                                 <span key={collection.id} className="collection-chip">
@@ -890,7 +946,7 @@ function App() {
                                 </span>
                               ))
                             )}
-                            <label>
+                            <label className="organize-select-wrap">
                               Add to Collection
                               <select
                                 value={addToCollectionChoice}
@@ -908,10 +964,10 @@ function App() {
                               </select>
                             </label>
                           </div>
-                          <div>
-                            <span>Tags: </span>
+                          <div className="organize-section">
+                            <span className="organize-label">Tags: </span>
                             {organizeBookTags.length === 0 ? (
-                              <span>None</span>
+                              <span className="organize-none">None</span>
                             ) : (
                               organizeBookTags.map((tag) => (
                                 <span key={tag} className="tag-chip">
@@ -922,7 +978,7 @@ function App() {
                                 </span>
                               ))
                             )}
-                            <label>
+                            <label className="organize-input-wrap">
                               New Tag
                               <input
                                 type="text"
@@ -930,48 +986,50 @@ function App() {
                                 onChange={(e) => setNewTagName(e.target.value)}
                               />
                             </label>
-                            <button type="button" onClick={() => addTagToBook(book.book_id)}>
+                            <button type="button" className="btn-sm" onClick={() => addTagToBook(book.book_id)}>
                               Add Tag
                             </button>
                           </div>
-                          <div role="region" aria-label={`Book Hours for ${book.title}`}>
-                            <span>Book Hours: </span>
+                          <div role="region" aria-label={`Book Hours for ${book.title}`} className="organize-section workload-section">
+                            <span className="organize-label">Book Hours: </span>
                             {organizeBookHours ? (
-                              <span>
+                              <span className="book-hours-summary">
                                 Base {organizeBookHours.base_hours.toFixed(1)}h, Cumulative{" "}
                                 {organizeBookHours.cumulative_hours.toFixed(1)}h (
                                 {organizeBookHours.cumulative_reading_percent.toFixed(0)}% cumulative reading)
                               </span>
                             ) : (
-                              <span>Not configured yet.</span>
+                              <span className="organize-none">Not configured yet.</span>
                             )}
-                            <label>
-                              Quantity
-                              <input
-                                type="number"
-                                value={workloadQuantity}
-                                onChange={(e) => setWorkloadQuantity(e.target.value)}
-                              />
-                            </label>
-                            <label>
-                              Baseline Speed
-                              <input
-                                type="number"
-                                value={workloadBaselineSpeed}
-                                onChange={(e) => setWorkloadBaselineSpeed(e.target.value)}
-                              />
-                            </label>
-                            <label>
-                              Difficulty Coefficient
-                              <input
-                                type="number"
-                                value={workloadDifficultyCoefficient}
-                                onChange={(e) => setWorkloadDifficultyCoefficient(e.target.value)}
-                              />
-                            </label>
-                            <button type="button" onClick={() => saveWorkloadConfig(book.book_id)}>
-                              Save Book Hours Config
-                            </button>
+                            <div className="workload-inputs">
+                              <label>
+                                Quantity
+                                <input
+                                  type="number"
+                                  value={workloadQuantity}
+                                  onChange={(e) => setWorkloadQuantity(e.target.value)}
+                                />
+                              </label>
+                              <label>
+                                Baseline Speed
+                                <input
+                                  type="number"
+                                  value={workloadBaselineSpeed}
+                                  onChange={(e) => setWorkloadBaselineSpeed(e.target.value)}
+                                />
+                              </label>
+                              <label>
+                                Difficulty Coefficient
+                                <input
+                                  type="number"
+                                  value={workloadDifficultyCoefficient}
+                                  onChange={(e) => setWorkloadDifficultyCoefficient(e.target.value)}
+                                />
+                              </label>
+                              <button type="button" className="btn-sm" onClick={() => saveWorkloadConfig(book.book_id)}>
+                                Save Book Hours Config
+                              </button>
+                            </div>
                             {organizeWorkloadRevisions.length > 0 && (
                               <ul className="workload-revision-history">
                                 {organizeWorkloadRevisions.map((revision, index) => (
