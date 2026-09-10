@@ -10,7 +10,7 @@ Current Phase: **Canonical UI Migration — C2 Canonical UI Migration B1–B8 Co
 5. B5 Library & Book Grid (`ER-LIB-001`) (Complete & Corrected, commit `2e815a6`, human-PASSed)
 6. B6 Book Details / OCR / Bilingual (`ER-BOOK-001`, `ER-OCR-001`, `ER-BI-001`) (Migration progression accepted; deferred post-UI engineering residuals recorded below)
 7. B7 Protected Reader Zone (`ER-READER-001`, `ER-FOCUS-001`, `ER-TYPE-001`) (Migration progression accepted; deferred post-UI engineering residuals recorded below)
-8. B8 Motion / Sound / Final Convergence (Complete — commit `[PENDING]`)
+8. B8 Motion / Sound / Final Convergence (Complete — commit `df668bf`)
 
 **Deferred Post-UI Engineering Residuals (Recorded for Post-UI Investigation):**
 - **PDF Open Latency**: Repeated PDF document open latency requires dedicated performance attribution during post-UI optimization.
