@@ -23,7 +23,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | CLOSED (`a4c0c62`, CI run 34432709301 success) | 1 |
 | 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | CLOSED (`ffd761d`, CI run 34433233529 success) | 1 |
 | 17 | FC-A11 — Book Details view + Continue Reading section + Book Hours/Actual Reading Time presentation | CLOSED (`6bf6f56`, CI run 34476328787 success) | — |
-| 18 | FC-A14 — Close Backup/Restore completeness: ReadingSessions + Alignment Package round-trip tests; Collections/Tags round trip once ticket 6 lands; verify Reference-file round trip once ticket 9 lands | OPEN | 6, 9 |
+| 18 | FC-A14 — Close Backup/Restore completeness: ReadingSessions + Alignment Package round-trip tests; Collections/Tags round trip once ticket 6 lands; verify Reference-file round trip once ticket 9 lands | CLOSED (`ffc3072`, CI run 34477080424 success) | 6, 9 |
 
 Closed already (no ticket): FC-A12 (OCR workflow), FC-A13 (Bilingual Alignment workflow).
 
@@ -309,3 +309,27 @@ Evidence:
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (`BookDetails.test.tsx` new; `App.test.tsx`'s new "Book Details + Continue Reading" describe block: Details<->Back navigation, ranks an active in-progress Book and omits a never-opened one, no section when nothing is in progress). `npx vite build` passed.
 - The implementation commit (`2edc641`) initially failed CI on the Frontend job: a pre-existing (Ticket 14-inherited) flaky test in `Settings.test.tsx` raced `TypographyPanel`'s own async `list_system_fonts_command` fetch. Fixed in a follow-up commit (`6bf6f56`) by waiting for the option to exist, scoped to the Font Source select (the same option text also appears in the CJK Font Override select).
 - GitHub Actions: CI run 34433923348 failed (Frontend) on `2edc641`; CI run 34476328787 passed on `6bf6f56` (Frontend and Rust jobs green).
+
+## Ticket 18 (FC-A14) — closed 2026-09-10 (`ffc3072`, CI run 34477080424 success)
+
+Failure Attribution: earliest-wrong layer was **test evidence**, not persistence or wiring -- both `ActualReadingTime` (`crates/domain/src/actual_reading_time.rs`) and `AlignmentPackage` (`crates/domain/src/alignment.rs`) already had real, working domain persistence (proven by their own unit tests) and were already included in every App Data Backup by construction, since `backup.rs` copies the canonical SQLite file itself rather than hand-rolling a per-table export. What was missing was a test proving each specific category actually survives a real backup -> restore cycle, as `MANUAL_QA.md` QA-BACK-04 requires ("ReadingSessions" and "Alignment" among what a Clean Restore must verify). Collections/Tags and Reference-file round trips were already proven under Tickets 6 and 9 respectively, per this ticket's own dependency notes -- no further work was needed for those two.
+
+Landed:
+- `crates/domain/src/backup.rs`: extended the existing `canonical_user_assets_survive_a_real_backup_and_restore_round_trip` test to also seed a second Book (`book-2`, for the Alignment Package's second side), a real `ActualReadingTime` via `save_actual_reading_time`, and a real `AlignmentPackage` via `alignment::import_package`; after restore, asserts the reading-time total and the alignment package's book pairing/mappings all survive intact.
+
+Evidence:
+- Domain verification: `cargo test -p ebookreader-domain --lib` passed (193 passed, 2 ignored -- no new test count increase since this extends one existing test rather than adding new ones, per the ticket's own framing).
+- `cargo build` and `cargo test` in `src-tauri` passed (no backend/command changes this ticket -- purely a domain-test-coverage correction).
+- No frontend changes this ticket.
+- GitHub Actions: CI run 34477080424 passed on `ffc3072` (Frontend and Rust jobs green).
+
+## Post-Ticket-18 reconciliation finding (2026-09-10): FC-C05 is not actually fully closed
+
+All 18 originally-listed tickets are CLOSED, but before writing the second Feature Complete Candidate package, this reconciliation pass re-read `FEATURE_COMPLETE_REQUIREMENT_COVERAGE_AUDIT.md`'s FC-C05 row against current production source rather than trusting the ticket table's own "owned by tickets 9-16" claim. Ticket 1's original closure note (2026-09-09) listed FC-C05's full required settings list as: reading-time policy toggles, Reading Checkpoint, typography defaults, sound/motion, **default import mode**, update-awareness preference, **About & Updates**. Tickets 9-16 as actually executed covered the first five and update-awareness, but never built a default-import-mode setting or an About & Updates Settings section -- confirmed by grep: `src/App.tsx:346` hardcodes `ownershipMode: "reference"` on every import with no user-facing override; `src/Settings.tsx` has no About/version section (version + manual update check exist only under Data -> Update Awareness, an M8-era surface, not Settings). This is a genuine tracking gap in the original ticket list, not a new requirement -- so it is added as two new tickets rather than silently folded into Ticket 18's closure.
+
+| # | Ticket | Status | Depends on |
+|---|---|---|---|
+| 19 | FC-A15 — Default import mode setting (Reference vs Managed-Copy), applied to future imports | OPEN | 1 |
+| 20 | FC-A16 — About & Updates Settings section (version, manual update check, release notes link) | OPEN | 1, 10 |
+
+Per the corrective-pass protocol, these follow the same per-ticket loop as tickets 1-18. Only once FC-A15 and FC-A16 are also CLOSED and the coverage audit shows zero `MISSING`/`PARTIAL`/`BACKEND_ONLY`/`PROTOTYPE_ONLY` rows does the second Feature Complete Candidate package get produced, followed by a HARD STOP for Human Feature Freeze review -- no self-promotion into Feature Freeze or M9 Product Hardening.
