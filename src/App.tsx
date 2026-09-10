@@ -8,6 +8,7 @@ import { Calendar } from "./Calendar";
 import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
+import { BookDetails } from "./BookDetails";
 import { loadAndApplyMotionPreference, loadUpdateCheckOnStartupPreference } from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import "./App.css";
@@ -19,6 +20,7 @@ interface BookSummary {
   format: string;
   ownership_mode: string;
   available: boolean;
+  last_opened_at: string | null;
 }
 
 // Mirrors `document_location::DocumentLocation` (see also each Reader's
@@ -95,6 +97,10 @@ const READABLE_FORMATS = new Set(["epub", "pdf", "txt"]);
 function App() {
   const [books, setBooks] = useState<BookSummary[] | null>(null);
   const [openBook, setOpenBook] = useState<BookSummary | null>(null);
+  // FC-A11 (`DESIGN.md` `ER-BOOK-001` "Book Details"): a contextual
+  // overlay, not a top-level destination -- reached from a Book's own
+  // "Details" action, not the nav.
+  const [detailsBook, setDetailsBook] = useState<BookSummary | null>(null);
   // FC-C01/FC-C02: the exact source location to seek to once `openBook`'s
   // Reader mounts, threaded from whichever Search hit or Notebook asset
   // was clicked. `null` when opening a Book normally (resumes its last
@@ -157,10 +163,48 @@ function App() {
   const [startupUpdateResult, setStartupUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [startupUpdateBannerDismissed, setStartupUpdateBannerDismissed] = useState(false);
 
+  // FC-A11 (`DESIGN.md` SS4 "Continue Reading (small, 1-3 items)"): the
+  // most recently opened Books that still have an active read in
+  // progress, ranked by real recorded recency (`last_opened_at`), not
+  // import order. Recomputed whenever the Library list changes.
+  const [continueReading, setContinueReading] = useState<{ book: BookSummary; percent: number }[]>([]);
+
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
     setBooks(result);
   }, []);
+
+  useEffect(() => {
+    if (!books) return;
+    let cancelled = false;
+    const candidates = [...books]
+      .filter((b) => b.last_opened_at)
+      .sort((a, b) => (a.last_opened_at! < b.last_opened_at! ? 1 : a.last_opened_at! > b.last_opened_at! ? -1 : 0))
+      .slice(0, 10);
+
+    Promise.all(
+      candidates.map((book) =>
+        invoke<{ completed_read_count: number; active_read_in_progress: boolean; active_pass_progress: number }>(
+          "get_reading_progress_command",
+          { bookId: book.book_id },
+        ).then((progress) => ({ book, progress })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setContinueReading(
+        results
+          .filter((r) => r.progress.active_read_in_progress)
+          .slice(0, 3)
+          .map((r) => ({
+            book: r.book,
+            percent: r.progress.completed_read_count * 100 + r.progress.active_pass_progress,
+          })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [books]);
 
   const refreshCollections = useCallback(async () => {
     const result = await invoke<CollectionDTO[]>("list_collections_command");
@@ -448,6 +492,19 @@ function App() {
     loadGlobalNotes(notesKindFilter);
   }
 
+  if (detailsBook) {
+    return (
+      <BookDetails
+        book={detailsBook}
+        onClose={() => setDetailsBook(null)}
+        onRead={() => {
+          openBookAtLocation(detailsBook.book_id, null);
+          setDetailsBook(null);
+        }}
+      />
+    );
+  }
+
   if (openBilingual) {
     return (
       <BilingualReader
@@ -645,6 +702,22 @@ function App() {
             </div>
           )}
 
+          {continueReading.length > 0 && (
+            <section aria-label="Continue Reading">
+              <h2>Continue Reading</h2>
+              <ul className="continue-reading-list">
+                {continueReading.map(({ book, percent }) => (
+                  <li key={book.book_id}>
+                    <button type="button" onClick={() => setOpenBook(book)}>
+                      {book.title}
+                    </button>
+                    <span className="meta"> — {percent.toFixed(0)}%</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section aria-label="Collections">
             <label>
               New Collection
@@ -736,6 +809,9 @@ function App() {
                           </button>
                         </>
                       )}
+                      <button type="button" onClick={() => setDetailsBook(book)}>
+                        Details
+                      </button>
                       <button type="button" onClick={() => toggleOrganizePanel(book.book_id)}>
                         Organize
                       </button>

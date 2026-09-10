@@ -256,6 +256,15 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 14 {
+        conn.execute_batch(
+            "
+            ALTER TABLE book ADD COLUMN last_opened_at TEXT;
+            PRAGMA user_version = 14;
+            ",
+        )?;
+    }
+
     Ok(())
 }
 
@@ -486,12 +495,16 @@ pub struct BookSummary {
     /// this is that signal, surfaced to callers/UI rather than silently
     /// treated as available.
     pub available: bool,
+    /// When this Book's Reader was last opened, if ever (FC-A11 /
+    /// `DESIGN.md` SS4 "Continue Reading" needs real recency, not import
+    /// order). `None` for a Book that has never been opened.
+    pub last_opened_at: Option<String>,
 }
 
 /// List every Book currently in the Library, most recently imported first.
 pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
     let mut stmt = conn.prepare(
-        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
+        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode, book.last_opened_at
          FROM book JOIN book_file ON book_file.book_id = book.id
          WHERE book.library_status = 'active'
          ORDER BY book.rowid DESC",
@@ -506,9 +519,18 @@ pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<BookSummary>> {
             format: row.get(3)?,
             ownership_mode: row.get(4)?,
             available,
+            last_opened_at: row.get(5)?,
         })
     })?;
     rows.collect()
+}
+
+/// Records that `book_id`'s Reader was just opened, for "Continue
+/// Reading" recency (FC-A11). Idempotent -- always overwrites with the
+/// latest timestamp, since only the most recent open matters.
+pub fn record_book_opened(conn: &Connection, book_id: &str, opened_at: &str) -> rusqlite::Result<()> {
+    conn.execute("UPDATE book SET last_opened_at = ?1 WHERE id = ?2", (opened_at, book_id))?;
+    Ok(())
 }
 
 /// Remove a Book from the visible Library.
@@ -584,7 +606,7 @@ pub fn delete_managed_copy_file(conn: &Connection, book_id: &str) -> rusqlite::R
 /// Look up a single Book by id, if it exists.
 pub fn get_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<BookSummary>> {
     conn.query_row(
-        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode
+        "SELECT book.id, book.title, book_file.path, book_file.format, book_file.ownership_mode, book.last_opened_at
          FROM book JOIN book_file ON book_file.book_id = book.id
          WHERE book.id = ?1 AND book.library_status = 'active'",
         [book_id],
@@ -598,6 +620,7 @@ pub fn get_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<Boo
                 format: row.get(3)?,
                 ownership_mode: row.get(4)?,
                 available,
+                last_opened_at: row.get(5)?,
             })
         },
     )
@@ -650,7 +673,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 13);
+        assert_eq!(version, 14);
     }
 
     #[test]
@@ -834,6 +857,34 @@ mod tests {
         assert_eq!(found.map(|b| b.title), Some("Lookup Book".to_string()));
 
         assert_eq!(get_book(&conn, "no-such-book").unwrap(), None);
+    }
+
+    #[test]
+    fn a_never_opened_book_has_no_last_opened_at() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("never-opened.epub", b"a book never opened");
+        let book_id = import_book(&conn, &path, "Never Opened", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
+
+        let found = get_book(&conn, &book_id).unwrap().unwrap();
+        assert_eq!(found.last_opened_at, None);
+    }
+
+    #[test]
+    fn record_book_opened_persists_and_re_recording_updates_in_place() {
+        // FC-A11 (`DESIGN.md` SS4 "Continue Reading"): recency for the
+        // Continue Reading list is a real recorded timestamp, not import
+        // order or another heuristic.
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        let path = temp_file("reopened.epub", b"a book opened more than once");
+        let book_id = import_book(&conn, &path, "Reopened Book", "epub", OwnershipMode::Reference).unwrap().book_id().to_string();
+
+        record_book_opened(&conn, &book_id, "2026-09-09T00:00:00Z").unwrap();
+        assert_eq!(get_book(&conn, &book_id).unwrap().unwrap().last_opened_at, Some("2026-09-09T00:00:00Z".to_string()));
+
+        record_book_opened(&conn, &book_id, "2026-09-09T01:00:00Z").unwrap();
+        assert_eq!(get_book(&conn, &book_id).unwrap().unwrap().last_opened_at, Some("2026-09-09T01:00:00Z".to_string()));
     }
 
     #[test]

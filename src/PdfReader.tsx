@@ -12,6 +12,7 @@ import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
+import { useRecordBookOpened } from "./useRecordBookOpened";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -96,6 +97,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const { enabled: soundEnabled, toggle: toggleSound, playPageTurn } = useSoundToggle();
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
+  useRecordBookOpened(bookId);
   useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {

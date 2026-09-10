@@ -11,6 +11,7 @@ import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
+import { useRecordBookOpened } from "./useRecordBookOpened";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -48,6 +49,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   const [selection, setSelection] = useState<{ text: string; startOffset: number } | null>(null);
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
+  useRecordBookOpened(bookId);
   useActualReadingTimeHeartbeat(bookId);
 
   useEffect(() => {

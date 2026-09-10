@@ -357,6 +357,87 @@ describe("Reduced Motion reachability (DESIGN.md SS17; FC-A09)", () => {
   });
 });
 
+describe("Book Details + Continue Reading (DESIGN.md ER-BOOK-001/SS4; FC-A11)", () => {
+  it("Details opens the Book Details view, and Back returns to the Library", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: null },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_reading_progress_command") {
+        return { completed_read_count: 0, active_read_in_progress: false, active_pass_progress: 0 };
+      }
+      if (cmd === "get_actual_reading_time_command") return { total: { secs: 0, nanos: 0 } };
+      if (cmd === "get_book_hours_command") return null;
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("A Book");
+
+    await user.click(screen.getByRole("button", { name: "Details" }));
+    expect(await screen.findByRole("dialog", { name: "Book Details" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "← Back" }));
+    expect(await screen.findByText("A Book")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Book Details" })).not.toBeInTheDocument();
+  });
+
+  it("shows a Continue Reading entry for a Book with an active in-progress read, ranked by recency", async () => {
+    invokeMock.mockResolvedValueOnce([
+      {
+        book_id: "b1",
+        title: "In Progress Book",
+        path: "C:/books/b1.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-09-09T01:00:00Z",
+      },
+      {
+        book_id: "b2",
+        title: "Never Opened Book",
+        path: "C:/books/b2.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: null,
+      },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string }) => {
+      if (cmd === "get_reading_progress_command" && args?.bookId === "b1") {
+        return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 62 };
+      }
+      return undefined;
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("region", { name: "Continue Reading" })).toBeInTheDocument();
+    const section = screen.getByRole("region", { name: "Continue Reading" });
+    expect(within(section).getByText("In Progress Book")).toBeInTheDocument();
+    expect(within(section).getByText(/62%/)).toBeInTheDocument();
+    expect(within(section).queryByText("Never Opened Book")).not.toBeInTheDocument();
+  });
+
+  it("does not show a Continue Reading section when no Book has an active in-progress read", async () => {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "b1", title: "Finished Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: "2026-09-09T00:00:00Z" },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_reading_progress_command") {
+        return { completed_read_count: 1, active_read_in_progress: false, active_pass_progress: 0 };
+      }
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("Finished Book");
+
+    expect(screen.queryByRole("region", { name: "Continue Reading" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Startup Update Awareness check (PRODUCT_SPEC.md SS17; FC-C08)", () => {
   it("does not check for updates on startup when the preference is off (the beforeEach default)", async () => {
     invokeMock.mockResolvedValueOnce([]); // initial list

@@ -13,6 +13,7 @@ import { CompletionPrompt } from "./CompletionPrompt";
 import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
+import { useRecordBookOpened } from "./useRecordBookOpened";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -103,6 +104,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const { showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   useActualReadingTimeHeartbeat(bookId);
   const checkpoint = useReadingCheckpoint();
+  useRecordBookOpened(bookId);
   const advanceRef = useRef(advance);
   useEffect(() => {
     advanceRef.current = advance;

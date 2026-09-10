@@ -18,7 +18,7 @@ use commands::{
     delete_managed_copy_file_command, delete_reading_data_command, mark_reading_asset_orphaned_command,
     override_completed_reads_command, preview_backup_command,
     pause_reading_session_command, read_book_file_command, reading_session_status_command,
-    record_active_reading_time_command, relink_book_command, resume_reading_session_command,
+    record_active_reading_time_command, record_book_opened_command, relink_book_command, resume_reading_session_command,
     start_note_taking_command, stop_note_taking_command,
     remove_book_command, remove_book_from_collection_command, remove_tag_from_book_command, rename_collection_command,
     restore_backup_command, run_ocr_job_command, save_ocr_correction_command,
@@ -60,6 +60,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             import_book_command,
             list_library_command,
+            record_book_opened_command,
             update_book_title_command,
             create_collection_command,
             rename_collection_command,

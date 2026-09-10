@@ -1011,3 +1011,53 @@ button {
     background-color: #0f0f0f69;
   }
 }
+
+/* FC-A11: Book Details (`DESIGN.md` ER-BOOK-001 "Reading/file/OCR summary
+   without admin-dashboard feel") and the Library's Continue Reading
+   section (SS4). Restrained, bookish spacing rather than a KPI-dashboard
+   grid of cards. */
+.continue-reading-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.book-details-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.book-details-top h1 {
+  flex: 1;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.book-details-grid {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+  align-items: flex-start;
+}
+
+.detail-card {
+  border: 1px solid #8883;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.detail-card .stats,
+.detail-card .kv {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 16px;
+}
+
+.book-details-quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+}

@@ -27,7 +27,7 @@ use ebookreader_domain::reading_session::{PauseKind, SessionState};
 use ebookreader_domain::search::{self, SearchHit};
 use ebookreader_domain::store::{
     delete_managed_copy_file, delete_reading_data, get_book, import_book, import_book_managed, list_books,
-    relink_book_file, remove_book, update_book_title,
+    record_book_opened, relink_book_file, remove_book, update_book_title,
     BookSummary, ImportOutcome, OwnershipMode, RelinkOutcome,
 };
 use serde::Serialize;
@@ -110,6 +110,14 @@ pub fn import_book_command(
 pub fn list_library_command(state: State<DbState>) -> Result<Vec<BookSummary>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     list_books(&conn).map_err(|e| format!("could not list Library: {e}"))
+}
+
+/// Records that `book_id`'s Reader was just opened, for Continue Reading
+/// recency (`DESIGN.md` SS4; FC-A11).
+#[tauri::command]
+pub fn record_book_opened_command(state: State<DbState>, book_id: String, opened_at: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    record_book_opened(&conn, &book_id, &opened_at).map_err(|e| format!("could not record book opened: {e}"))
 }
 
 /// Applies a user-authored title correction to `book_id`
