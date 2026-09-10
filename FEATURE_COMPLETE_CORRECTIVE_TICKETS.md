@@ -18,7 +18,7 @@ Ordering rationale: foundational shells first (Settings surface + navigation, si
 | 10 | FC-C08 — Non-blocking startup update check + user preference to disable it | CLOSED (`6a65420`, CI run 34415666414 success) | 1 (preference lives in Settings) |
 | 11 | FC-A05 — Book Hours configuration UI + revision history | CLOSED (`135a7ff`, CI run 34416801485 success) | 1 |
 | 12 | FC-A06 — Actual Reading Time: background-pause, 5-min inactivity, note-taking-counts + Settings toggles | CLOSED (`bed54ba`, CI run 34417941868 success) | 1 |
-| 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | OPEN | — |
+| 13 | FC-A07 — Recovery snapshot before schema migration and before destructive mutations (remove_book, etc.) | CLOSED (`6281332`, CI run 34419014285 success) | — |
 | 14 | FC-A08 — Typography: BUILT_IN fonts, CUSTOM import, CJK override, margins, persisted global default + per-book override | OPEN | 1 |
 | 15 | FC-A09 — Persist sound toggle + reduced-motion in-app override; confirm reachable UI control | OPEN | 1 |
 | 16 | FC-A10 — Reading Checkpoint: default-Off preference + session-end reflection prompt | OPEN | 1 |
@@ -231,3 +231,16 @@ Evidence:
 - `cargo build` (both crates) and `cargo test` in `src-tauri` passed.
 - Frontend verification: `npx tsc --noEmit` passed; `npx vitest run` passed (19 files, 146 tests -- 9 new: 6 in `useActualReadingTimeHeartbeat.test.ts` (blur/focus pause-resume and its off-policy skip, 5-minute auto-pause plus activity-triggered resume and its off-policy skip, note-taking exclusion under both settings values), 5 in `Settings.test.tsx` (all-default-On, one persisted-off value doesn't affect the others, three persist-on-toggle cases), 1 in `NotebookPanel.test.tsx` (start/stop calls on mount/unmount). Getting the heartbeat tests right required routing the new mount-time `get_setting_command` calls and `pause_reading_session_command`/`resume_reading_session_command`/`start_note_taking_command`/`stop_note_taking_command` calls without disturbing the 3 pre-existing heartbeat tests' call-order assumptions -- solved by starting the heartbeat's policy variables from their SS10 defaults synchronously and only correcting them once the settings-load promise resolves, so no existing test needed editing. `npx vite build` passed.
 - GitHub Actions: CI run 34417941868 passed on `bed54ba` (Frontend and Rust jobs green).
+
+## Ticket 13 (FC-A07) — closed 2026-09-09 (`6281332`, CI run 34419014285 success)
+
+Failure Attribution: earliest-wrong layer was **application/domain data protection**, not frontend. `PRODUCT_SPEC.md` SS16.1 requires Automatic Recovery Snapshots before high-risk app-data operations: schema migration, restore, and major destructive library mutation. Restore already created a snapshot correctly in `backup.rs`; startup migration and the genuinely irreversible post-FC-C04 destructive mutations did not. The inherited ticket wording named `remove_book`, but after FC-C04 that command is only Remove-from-Library semantics and no longer deletes reading data or file bytes. The actual destructive operations are `delete_reading_data_command` and `delete_managed_copy_file_command`.
+
+Landed:
+- `crates/domain/src/backup.rs`: `create_recovery_snapshot(db_path, snapshot_dir, label, unique, keep_last)` copies the live SQLite file into bounded retained recovery snapshots, and is a no-op on a fresh install with no database file yet.
+- `src-tauri/src/db.rs`: app-level snapshot path resolution and `open_app_db()` pre-migration snapshot (`pre-migration`) before opening/migrating the database.
+- `src-tauri/src/commands.rs`: `delete_reading_data_command` and `delete_managed_copy_file_command` now snapshot first (`pre-destructive-mutation`) before mutating data/file bindings.
+
+Evidence:
+- Domain verification: 4 new recovery-snapshot tests cover byte-copy semantics, immutability after later live-file mutation, retention pruning, and fresh-install no-op behavior.
+- GitHub Actions: CI run 34419014285 passed on `6281332` (Frontend and Rust jobs green).
