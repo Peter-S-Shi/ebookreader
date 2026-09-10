@@ -61,6 +61,10 @@ interface FoliateView extends HTMLElement {
   // (non-undefined) return is the only failure signal available.
   goTo(target: string): Promise<unknown>;
   goToTextStart(): Promise<unknown>;
+  prev(distance?: number): Promise<unknown>;
+  next(distance?: number): Promise<unknown>;
+  goLeft(): Promise<unknown>;
+  goRight(): Promise<unknown>;
   getCFI(index: number, range: Range): string;
   lastLocation?: { cfi?: string; fraction?: number };
   isFixedLayout?: boolean;
@@ -264,6 +268,48 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     };
   }, [bookId, title]);
 
+  function shouldLetTargetHandleInput(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    return Boolean(
+      target.closest(
+        "input, textarea, select, button, [contenteditable='true'], .typography-panel, .toc-panel, .notebook-panel, .selection-toolbar, .completion-prompt",
+      ),
+    );
+  }
+
+  function isPaginatedMode() {
+    return viewMode !== "scrolled";
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        viewRef.current?.goRight().catch(() => {});
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        viewRef.current?.goLeft().catch(() => {});
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [viewMode]);
+
+  function handleReaderWheel(event: React.WheelEvent<HTMLDivElement>) {
+    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target)) return;
+    const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (Math.abs(dominantDelta) < 10) return;
+    event.preventDefault();
+    if (dominantDelta > 0) {
+      viewRef.current?.next(Math.abs(dominantDelta)).catch(() => {});
+    } else {
+      viewRef.current?.prev(Math.abs(dominantDelta)).catch(() => {});
+    }
+  }
+
   // HA-007: "Match System" theme mode means Dark can turn on/off while
   // the Reader is already open, if the OS preference itself changes --
   // re-apply the EPUB's color override live, same as the app shell's own
@@ -321,6 +367,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   return (
     <ReaderShell
       title={title}
+      onWheel={handleReaderWheel}
       onBack={() => checkpoint.requestBack(onBack)}
       status={status}
       toolbarExtra={

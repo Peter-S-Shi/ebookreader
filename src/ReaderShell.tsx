@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 interface ReaderShellProps {
   title: string;
   onBack: () => void;
+  onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
   status?: string;
   /** Format-specific toolbar controls (Aa, page navigation, ...). Hidden in Focus mode. */
   toolbarExtra?: ReactNode;
@@ -15,11 +16,11 @@ interface ReaderShellProps {
 // and SS6 Focus Reading ("side panels hidden; minimal reader chrome; ...
 // no modal dashboard overlay" -- Focus is an interaction state, not a
 // separate product area, hence a toggle here rather than a route).
-export function ReaderShell({ title, onBack, status, toolbarExtra, overlay, children }: ReaderShellProps) {
+export function ReaderShell({ title, onBack, onWheel, status, toolbarExtra, overlay, children }: ReaderShellProps) {
   const [focusMode, setFocusMode] = useState(false);
 
   return (
-    <div className={`reader${focusMode ? " reader--focus" : ""}`}>
+    <div className={`reader${focusMode ? " reader--focus" : ""}`} onWheel={onWheel}>
       <div className="reader-toolbar">
         {!focusMode && (
           <>

@@ -5,6 +5,9 @@
   font-weight: 400;
 
   --accent-color: #3b6ea5;
+  --contextual-surface-bg: #f6f6f6;
+  --contextual-surface-fg: #0f0f0f;
+  --contextual-surface-border: rgba(127, 127, 127, 0.3);
   color: #0f0f0f;
   background-color: #f6f6f6;
 
@@ -34,6 +37,9 @@
    `:root` itself -- is folded into these two canonical, already-correct
    rules instead of existing as a third, unguarded competitor. */
 :root[data-theme="dark"] {
+  --contextual-surface-bg: #2f2f2f;
+  --contextual-surface-fg: #f6f6f6;
+  --contextual-surface-border: rgba(180, 180, 180, 0.35);
   color: #f6f6f6;
   background-color: #1a1a1a;
 }
@@ -54,6 +60,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --contextual-surface-bg: #2f2f2f;
+    --contextual-surface-fg: #f6f6f6;
+    --contextual-surface-border: rgba(180, 180, 180, 0.35);
     color: #f6f6f6;
     background-color: #1a1a1a;
   }
@@ -608,7 +617,9 @@ button {
   gap: 0.5em;
   padding: 1em;
   border-radius: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.3);
+  border: 1px solid var(--contextual-surface-border);
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   min-width: 220px;
 }
 
@@ -625,32 +636,9 @@ button {
   max-width: 260px;
   max-height: 70vh;
   overflow: auto;
-  background-color: #f6f6f6;
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* HA-009 (real desktop retest): the `.reader .typography-panel` rule
-   above -- added for HA-008 -- has higher specificity (2 classes) than
-   the pre-existing dark-mode override further down this file (1 class,
-   inside `@media`), so it silently won even in Dark/Match-System-dark
-   Reader mode: the Aa overlay stayed pinned to a light background while
-   its labels inherited the now-correctly-themed (light-in-dark-mode)
-   `:root` foreground -- light text on a light panel, "effectively
-   invisible". These two rules match or exceed that specificity so they
-   correctly win instead, and set foreground explicitly rather than
-   relying on inheritance. `.toc-panel`/`.notebook-panel` never had this
-   problem (they have no higher-specificity competing light-background
-   rule), so they are deliberately left untouched. */
-:root[data-theme="dark"] .reader .typography-panel {
-  background-color: #2f2f2f;
-  color: #f6f6f6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .reader .typography-panel {
-    background-color: #2f2f2f;
-    color: #f6f6f6;
-  }
 }
 
 .typography-panel-header {
@@ -679,8 +667,9 @@ button {
   overflow: auto;
   padding: 1em;
   border-radius: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.3);
-  background-color: #f6f6f6;
+  border: 1px solid var(--contextual-surface-border);
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 220px;
   text-align: left;
@@ -730,15 +719,10 @@ button {
   gap: 0.5em;
   padding: 0.5em 0.75em;
   border-radius: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.3);
-  background-color: #f6f6f6;
+  border: 1px solid var(--contextual-surface-border);
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-@media (prefers-color-scheme: dark) {
-  .selection-toolbar {
-    background-color: #2f2f2f;
-  }
 }
 
 /* Notebook panel (DESIGN.md SS5 "Notebook · optional"): anchored under the
@@ -754,8 +738,9 @@ button {
   gap: 0.5em;
   padding: 1em;
   border-radius: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.3);
-  background-color: #f6f6f6;
+  border: 1px solid var(--contextual-surface-border);
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 260px;
   max-height: 70vh;
@@ -829,8 +814,9 @@ button {
   gap: 1em;
   padding: 1.5em 2em;
   border-radius: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.3);
-  background-color: #f6f6f6;
+  border: 1px solid var(--contextual-surface-border);
+  background-color: var(--contextual-surface-bg);
+  color: var(--contextual-surface-fg);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   text-align: center;
 }
@@ -838,15 +824,6 @@ button {
 .completion-prompt-actions {
   display: flex;
   gap: 0.75em;
-}
-
-@media (prefers-color-scheme: dark) {
-  .typography-panel,
-  .toc-panel,
-  .notebook-panel,
-  .completion-prompt {
-    background-color: #2f2f2f;
-  }
 }
 
 .txt-surface {

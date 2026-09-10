@@ -15,6 +15,10 @@ interface FakeFoliateView {
   open: ReturnType<typeof vi.fn>;
   goTo: ReturnType<typeof vi.fn>;
   goToTextStart: ReturnType<typeof vi.fn>;
+  goLeft: ReturnType<typeof vi.fn>;
+  goRight: ReturnType<typeof vi.fn>;
+  prev: ReturnType<typeof vi.fn>;
+  next: ReturnType<typeof vi.fn>;
   getCFI: ReturnType<typeof vi.fn>;
   setStyles: ReturnType<typeof vi.fn>;
   addEventListener: ReturnType<typeof vi.fn>;
@@ -31,6 +35,10 @@ function mockFoliateView(): FakeFoliateView {
     open: vi.fn().mockResolvedValue(undefined),
     goTo: vi.fn().mockResolvedValue({}),
     goToTextStart: vi.fn().mockResolvedValue(undefined),
+    goLeft: vi.fn().mockResolvedValue(undefined),
+    goRight: vi.fn().mockResolvedValue(undefined),
+    prev: vi.fn().mockResolvedValue(undefined),
+    next: vi.fn().mockResolvedValue(undefined),
     getCFI: vi.fn().mockReturnValue("epubcfi(/6/2!/4)"),
     setStyles: vi.fn(),
     addEventListener: vi.fn(),
@@ -146,5 +154,62 @@ describe("Reader — Dark theme propagation into the rendered EPUB (HA-007)", ()
     await waitFor(() => expect(fakeView.renderer.setStyles).toHaveBeenCalled());
     const css = fakeView.renderer.setStyles.mock.calls[0][0] as string;
     expect(css).not.toContain("color:");
+  });
+});
+
+describe("Reader — paginated reading input (HA-011)", () => {
+  it("uses foliate-js directional navigation for ArrowLeft/ArrowRight in paginated modes", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="Keyboard Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+
+    expect(fakeView.goRight).toHaveBeenCalledTimes(1);
+    expect(fakeView.goLeft).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hijack keyboard navigation while the user is editing a form control", async () => {
+    const fakeView = mockFoliateView();
+    render(
+      <>
+        <input aria-label="Editing" />
+        <Reader bookId="b1" title="Keyboard Book" onBack={vi.fn()} />
+      </>,
+    );
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    const input = document.querySelector("input")!;
+    input.focus();
+
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+
+    expect(fakeView.goRight).not.toHaveBeenCalled();
+  });
+
+  it("uses foliate-js reading-order navigation for mouse wheel in paginated modes", async () => {
+    const fakeView = mockFoliateView();
+    const { container } = render(<Reader bookId="b1" title="Wheel Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+
+    container.querySelector(".reader")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true }));
+    container.querySelector(".reader")!.dispatchEvent(new WheelEvent("wheel", { deltaY: -120, bubbles: true }));
+
+    expect(fakeView.next).toHaveBeenCalledTimes(1);
+    expect(fakeView.prev).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Continuous Scroll as natural scrolling instead of remapping wheel input to page turns", async () => {
+    const fakeView = mockFoliateView();
+    const { container } = render(<Reader bookId="b1" title="Scrolled Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+
+    const select = container.querySelector("select[aria-label='View mode']") as HTMLSelectElement;
+    select.value = "scrolled";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    container.querySelector(".reader")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true }));
+
+    expect(fakeView.next).not.toHaveBeenCalled();
+    expect(fakeView.prev).not.toHaveBeenCalled();
   });
 });

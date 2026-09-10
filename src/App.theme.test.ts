@@ -107,33 +107,63 @@ describe("App.css theme cascade (HA-007 Corrective Batch #2)", () => {
 });
 
 describe("App.css .typography-panel dark-mode contrast (HA-009)", () => {
-  it("the Reader overlay's dark-mode background/color rule specificity beats the base .reader .typography-panel rule", () => {
-    // Batch #1 (HA-008) added `.reader .typography-panel { background-color: #f6f6f6; }`
-    // with higher specificity (.reader .typography-panel, 2 classes) than
-    // the pre-existing dark-mode override `.typography-panel { background-color: #2f2f2f }`
-    // (1 class, inside @media). That silently pinned the Reader's Aa
-    // overlay to a light background in every theme, while its label text
-    // still inherited a themed (light-in-dark-mode) foreground -- light
-    // text on a light background, "effectively invisible" per the real
-    // desktop retest.
-    // A themed override must exist that targets `.reader .typography-panel`
-    // specifically (not just the bare `.typography-panel`, which would be
-    // beaten by the base rule's higher specificity) for both explicit
-    // Dark and system/Match-System dark, each setting both background AND
-    // an explicit foreground color rather than relying on inheritance.
-    const explicitDarkPanelMatch = css.match(
-      /:root\[data-theme="dark"\][^{]*\.reader \.typography-panel[^{]*\{([^}]*)\}/,
-    );
-    expect(explicitDarkPanelMatch, "expected an explicit-Dark rule targeting `.reader .typography-panel`").not.toBeNull();
-    expect(explicitDarkPanelMatch![1]).toMatch(/background-color:\s*#2f2f2f/);
-    expect(explicitDarkPanelMatch![1]).toMatch(/(?<!background-)color:\s*#f6f6f6/);
+  it("the Reader overlay resolves its background/color through the shared contextual surface tokens", () => {
+    // HA-009's invisible Reader Aa panel and HA-010's stale contextual
+    // panels have the same failure family: overlay surfaces should not
+    // compete through one-off light/dark background declarations. The
+    // Reader-scoped Aa panel must consume shared themed tokens so
+    // explicit Dark and Match-System dark remain contrast-correct.
+    expect(css).toMatch(/--contextual-surface-bg:\s*#2f2f2f/);
+    expect(css).toMatch(/--contextual-surface-fg:\s*#f6f6f6/);
+    const readerPanelRule = css.match(/\.reader \.typography-panel\s*\{([^}]*)\}/);
+    expect(readerPanelRule).not.toBeNull();
+    expect(readerPanelRule![1]).not.toMatch(/background-color:\s*#f6f6f6/);
+    expect(readerPanelRule![1]).toContain("background-color: var(--contextual-surface-bg)");
+    expect(readerPanelRule![1]).toContain("color: var(--contextual-surface-fg)");
+  });
+});
 
+describe("App.css contextual surface theme contract (HA-010)", () => {
+  it("contextual surfaces share semantic surface tokens instead of hard-coded competing light/dark backgrounds", () => {
+    // HA-010 real desktop retest: explicit Light correctly reached the
+    // shell and EPUB document, but Settings Typography and Reader
+    // Contents stayed Dark. The recurring bug pattern is contextual
+    // panels each owning hard-coded light/dark backgrounds with scattered
+    // media-query overrides. The contract is one themed surface family:
+    // Typography (Settings + Reader), Contents, Notebook, and adjacent
+    // prompts/toolbars consume the same CSS variables so explicit Light,
+    // explicit Dark, and Match System all resolve through the same
+    // cascade.
+    expect(css).toMatch(/--contextual-surface-bg:\s*#f6f6f6/);
+    expect(css).toMatch(/--contextual-surface-fg:\s*#0f0f0f/);
+    expect(css).toMatch(/:root\[data-theme="dark"\][\s\S]*--contextual-surface-bg:\s*#2f2f2f/);
+    expect(css).toMatch(
+      /:root:not\(\[data-theme="light"\]\)[\s\S]*--contextual-surface-bg:\s*#2f2f2f/,
+    );
+
+    for (const selector of [".typography-panel", ".toc-panel", ".notebook-panel", ".selection-toolbar", ".completion-prompt"]) {
+      const rule = css.match(new RegExp(`(^|\\n)${selector.replace(".", "\\.")}\\s*\\{([^}]*)\\}`));
+      expect(rule, `expected ${selector} rule`).not.toBeNull();
+      expect(rule![2], `${selector} should consume the shared contextual surface background`).toContain(
+        "background-color: var(--contextual-surface-bg)",
+      );
+      expect(rule![2], `${selector} should consume the shared contextual surface foreground`).toContain(
+        "color: var(--contextual-surface-fg)",
+      );
+      expect(rule![2], `${selector} should consume the shared contextual surface border`).toContain(
+        "border: 1px solid var(--contextual-surface-border)",
+      );
+    }
+  });
+
+  it("no prefers-dark media block rethemes contextual panels directly", () => {
     const darkBlocks = extractPrefersDarkBlocks(css);
-    const systemDarkPanelBlock = darkBlocks.find((b) => /\.reader \.typography-panel/.test(b));
-    expect(systemDarkPanelBlock, "expected a system-dark (Match System) rule targeting `.reader .typography-panel`").toBeDefined();
-    const systemDarkPanelMatch = systemDarkPanelBlock!.match(/\.reader \.typography-panel[^{]*\{([^}]*)\}/);
-    expect(systemDarkPanelMatch).not.toBeNull();
-    expect(systemDarkPanelMatch![1]).toMatch(/background-color:\s*#2f2f2f/);
-    expect(systemDarkPanelMatch![1]).toMatch(/(?<!background-)color:\s*#f6f6f6/);
+    for (const block of darkBlocks) {
+      expect(block).not.toMatch(/\.typography-panel\s*,|\s\.typography-panel\s*\{/);
+      expect(block).not.toMatch(/\.toc-panel\s*,|\s\.toc-panel\s*\{/);
+      expect(block).not.toMatch(/\.notebook-panel\s*,|\s\.notebook-panel\s*\{/);
+      expect(block).not.toMatch(/\.selection-toolbar\s*,|\s\.selection-toolbar\s*\{/);
+      expect(block).not.toMatch(/\.completion-prompt\s*,|\s\.completion-prompt\s*\{/);
+    }
   });
 });
