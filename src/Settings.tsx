@@ -181,50 +181,58 @@ export function Settings() {
 
   return (
     <div className="settings-panel">
-      <section aria-label="Appearance">
+      <section aria-label="Appearance" className="settings-section">
         <h2>Appearance</h2>
-        <fieldset>
+        <fieldset className="settings-fieldset">
           <legend>Theme</legend>
-          {(["system", "light", "dark"] as const).map((mode) => (
-            <label key={mode}>
-              <input
-                type="radio"
-                name="theme-mode"
-                value={mode}
-                checked={themeMode === mode}
-                onChange={() => updateThemeMode(mode)}
-              />
-              {mode === "system" ? "Match System" : mode === "light" ? "Light" : "Dark"}
-            </label>
-          ))}
+          <div className="seg">
+            {(["system", "light", "dark"] as const).map((mode) => (
+              <label key={mode} className={`seg-item ${themeMode === mode ? "active" : ""}`}>
+                <input
+                  type="radio"
+                  name="theme-mode"
+                  value={mode}
+                  checked={themeMode === mode}
+                  onChange={() => updateThemeMode(mode)}
+                />
+                <span>{mode === "system" ? "Match System" : mode === "light" ? "Light" : "Dark"}</span>
+              </label>
+            ))}
+          </div>
         </fieldset>
-        <label>
-          Accent Color
+        <div className="colorCell">
+          <label htmlFor="accent-color-picker">Accent Color</label>
           <input
+            id="accent-color-picker"
             aria-label="Accent Color"
             type="color"
             value={accentColor}
             onChange={(e) => updateAccentColor(e.target.value)}
           />
-        </label>
+        </div>
       </section>
-      <section aria-label="About & Updates">
+
+      <section aria-label="About & Updates" className="settings-section">
         <h2>About &amp; Updates</h2>
-        <p>Current version: {CURRENT_VERSION}</p>
-        <p>Release channel: Stable</p>
-        <label>
+        <div className="settings-info">
+          <p>Current version: {CURRENT_VERSION}</p>
+          <p>Release channel: Stable</p>
+        </div>
+        <label className="settings-field">
           <input
             type="checkbox"
             checked={updateCheckOnStartup}
             onChange={(e) => updateUpdateCheckOnStartup(e.target.checked)}
           />
-          Check for updates on startup
+          <span>Check for updates on startup</span>
         </label>
-        <button type="button" onClick={runUpdateCheck} disabled={checkingUpdate}>
-          {checkingUpdate ? "Checking…" : "Check Now"}
-        </button>
+        <div className="settings-actions">
+          <button type="button" className="btn" onClick={runUpdateCheck} disabled={checkingUpdate}>
+            {checkingUpdate ? "Checking…" : "Check Now"}
+          </button>
+        </div>
         {updateResult && (
-          <p role="status">
+          <p role="status" className="notice">
             {updateResult.status === "up_to_date" && "Up To Date."}
             {updateResult.status === "check_failed" && "Check Failed. You may be offline."}
             {updateResult.status === "update_available" && (
@@ -240,102 +248,113 @@ export function Settings() {
           </p>
         )}
       </section>
-      <section aria-label="Actual Reading Time">
+
+      <section aria-label="Actual Reading Time" className="settings-section">
         <h2>Actual Reading Time</h2>
-        <label>
-          <input
-            type="checkbox"
-            checked={trackActualReadingTime}
-            onChange={(e) => updateTrackActualReadingTime(e.target.checked)}
-          />
-          Track Actual Reading Time
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={pauseOnBackground}
-            onChange={(e) => updatePauseOnBackground(e.target.checked)}
-          />
-          Pause When App Is in Background
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={autoPauseAfterInactivity}
-            onChange={(e) => updateAutoPauseAfterInactivity(e.target.checked)}
-          />
-          Auto-pause After 5 Minutes Inactivity
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={countNoteTaking}
-            onChange={(e) => updateCountNoteTaking(e.target.checked)}
-          />
-          Count Note-taking as Reading Time
-        </label>
+        <div className="settings-fields">
+          <label className="settings-field">
+            <input
+              type="checkbox"
+              checked={trackActualReadingTime}
+              onChange={(e) => updateTrackActualReadingTime(e.target.checked)}
+            />
+            <span>Track Actual Reading Time</span>
+          </label>
+          <label className="settings-field">
+            <input
+              type="checkbox"
+              checked={pauseOnBackground}
+              onChange={(e) => updatePauseOnBackground(e.target.checked)}
+            />
+            <span>Pause When App Is in Background</span>
+          </label>
+          <label className="settings-field">
+            <input
+              type="checkbox"
+              checked={autoPauseAfterInactivity}
+              onChange={(e) => updateAutoPauseAfterInactivity(e.target.checked)}
+            />
+            <span>Auto-pause After 5 Minutes Inactivity</span>
+          </label>
+          <label className="settings-field">
+            <input
+              type="checkbox"
+              checked={countNoteTaking}
+              onChange={(e) => updateCountNoteTaking(e.target.checked)}
+            />
+            <span>Count Note-taking as Reading Time</span>
+          </label>
+        </div>
       </section>
-      <section aria-label="Typography">
+
+      <section aria-label="Typography" className="settings-section">
         <h2>Typography</h2>
         <div role="group" aria-label="Typography">
           <TypographyPanel settings={typography} onChange={updateTypography} onClose={() => {}} showHeader={false} />
         </div>
       </section>
-      <section aria-label="Sound & Motion">
+
+      <section aria-label="Sound & Motion" className="settings-section">
         <h2>Sound &amp; Motion</h2>
-        <label>
+        <label className="settings-field">
           <input
             type="checkbox"
             checked={soundPageTurnEnabled}
             onChange={(e) => updateSoundPageTurnEnabled(e.target.checked)}
           />
-          Page Turn Sound
+          <span>Page Turn Sound</span>
         </label>
-        <fieldset>
+        <fieldset className="settings-fieldset">
           <legend>Motion</legend>
-          <label>
-            <input type="radio" name="motion" checked={!reducedMotion} onChange={() => updateReducedMotion(false)} />
-            Standard
-          </label>
-          <label>
-            <input type="radio" name="motion" checked={reducedMotion} onChange={() => updateReducedMotion(true)} />
-            Reduced
-          </label>
+          <div className="seg">
+            <label className={`seg-item ${!reducedMotion ? "active" : ""}`}>
+              <input type="radio" name="motion" checked={!reducedMotion} onChange={() => updateReducedMotion(false)} />
+              <span>Standard</span>
+            </label>
+            <label className={`seg-item ${reducedMotion ? "active" : ""}`}>
+              <input type="radio" name="motion" checked={reducedMotion} onChange={() => updateReducedMotion(true)} />
+              <span>Reduced</span>
+            </label>
+          </div>
         </fieldset>
       </section>
-      <section aria-label="Reading Checkpoint">
+
+      <section aria-label="Reading Checkpoint" className="settings-section">
         <h2>Reading Checkpoint</h2>
-        <label>
+        <label className="settings-field">
           <input
             type="checkbox"
             checked={readingCheckpointEnabled}
             onChange={(e) => updateReadingCheckpointEnabled(e.target.checked)}
           />
-          Prompt for a reflection when leaving a Reader session
+          <span>Prompt for a reflection when leaving a Reader session</span>
         </label>
       </section>
-      <section aria-label="Files & Data">
+
+      <section aria-label="Files & Data" className="settings-section">
         <h2>Files &amp; Data</h2>
-        <fieldset>
+        <fieldset className="settings-fieldset">
           <legend>Default Import Mode</legend>
-          <label>
-            <input
-              type="radio"
-              name="default-import-mode"
-              checked={defaultImportMode === "reference"}
-              onChange={() => updateDefaultImportMode("reference")}
-            />
-            Reference
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="default-import-mode"
-              checked={defaultImportMode === "managed_copy"}
-              onChange={() => updateDefaultImportMode("managed_copy")}
-            />
-            Managed Copy
-          </label>
+          <div className="seg">
+            <label className={`seg-item ${defaultImportMode === "reference" ? "active" : ""}`}>
+              <input
+                type="radio"
+                name="default-import-mode"
+                checked={defaultImportMode === "reference"}
+                onChange={() => updateDefaultImportMode("reference")}
+              />
+              <span>Reference</span>
+            </label>
+            <label className={`seg-item ${defaultImportMode === "managed_copy" ? "active" : ""}`}>
+              <input
+                type="radio"
+                name="default-import-mode"
+                checked={defaultImportMode === "managed_copy"}
+                onChange={() => updateDefaultImportMode("managed_copy")}
+              />
+              <span>Managed Copy</span>
+            </label>
+          </div>
         </fieldset>
       </section>
     </div>
