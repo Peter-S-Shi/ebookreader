@@ -163,141 +163,165 @@ export function DataRecovery() {
   }
 
   return (
-    <section className="data-recovery" aria-label="Data and Recovery">
-      <div className="data-recovery-group">
-        <h3>Backup &amp; Restore</h3>
-        <p className="ocr-workspace-hint">
-          App Data Backup: Library metadata, Notes, Excerpts, Annotations, reading history, Book Hours history, OCR
-          corrections, Alignment Packages, and settings. Reference book files are not copied.
-        </p>
-        <div className="data-recovery-actions">
-          <button type="button" onClick={createAppDataBackup}>
-            Create App Data Backup
-          </button>
-          <button type="button" onClick={createFullLibraryBackup}>
-            Create Full Library Backup
-          </button>
-          <button type="button" onClick={loadReferenceBooks}>
-            Choose Reference Files to Include…
-          </button>
-          <button type="button" onClick={chooseArchiveToPreview}>
-            Choose Backup to Restore…
-          </button>
+    <section className="data-recovery dataWrap" aria-label="Data and Recovery">
+      <div className="dataMain">
+        <div className="healthHero">
+          <div className="healthIcon">◈</div>
+          <div>
+            <h2>Data &amp; Recovery Center</h2>
+            <p>Full Library safety snapshots, database backups, metadata exports, and integrity verification.</p>
+          </div>
         </div>
 
-        {referenceBooks && (
-          <div role="region" aria-label="Reference Files to Include">
-            <p className="ocr-workspace-hint">
-              Full Library Backup always includes Managed-Copy book files. Reference source files are excluded
-              unless explicitly selected here (opt-in).
-            </p>
-            {referenceBooks.length === 0 ? (
-              <p>No Reference-mode books in the Library.</p>
+        <div className="dataCard data-recovery-group">
+          <h3>Backup &amp; Restore</h3>
+          <p className="hint">
+            App Data Backup: Library metadata, Notes, Excerpts, Annotations, reading history, Book Hours history, OCR
+            corrections, Alignment Packages, and settings. Reference book files are not copied.
+          </p>
+          <div className="data-recovery-actions">
+            <button type="button" className="btn" onClick={createAppDataBackup}>
+              Create App Data Backup
+            </button>
+            <button type="button" className="btn" onClick={createFullLibraryBackup}>
+              Create Full Library Backup
+            </button>
+            <button type="button" className="btn" onClick={loadReferenceBooks}>
+              Choose Reference Files to Include…
+            </button>
+            <button type="button" className="btn" onClick={chooseArchiveToPreview}>
+              Choose Backup to Restore…
+            </button>
+          </div>
+
+          {referenceBooks && (
+            <div role="region" aria-label="Reference Files to Include" className="reference-files-region">
+              <p className="hint">
+                Full Library Backup always includes Managed-Copy book files. Reference source files are excluded
+                unless explicitly selected here (opt-in).
+              </p>
+              {referenceBooks.length === 0 ? (
+                <p>No Reference-mode books in the Library.</p>
+              ) : (
+                <ul className="reference-files-list">
+                  {referenceBooks.map((book) => (
+                    <li key={book.book_id}>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={selectedReferenceFiles.has(book.path!)}
+                          onChange={() => toggleReferenceFile(book.path!)}
+                        />
+                        <span>{book.title}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {preview && (
+            <div className="data-recovery-preview" role="region" aria-label="Backup preview">
+              <b>{preview.data.manifest.kind === "AppData" ? "App Data Backup" : "Full Library Backup"}</b>
+              <p>Created: {preview.data.manifest.created_at}</p>
+              <p>Books: {preview.data.manifest.book_count}</p>
+              {preview.data.schema_ok && preview.data.missing.length === 0 ? (
+                <p className="data-recovery-ok">This archive is complete and can be restored.</p>
+              ) : (
+                <p className="data-recovery-warn" role="alert">
+                  This archive is incomplete{preview.data.missing.length > 0 ? ` (missing: ${preview.data.missing.join(", ")})` : ""} and cannot be restored.
+                </p>
+              )}
+              <button
+                type="button"
+                className="btn primary"
+                onClick={confirmRestore}
+                disabled={!preview.data.schema_ok || preview.data.missing.length > 0}
+              >
+                Restore This Backup
+              </button>
+            </div>
+          )}
+
+          {statusMessage && <p role="status" className="notice">{statusMessage}</p>}
+        </div>
+
+        <div className="dataCard data-recovery-group">
+          <h3>Book Data</h3>
+          <button type="button" className="btn" onClick={loadBookData}>
+            Load Book Data
+          </button>
+          {bookDataBooks && (
+            bookDataBooks.length === 0 ? (
+              <p>No Books in Library.</p>
             ) : (
-              <ul>
-                {referenceBooks.map((book) => (
-                  <li key={book.book_id}>
+              <ul className="book-data-list">
+                {bookDataBooks.map((book) => (
+                  <li key={book.book_id} className="book-data-item">
                     <label>
+                      <span>Completed reads for {book.title}</span>
                       <input
-                        type="checkbox"
-                        checked={selectedReferenceFiles.has(book.path!)}
-                        onChange={() => toggleReferenceFile(book.path!)}
+                        aria-label={`Completed reads for ${book.title}`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={completedReadInputs[book.book_id] ?? "0"}
+                        onChange={(e) =>
+                          setCompletedReadInputs((current) => ({
+                            ...current,
+                            [book.book_id]: e.target.value,
+                          }))
+                        }
                       />
-                      {book.title}
                     </label>
+                    <button type="button" className="btn" onClick={() => overrideCompletedReads(book)}>
+                      Set completed reads for {book.title}
+                    </button>
                   </li>
                 ))}
               </ul>
-            )}
+            )
+          )}
+        </div>
+
+        <div className="dataCard data-recovery-group">
+          <h3>Update Awareness</h3>
+          <p>Current version: {CURRENT_VERSION}</p>
+          <button type="button" className="btn" onClick={runUpdateCheck} disabled={checkingUpdate}>
+            {checkingUpdate ? "Checking…" : "Check Now"}
+          </button>
+          {updateResult && (
+            <p role="status" className="notice">
+              {updateResult.status === "up_to_date" && "Up To Date."}
+              {updateResult.status === "check_failed" && "Check Failed. You may be offline."}
+              {updateResult.status === "update_available" && (
+                <>
+                  Update Available: {updateResult.latestVersion}.{" "}
+                  {updateResult.releaseUrl && (
+                    <a href={updateResult.releaseUrl} target="_blank" rel="noreferrer">
+                      Release notes
+                    </a>
+                  )}
+                </>
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <aside className="dataAside">
+        <div className="backupStatus">
+          <h3>Data Safety &amp; Integrity</h3>
+          <div className="backupMini">
+            <b>Automatic Safety Snapshots</b>
+            <div className="meta">A full SQLite snapshot is created before every restore or destructive mutation.</div>
           </div>
-        )}
-
-        {preview && (
-          <div className="data-recovery-preview" role="region" aria-label="Backup preview">
-            <b>{preview.data.manifest.kind === "AppData" ? "App Data Backup" : "Full Library Backup"}</b>
-            <p>Created: {preview.data.manifest.created_at}</p>
-            <p>Books: {preview.data.manifest.book_count}</p>
-            {preview.data.schema_ok && preview.data.missing.length === 0 ? (
-              <p className="data-recovery-ok">This archive is complete and can be restored.</p>
-            ) : (
-              <p className="data-recovery-warn" role="alert">
-                This archive is incomplete{preview.data.missing.length > 0 ? ` (missing: ${preview.data.missing.join(", ")})` : ""} and cannot be restored.
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={confirmRestore}
-              disabled={!preview.data.schema_ok || preview.data.missing.length > 0}
-            >
-              Restore This Backup
-            </button>
+          <div className="safetyNote">
+            Destructive actions and manual overrides always prompt with clear warnings. Reference files remain in their original folders.
           </div>
-        )}
-
-        {statusMessage && <p role="status">{statusMessage}</p>}
-      </div>
-
-      <div className="data-recovery-group">
-        <h3>Book Data</h3>
-        <button type="button" onClick={loadBookData}>
-          Load Book Data
-        </button>
-        {bookDataBooks && (
-          bookDataBooks.length === 0 ? (
-            <p>No Books in Library.</p>
-          ) : (
-            <ul>
-              {bookDataBooks.map((book) => (
-                <li key={book.book_id}>
-                  <label>
-                    Completed reads for {book.title}
-                    <input
-                      aria-label={`Completed reads for ${book.title}`}
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={completedReadInputs[book.book_id] ?? "0"}
-                      onChange={(e) =>
-                        setCompletedReadInputs((current) => ({
-                          ...current,
-                          [book.book_id]: e.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <button type="button" onClick={() => overrideCompletedReads(book)}>
-                    Set completed reads for {book.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )
-        )}
-      </div>
-
-      <div className="data-recovery-group">
-        <h3>Update Awareness</h3>
-        <p>Current version: {CURRENT_VERSION}</p>
-        <button type="button" onClick={runUpdateCheck} disabled={checkingUpdate}>
-          {checkingUpdate ? "Checking…" : "Check Now"}
-        </button>
-        {updateResult && (
-          <p role="status">
-            {updateResult.status === "up_to_date" && "Up To Date."}
-            {updateResult.status === "check_failed" && "Check Failed. You may be offline."}
-            {updateResult.status === "update_available" && (
-              <>
-                Update Available: {updateResult.latestVersion}.{" "}
-                {updateResult.releaseUrl && (
-                  <a href={updateResult.releaseUrl} target="_blank" rel="noreferrer">
-                    Release notes
-                  </a>
-                )}
-              </>
-            )}
-          </p>
-        )}
-      </div>
+        </div>
+      </aside>
     </section>
   );
 }
