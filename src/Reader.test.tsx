@@ -97,6 +97,17 @@ describe("Reader — EPUB navigation on open (HA-002 / PRODUCT_SPEC.md SS7 'Read
     expect(fakeView.goTo).not.toHaveBeenCalled();
   });
 
+  it("applies display:block and full width/height styles to foliate-view custom element", async () => {
+    const fakeView = mockFoliateView();
+
+    render(<Reader bookId="b1" title="Fresh Book" onBack={vi.fn()} />);
+
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    expect(fakeView.style.width).toBe("100%");
+    expect(fakeView.style.height).toBe("100%");
+    expect(fakeView.style.display).toBe("block");
+  });
+
   it("resumes the saved location instead of the text start when one exists", async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === "read_book_file_command") return new Uint8Array([0, 1, 2, 3]);

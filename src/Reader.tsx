@@ -161,11 +161,12 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       const fileData = await invoke<ArrayBuffer | Uint8Array>("read_book_file_command", { bookId });
       if (cancelled) return;
       const uint8 = fileData instanceof Uint8Array ? fileData : new Uint8Array(fileData);
-      const file = new File([uint8.buffer as ArrayBuffer], `${title}.epub`, { type: "application/epub+zip" });
+      const file = new File([uint8 as unknown as BlobPart], `${title}.epub`, { type: "application/epub+zip" });
 
       const view = document.createElement("foliate-view") as unknown as FoliateView;
+      view.style.cssText = "width:100%;height:100%;display:block";
       viewRef.current = view;
-      hostRef.current.appendChild(view);
+      hostRef.current.replaceChildren(view);
 
       await view.open(file);
       if (cancelled) return;
