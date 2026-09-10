@@ -522,97 +522,354 @@ a:hover {
   font-size: 0.95em;
 }
 
-/* OCR Workspace (DESIGN.md SS10, canonical surface ER-OCR-001): a
-   dedicated contextual workspace, not a small corner popover like
-   .notebook-panel -- "Toolbar/scope" over "thumbnail grid + job/status/
-   correction side region". Covers most of the reading surface while
-   open; Focus mode (ReaderShell) already hides overlays, so this never
-   fights with it. */
+/* ==========================================================================
+   OCR Workspace (ER-OCR-001) & Scanned PDF Notice — Converged Side-by-Side UX
+   ========================================================================== */
+
+/* Restrained Scanned-PDF Notice */
+.pdf-ocr-notice {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  background: color-mix(in srgb, var(--surface) 88%, #f59e0b 12%);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+  transition: all 0.18s ease;
+}
+
+.pdf-ocr-notice--collapsed {
+  padding: 4px 12px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-ocr-notice-expand {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.pdf-ocr-notice-expand:hover {
+  color: var(--text);
+}
+
+.pdf-ocr-notice-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pdf-ocr-notice-badge {
+  font-weight: 700;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #b45309;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+[data-theme="dark"] .pdf-ocr-notice-badge {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.25);
+}
+
+.pdf-ocr-notice-text {
+  flex: 1;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pdf-ocr-notice-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-ocr-open-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.pdf-ocr-open-btn:hover {
+  background: var(--surface2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pdf-ocr-notice-dismiss {
+  background: transparent;
+  border: 0;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.pdf-ocr-notice-dismiss:hover {
+  color: var(--text);
+}
+
+/* Dedicated Side-by-Side OCR Workspace (ER-OCR-001) */
 .ocr-workspace {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 40;
   display: flex;
   flex-direction: column;
-  background-color: var(--reader-bg, #fff);
-  border-left: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .ocr-workspace-toolbar {
   display: flex;
   align-items: center;
-  gap: 1em;
-  padding: 0.75em 1em;
-  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface);
   flex-wrap: wrap;
+}
+
+.ocr-workspace-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .ocr-workspace-title {
-  font-weight: 600;
-  margin-right: 0.5em;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
 }
 
-.ocr-workspace-close {
+.ocr-workspace-page-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.ocr-workspace-scope-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.ocr-scope-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.ocr-range-input {
+  width: 90px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text);
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.ocr-workspace-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
 }
 
-.ocr-workspace-section {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75em;
-  padding: 0.75em 1em 0;
+.ocr-primary-btn {
+  background: var(--accent);
+  color: #ffffff !important;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-.ocr-workspace-section h2 {
-  margin: 0;
-  font-size: 1.1em;
+.ocr-primary-btn:hover {
+  opacity: 0.9;
 }
 
-.ocr-workspace-hint {
-  font-size: 0.85em;
-  opacity: 0.65;
+.ocr-status-pill {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
 }
 
-.ocr-workspace-tools {
+.ocr-status-pill--error {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ocr-running-controls,
+.ocr-paused-controls,
+.ocr-cancelled-controls,
+.ocr-failed-controls {
   display: flex;
   align-items: center;
-  gap: 1em;
-  padding: 0.75em 1em;
-  flex-wrap: wrap;
+  gap: 6px;
 }
 
+.ocr-workspace-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.ocr-complete-icon {
+  font-size: 13px;
+}
+
+.ocr-workspace-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ocr-workspace-close:hover {
+  background: var(--surface2);
+}
+
+/* Two-Column Side-by-Side Comparison Body */
 .ocr-workspace-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
-.ocr-workspace-thumbnails {
-  flex: 2;
+.ocr-workspace-source {
   display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 0.5em;
-  padding: 1em;
-  overflow-y: auto;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ocr-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ocr-pane-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ocr-page-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ocr-page-nav-controls button {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.ocr-page-nav-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ocr-source-canvas-container {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
+}
+
+.ocr-source-canvas-container canvas {
+  max-width: 100%;
+  height: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.ocr-workspace-thumbnail-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+  min-height: 76px;
+  max-height: 76px;
 }
 
 .ocr-thumbnail {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25em;
-  width: 90px;
-  padding: 0.25em;
+  width: 44px;
+  padding: 2px;
   border: 2px solid transparent;
   border-radius: 4px;
-  background: none;
+  background: transparent;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .ocr-thumbnail img {
   width: 100%;
-  border: 1px solid rgba(127, 127, 127, 0.3);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--border);
 }
 
 .ocr-thumbnail-loading {
@@ -621,98 +878,84 @@ a:hover {
   justify-content: center;
   width: 100%;
   aspect-ratio: 3 / 4;
-  border: 1px solid rgba(127, 127, 127, 0.2);
-  font-size: 0.8em;
-  opacity: 0.6;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface2);
 }
 
 .ocr-thumbnail-number {
-  font-size: 0.75em;
-  opacity: 0.7;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
 }
 
 .ocr-thumbnail-viewed {
-  border-color: rgba(70, 120, 220, 0.7);
+  border-color: var(--accent);
+  background: var(--accentSoft);
 }
 
-.ocr-thumbnail-selected img,
-.ocr-thumbnail-selected .ocr-thumbnail-loading {
-  outline: 2px solid rgba(70, 120, 220, 0.9);
+.ocr-thumbnail-selected img {
+  outline: 2px solid var(--accent);
 }
 
-.ocr-workspace-side {
+/* Right Editor Pane */
+.ocr-workspace-editor {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ocr-char-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ocr-editor-body {
   flex: 1;
-  min-width: 260px;
+  padding: 16px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1em;
-  padding: 1em;
-  border-left: 1px solid rgba(127, 127, 127, 0.2);
-  overflow-y: auto;
 }
 
-.ocr-workspace-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75em;
-  flex-wrap: wrap;
-}
-
-.ocr-workspace-error {
-  margin: 0;
-  color: #a33;
-}
-
-/* DESIGN.md SS10 "OCR Complete" rules: success icon, stable semantic
-   success color (not user Accent), Pause/Cancel gone at this point (they
-   simply aren't rendered in the "complete" phase branch). */
-.ocr-workspace-complete {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.4em;
-  color: #1a7f37;
-  font-weight: 600;
-}
-
-.ocr-complete-icon {
-  font-size: 1.1em;
-}
-
-.ocr-workspace-complete-detail {
-  font-weight: 400;
-  font-size: 0.85em;
-  opacity: 0.8;
-}
-
-.ocr-workspace-page-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
-.ocr-workspace-page-text h3 {
-  margin: 0;
-  font-size: 1em;
-}
-
-.ocr-workspace-page-text-meta {
-  font-size: 0.85em;
-  opacity: 0.65;
-}
-
-.ocr-workspace-page-text textarea {
+.ocr-editor-body textarea {
+  flex: 1;
   width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 14px;
   font-family: inherit;
-  font-size: 0.95em;
+  font-size: 14px;
+  line-height: 1.65;
+  resize: none;
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  .ocr-workspace {
-    background-color: #1e1e1e;
-  }
-  .ocr-workspace-complete {
-    color: #4ade80;
+.ocr-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  gap: 12px;
+}
+
+.ocr-workspace-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .ocr-workspace-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
   }
 }
 

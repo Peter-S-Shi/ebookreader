@@ -68,7 +68,6 @@ type PdfViewMode = "single" | "continuous";
 export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
-  const ocrTextRef = useRef<HTMLParagraphElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const [status, setStatus] = useState("Loading…");
@@ -84,15 +83,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   // search/selection/excerpt work -- `null` until the whole-document text
   // pass below has actually checked every page.
   const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
-  // OCR text for the page currently being read (SS13's degraded-state
-  // notice, and selection/Excerpt/Annotation capture via `ocrTextRef`
-  // below), plus a lightweight inline "Correct text" quick-edit. Running
-  // OCR itself -- scope selection, thumbnails, job state, pause/resume/
-  // cancel -- lives in `OcrWorkspace` (DESIGN.md SS10's canonical "OCR
-  // Workspace" surface), not inline here.
+  // Track OCR availability for the current page to surface a restrained affordance.
+  // Full OCR review, run controls, and text corrections live in `OcrWorkspace`.
   const [ocrText, setOcrText] = useState<string | null>(null);
-  const [ocrDraft, setOcrDraft] = useState("");
-  const [ocrEditing, setOcrEditing] = useState(false);
   const [ocrWorkspaceOpen, setOcrWorkspaceOpen] = useState(false);
   const [noticeCollapsed, setNoticeCollapsed] = useState(false);
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
@@ -313,16 +306,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     if (viewMode !== "single") return;
     function handleSelectionChange() {
       const layer = textLayerRef.current;
-      const ocrLayer = ocrTextRef.current;
       const sel = document.getSelection();
-      if ((!layer && !ocrLayer) || !sel || sel.isCollapsed || sel.rangeCount === 0) {
+      if (!layer || !sel || sel.isCollapsed || sel.rangeCount === 0) {
         setSelection(null);
         return;
       }
       const range = sel.getRangeAt(0);
-      const inLayer = layer?.contains(range.commonAncestorContainer);
-      const inOcrLayer = ocrLayer?.contains(range.commonAncestorContainer);
-      if (!inLayer && !inOcrLayer) {
+      if (!layer.contains(range.commonAncestorContainer)) {
         setSelection(null);
         return;
       }
@@ -335,7 +325,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [viewMode, pageNumber, ocrText]);
+  }, [viewMode, pageNumber]);
 
   async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection) return;
@@ -568,91 +558,34 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               onClick={() => setNoticeCollapsed(false)}
               title="Expand Scanned PDF Notice"
             >
-              Scanned PDF (no text layer) — Expand notice
+              Scanned PDF — Expand notice
             </button>
           ) : (
             <div className="pdf-ocr-notice-body">
-              <span>
-                Scanned PDF — no extractable text found on this page. Visual reading works normally; search, text
-                selection, and exports require OCR.
+              <span className="pdf-ocr-notice-badge">Scanned PDF</span>
+              <span className="pdf-ocr-notice-text">
+                {ocrText
+                  ? `OCR text available for Page ${pageNumber}`
+                  : "No extractable text found on this page. Visual reading works normally; search and annotations require OCR."}
               </span>
-              {ocrText ? (
-                <div className="pdf-ocr-result">
-                  <b>OCR text for Page {pageNumber}:</b>
-                  {ocrEditing ? (
-                    <div className="pdf-ocr-edit">
-                      <textarea value={ocrDraft} onChange={(e) => setOcrDraft(e.target.value)} rows={4} />
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await invoke("save_ocr_correction_command", { bookId, pageNumber, correctedText: ocrDraft }).catch(() => {});
-                          setOcrText(ocrDraft);
-                          setOcrEditing(false);
-                        }}
-                      >
-                        Save correction
-                      </button>
-                      <button type="button" onClick={() => setOcrEditing(false)}>
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="pdf-ocr-text-display">
-                      <p ref={ocrTextRef}>{ocrText}</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOcrDraft(ocrText);
-                          setOcrEditing(true);
-                        }}
-                      >
-                        Edit OCR correction
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
+              <div className="pdf-ocr-notice-actions">
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (!pdfRef.current) return;
-                    setStatus("Running OCR…");
-                    try {
-                      const page = await pdfRef.current.getPage(pageNumber);
-                      const viewport = page.getViewport({ scale: 2.0 });
-                      const canvas = document.createElement("canvas");
-                      canvas.width = viewport.width;
-                      canvas.height = viewport.height;
-                      const ctx = canvas.getContext("2d");
-                      if (!ctx) return;
-                      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-                      const dataUrl = canvas.toDataURL("image/png");
-
-                      const recognized = await invoke<string>("run_ocr_command", { imageBase64: dataUrl });
-                      setOcrText(recognized);
-                      await invoke("save_ocr_correction_command", {
-                        bookId,
-                        pageNumber,
-                        correctedText: recognized,
-                      }).catch(() => {});
-                    } catch {
-                      // OCR failed
-                    } finally {
-                      setStatus("Ready");
-                    }
-                  }}
+                  className="pdf-ocr-open-btn"
+                  onClick={() => setOcrWorkspaceOpen(true)}
                 >
-                  Run OCR on Page {pageNumber}
+                  {ocrText ? "Open OCR Workspace" : "Run OCR in Workspace"}
                 </button>
-              )}
-              <button
-                type="button"
-                className="pdf-ocr-notice-dismiss"
-                onClick={() => setNoticeCollapsed(true)}
-                title="Collapse notice"
-              >
-                ×
-              </button>
+                <button
+                  type="button"
+                  className="pdf-ocr-notice-dismiss"
+                  onClick={() => setNoticeCollapsed(true)}
+                  title="Collapse notice"
+                  aria-label="Collapse notice"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
         </div>
