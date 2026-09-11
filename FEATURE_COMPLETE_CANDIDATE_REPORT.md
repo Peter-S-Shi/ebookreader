@@ -74,7 +74,7 @@ None. No Stop/Escalate condition was triggered by any of the 20 corrective-pass 
 
 ---
 
-**Per `ROADMAP.md`'s Feature Complete Candidate Gate, this report originally stopped before Feature Freeze.** The required second Human Feature Freeze review was later performed outside this report and explicitly approved by the user on 2026-09-11. M9 Product Hardening and full automated regression were subsequently completed; M10 / RC remains unstarted.
+**Per `ROADMAP.md`'s Feature Complete Candidate Gate, this report originally stopped before Feature Freeze.** The required second Human Feature Freeze review was later performed outside this report and explicitly approved by the user on 2026-09-11. M9 Product Hardening, full automated regression, and targeted native human acceptance were subsequently completed; M10 RC packaging is active under explicit user authorization.
 
 **Post-candidate Human Acceptance closure (2026-09-10):** the user reported real native Tauri PASS for the remaining HA-007, HA-009, HA-010, and HA-011. `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` is fully closed.
 
@@ -82,6 +82,6 @@ None. No Stop/Escalate condition was triggered by any of the 20 corrective-pass 
 
 **Post-freeze M9 Product Hardening closure (2026-09-11):** the first M9 pass closed the known native layout/form overlap and card/button overflow release-readiness defect within the frozen UI contract and found no additional known release blocker inside the bounded M9 audit scope. That closure led to the Full Regression stage, not RC.
 
-**Post-M9 automated regression (2026-09-11):** full automated regression passed after M9. The project is awaiting native Human Acceptance and has not entered M10 / RC.
+**Post-M9 automated regression (2026-09-11):** full automated regression passed after M9. Subsequent native testing identified three frozen-V1 defects.
 
-**Post-regression native corrective pass (2026-09-11):** native Human Acceptance subsequently exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry. The bounded corrections are implemented and automated verification is green. Human Feature Freeze remains approved, targeted native human retest is pending, and M10 / RC has not started.
+**Post-regression native corrective pass & Targeted Retest closure (2026-09-11):** native Human Acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; follow-up Profile Card stabilization was completed at `5ccc240`. The user performed targeted native retest and declared PASS. Full regression and native acceptance are complete. Human Feature Freeze remains approved, and Milestone 10 is explicitly authorized and active.

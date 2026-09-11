@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Native Human Acceptance Corrective Pass Implemented — Awaiting Targeted Native Human Retest**
-Human Feature Freeze remains approved and V1 scope remains locked. Full automated regression passed before native testing exposed three frozen-V1 implementation defects; those corrections are now implemented and verified, and M10 / RC has not started.
+Status: **Milestone 10 Active (M10-A — RC Build & Clean Install)**
+Full automated regression and native human acceptance passed; three post-regression native implementation defects and profile card stabilization were corrected, verified, and closed at `5ccc240`. Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is explicitly authorized and ACTIVE.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -956,8 +956,8 @@ Feature Complete Candidate
 
 # Milestone 9 — Product Hardening
 
-**Status:** Complete — Native Human Acceptance Corrective Pass Implemented; Awaiting Targeted Native Human Retest
-Human Feature Freeze approved entry on 2026-09-11. M9 closed the known native layout/form overlap and card/button overflow release-readiness defect and full automated regression passed. Subsequent native acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; the bounded corrections are implemented and verified. M10 / RC / Windows Release has not started.
+**Status:** Complete — Full Automated Regression & Native Human Acceptance PASS (`5ccc240`)
+Human Feature Freeze approved entry on 2026-09-11. M9 closed the known native layout/form overlap and card/button overflow release-readiness defect and full automated regression passed. Subsequent native acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; bounded corrections and Profile Card stabilization were implemented, verified, and closed with human PASS at `5ccc240`.
 
 Hardening is system-wide quality convergence, not feature growth.
 
@@ -993,8 +993,7 @@ Hardening is system-wide quality convergence, not feature growth.
 
 # Milestone 10 — Release Candidate, Packaging & Windows Release
 
-**Status:** Planned  
-**Human authorization required**
+**Status:** Active (M10-A RC Build & Clean Install in progress; explicitly authorized by user)
 
 ## Scope
 
