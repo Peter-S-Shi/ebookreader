@@ -83,3 +83,5 @@ None. No Stop/Escalate condition was triggered by any of the 20 corrective-pass 
 **Post-freeze M9 Product Hardening closure (2026-09-11):** the first M9 pass closed the known native layout/form overlap and card/button overflow release-readiness defect within the frozen UI contract and found no additional known release blocker inside the bounded M9 audit scope. That closure led to the Full Regression stage, not RC.
 
 **Post-M9 automated regression (2026-09-11):** full automated regression passed after M9. The project is awaiting native Human Acceptance and has not entered M10 / RC.
+
+**Post-regression native corrective pass (2026-09-11):** native Human Acceptance subsequently exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry. The bounded corrections are implemented and automated verification is green. Human Feature Freeze remains approved, targeted native human retest is pending, and M10 / RC has not started.

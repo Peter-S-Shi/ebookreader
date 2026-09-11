@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-11 (Full Automated Regression PASS)
+Last Updated: 2026-09-11 (Native Human Acceptance Corrective Pass Implemented)
 
-Current Phase: **Full Automated Regression PASS — Awaiting Human Acceptance**. Human Feature Freeze is **APPROVED**, V1 scope is locked, M9 Product Hardening is complete, and RC / Windows Release has **not** started.
+Current Phase: **Native Human Acceptance Corrective Pass Implemented — Awaiting Targeted Native Human Retest**. Full Automated Regression had passed before native testing exposed three frozen-V1 defects. Human Feature Freeze remains **APPROVED**, V1 scope remains locked, M9 Product Hardening is complete, and M10 / RC / Windows Release has **not** started.
 
 **Feature Freeze Decision Summary:**
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
@@ -56,28 +56,28 @@ Current Phase: **Full Automated Regression PASS — Awaiting Human Acceptance**.
 - `cargo build --manifest-path src-tauri\Cargo.toml --release`: passed. The local GNU toolchain emitted the existing non-fatal `.rsrc merge failure: multiple non-default manifests` linker warning.
 - `npm run tauri build`: passed; generated local MSI and NSIS bundles as a build check only. M10 / RC packaging has not started.
 
-**Risk-Based Native Human Regression Checklist:**
-1. Import/open/read/reopen: import one EPUB, one PDF, and one TXT; read each briefly; close and reopen the app; confirm last-opened book, location/progress, and readable content persist.
-2. M9 layout/modal/overflow: in a small native window, open Settings panes, Manage Collections, Library bulk-action bar, Book Hours setup, and Book Hours Recalculation Preview; confirm no form overlap, no button/card overflow, long modal content scrolls, and footer actions remain reachable.
-3. Highlight lifecycle: create a highlight, change its color, delete it, reopen the book, and confirm persistence/removal is by the intended asset, not by matching visible text.
-4. Book Hours: configure a profile/workload, preview and apply a recalculation, and confirm Reading Progress and Actual Reading Time remain unchanged by planning recalculation.
-5. Bilingual Alignment: import/manage an alignment package, open bilingual reading, switch/swap/toggle sync, and confirm unpairing removes only the alignment package, not books or reading data.
-6. OCR: open a scanned PDF, run a current-page OCR smoke, correct recognized text, rebuild raw OCR/search where available, reopen, and confirm the correction survives.
-7. Collections and multi-select: create/rename/delete a collection, add multiple books, bulk Remove from Library, and confirm soft removal preserves source files and reading data.
-8. Settings/theme persistence: change explicit Light/Dark/Match System, typography, sound/motion, default import mode, and update-awareness preference; restart and confirm settings persist and contextual panels keep readable contrast.
-9. Backup/Restore: create app-data and full-library backup previews, restore in a controlled state, and confirm books, collections, progress, notes/highlights, Book Hours, OCR corrections, alignments, and settings return without overwriting Reference source files.
+**Native Human Acceptance Corrective Pass (2026-09-11):**
+- Reflowable typography: EPUB Line Height now overrides representative publisher paragraph/list/blockquote rules at the rendered-document stylesheet boundary while leaving ruby, superscript/subscript, tables, and code/preformatted structures outside the override. TXT continues to use the same persisted typography model through its existing native style mapping.
+- PDF reader: replaced fixed-scale rendering with shared zoom state for single-page and continuous modes; added Zoom Out/In, visible percentage, Fit Page, Fit Width, guarded Left/Right navigation, and protected continuous-mode location/progress from intermediate programmatic-scroll events. The initial 120% visual baseline is preserved.
+- Book Hours Planning: corrected the shell to three explicit rows (header, six-tab navigation, content viewport); the shell owns clipping and only the content viewport scrolls.
+- Focused corrective regression: 42 tests passed across typography, PDF reader, Book Hours behavior, and Book Hours CSS structure.
+- Full post-correction verification: `npm test` passed (37 files, 293 tests); `npm run typecheck` passed; `cargo test` passed (216 passed, 2 ignored, doc-tests passed); `npm run build` passed with the existing main-bundle size warning.
+
+**Targeted Native Human Retest Checklist:**
+1. EPUB/TXT typography: in a real EPUB whose paragraphs define their own line height, move Line Height across clearly different values and confirm ordinary prose changes while ruby, super/subscript, tables, and code/preformatted content remain structurally readable; confirm TXT line height still responds.
+2. PDF: in both Single Page and Continuous Scroll, verify Zoom Out/In, percentage, Fit Page, Fit Width, canvas/text-layer alignment, Left/Right adjacent-page navigation, ignored shortcuts while a control or overlay has focus, and correct reopen location/progress.
+3. Book Hours Planning: at normal and constrained native window sizes, visit Overview, By Profile, By Collection, Books, Profiles, and Formula & Defaults; confirm the header and all six tabs remain visible and only content scrolls without overlap or clipping.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`. Full Exit Gate evidence for every Milestone is in `ROADMAP.md`.
-Current Checkpoint / Promotion Unit: **Full Automated Regression PASS → Awaiting Human Acceptance**.
+Current Checkpoint / Promotion Unit: **Native Human Acceptance Corrective Pass Implemented → Awaiting Targeted Native Human Retest**.
 Current Branch / PR: `main`
-Current Blockers: None known after M9 release-blocker audit.
+Current Blockers: No known implementation blocker; targeted native human retest is pending.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening & Book Hours V1 Redesign)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
 RC / Release State: Not started.
-Next Action: HARD STOP for native Human Acceptance using the risk-based checklist above. Do not start M10 / RC without explicit authorization.
-
+Next Action: HARD STOP for targeted native Human Acceptance using the three-item checklist above. Do not start M10 / RC without explicit authorization.
 
 
 

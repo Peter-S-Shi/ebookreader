@@ -3410,10 +3410,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .bhShell {
-  height: calc(100vh - 74px);
+  height: 100%;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
 }
 
 .bhTabs {
@@ -3451,6 +3452,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .bhViewport {
+  min-height: 0;
   overflow-y: auto;
   padding: 24px 26px 50px;
 }

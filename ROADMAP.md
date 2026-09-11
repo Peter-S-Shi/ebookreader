@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Full Automated Regression PASS — Awaiting Human Acceptance**
-Human Feature Freeze is approved, V1 implementation is complete through M9 Product Hardening, full automated regression has passed, and M10 / RC has not started.
+Status: **Native Human Acceptance Corrective Pass Implemented — Awaiting Targeted Native Human Retest**
+Human Feature Freeze remains approved and V1 scope remains locked. Full automated regression passed before native testing exposed three frozen-V1 implementation defects; those corrections are now implemented and verified, and M10 / RC has not started.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -956,8 +956,8 @@ Feature Complete Candidate
 
 # Milestone 9 — Product Hardening
 
-**Status:** Complete — Full Automated Regression PASS; Awaiting Human Acceptance
-Human Feature Freeze approved entry on 2026-09-11. This pass closed the known native layout/form overlap and card/button overflow release-readiness defect inside the frozen V1 scope, found no additional known release blocker in the bounded M9 audit, and passed full automated regression. RC / Windows Release has not started.
+**Status:** Complete — Native Human Acceptance Corrective Pass Implemented; Awaiting Targeted Native Human Retest
+Human Feature Freeze approved entry on 2026-09-11. M9 closed the known native layout/form overlap and card/button overflow release-readiness defect and full automated regression passed. Subsequent native acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; the bounded corrections are implemented and verified. M10 / RC / Windows Release has not started.
 
 Hardening is system-wide quality convergence, not feature growth.
 

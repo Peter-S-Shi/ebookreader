@@ -141,6 +141,12 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
   }
   const faces = [fontFace(settings.font), settings.cjkFont ? fontFace(settings.cjkFont) : null].filter(Boolean);
   const bodyRule = `body { ${rules.join("; ")}; }`;
+  // Publisher styles commonly assign line-height directly to paragraphs
+  // and list content, which prevents an inherited body value from taking
+  // effect. Apply the reader preference to ordinary reflowable prose only.
+  // Deliberately exclude ruby, super/subscript, tables, and preformatted or
+  // code structures whose internal metrics carry semantic layout.
+  const proseLineHeightRule = `:where(p, li, dd, dt, blockquote) { line-height: ${settings.lineHeight} !important; }`;
   // `!important` because a Book's own embedded stylesheet frequently sets
   // `color`/`background-color` on `body` (or `html`) with higher
   // specificity than this single element selector -- without it, dark
@@ -173,7 +179,7 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
     ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }` +
       `\nhtml *, body * { color: ${DARK_MODE_FOREGROUND} !important; }`
     : "";
-  return [...faces, bodyRule, colorOverride, highlightCss].filter(Boolean).join("\n");
+  return [...faces, bodyRule, proseLineHeightRule, colorOverride, highlightCss].filter(Boolean).join("\n");
 }
 
 export function toTextStyle(settings: TypographySettings): Record<string, string | number | undefined> {

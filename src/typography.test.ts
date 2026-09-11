@@ -37,6 +37,35 @@ describe("toEpubCss", () => {
     expect(css).toContain("padding-right: 12%");
   });
 
+  it("overrides publisher paragraph line-height without flattening special structures", () => {
+    const css = toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8 });
+
+    expect(css).toMatch(/:where\([^)]*p[^)]*\)\s*\{[^}]*line-height:\s*1\.8\s*!important/);
+    expect(css).not.toMatch(/(?:ruby|rt|rp|sup|sub|table|pre|code)[^{]*\{[^}]*line-height:/);
+    expect(css).not.toContain("* { line-height:");
+  });
+
+  it("wins the cascade against representative publisher paragraph CSS", () => {
+    const fixture = document.createElement("div");
+    fixture.innerHTML = `<style>p { line-height: 1.05; } pre { line-height: 1.1; }</style><style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8 })}</style><p>Ordinary reading text</p><pre>preserved code</pre>`;
+    document.body.append(fixture);
+
+    expect(getComputedStyle(fixture.querySelector("p")!).lineHeight).toBe("1.8");
+    expect(getComputedStyle(fixture.querySelector("pre")!).lineHeight).toBe("1.1");
+    fixture.remove();
+  });
+
+  it("preserves publisher metrics on special structures nested in ordinary prose", () => {
+    const fixture = document.createElement("div");
+    fixture.innerHTML = `<style>ruby { line-height: 1; } sup { line-height: 0.7; } code { line-height: 1.2; }</style><style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8 })}</style><p><ruby>reading<rt>text</rt></ruby><sup>2</sup><code>inline</code></p>`;
+    document.body.append(fixture);
+
+    expect(getComputedStyle(fixture.querySelector("ruby")!).lineHeight).toBe("1");
+    expect(getComputedStyle(fixture.querySelector("sup")!).lineHeight).toBe("0.7");
+    expect(getComputedStyle(fixture.querySelector("code")!).lineHeight).toBe("1.2");
+    fixture.remove();
+  });
+
   it("adds a CJK override after the primary family without replacing Latin/body font", () => {
     const css = toEpubCss({
       ...DEFAULT_TYPOGRAPHY,
@@ -143,6 +172,7 @@ describe("toTextStyle", () => {
       }),
     ).toMatchObject({
       fontFamily: '"Calibri"',
+      lineHeight: 1.5,
       paddingLeft: "8%",
       paddingRight: "8%",
     });

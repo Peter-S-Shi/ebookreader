@@ -36,6 +36,21 @@ interface PdfReaderProps {
 }
 
 type PdfViewMode = "single" | "continuous";
+type PdfFitMode = "custom" | "page" | "width";
+
+const DEFAULT_PDF_SCALE = 1.2;
+const PDF_ZOOM_STEP = 0.1;
+const MIN_PDF_SCALE = 0.5;
+const MAX_PDF_SCALE = 3;
+
+function clampPdfScale(scale: number): number {
+  return Math.min(MAX_PDF_SCALE, Math.max(MIN_PDF_SCALE, Math.round(scale * 100) / 100));
+}
+
+function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest("input, select, textarea, button, [contenteditable='true'], [role='dialog'], [role='alertdialog']"));
+}
 
 // PDF reading surface: renders via pdf.js (the engine ARCHITECTURE.md
 // SS5/M0-C validated for text/geometry extraction) to a canvas per page.
@@ -43,13 +58,13 @@ type PdfViewMode = "single" | "continuous";
 // SS5's "candidates to validate: page index; page geometry/bounding box".
 // Two view modes close FORMAT_CAPABILITY_MATRIX.md's required "Continuous
 // scroll" / "Single-page / paged" rows for Text PDF (DESIGN.md SS7's PDF
-// controls: "zoom; fit page / fit width" remain a residual -- pages
-// currently render at a fixed scale). Double-page spread and very large
+// controls share one zoom state across single-page and continuous modes.
+// Double-page spread and very large
 // (100s of pages) documents' rendering performance are later-checkpoint
 // residuals: continuous mode here renders every page eagerly, which is
 // fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Zoom/fit remains a later
-// checkpoint. Text selection -> Highlight/Excerpt (M4, SS11) is
+// virtualization for much longer documents. Text selection ->
+// Highlight/Excerpt (M4, SS11) is
 // implemented for single-page mode via a pdf.js TextLayer overlaid on the
 // canvas; continuous mode's per-page selection scoping is a follow-up.
 // Whole-page text is also indexed into the M4 search index in the
@@ -68,13 +83,17 @@ type PdfViewMode = "single" | "continuous";
 export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const singlePageSurfaceRef = useRef<HTMLDivElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  const pendingContinuousPageRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Loading…");
   const [jumpFailed, setJumpFailed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
+  const [zoomScale, setZoomScale] = useState(DEFAULT_PDF_SCALE);
+  const [fitMode, setFitMode] = useState<PdfFitMode>("custom");
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; page: number; assetId?: string } | null>(null);
@@ -235,7 +254,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     (async () => {
       const page = await pdf.getPage(pageNumber);
       if (cancelled) return;
-      const viewport = page.getViewport({ scale: 1.2 });
+      const viewport = page.getViewport({ scale: zoomScale });
       const canvas = canvasRef.current!;
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
@@ -297,7 +316,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [viewMode, pageNumber, bookId, pdfDoc]);
+  }, [viewMode, pageNumber, bookId, pdfDoc, zoomScale]);
 
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
   // Single-page mode only this checkpoint -- continuous mode would need
@@ -431,7 +450,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         if (!canvas) continue;
         const page = await pdf.getPage(i);
         if (cancelled) return;
-        const viewport = page.getViewport({ scale: 1.2 });
+        const viewport = page.getViewport({ scale: zoomScale });
         const context = canvas.getContext("2d")!;
         canvas.width = viewport.width;
         canvas.height = viewport.height;
@@ -447,12 +466,28 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [viewMode, bookId, pageCount]);
+  }, [viewMode, bookId, pageCount, zoomScale]);
+
+  useEffect(() => {
+    if (viewMode !== "continuous") return;
+    const target = canvasRefs.current[pageNumber - 1];
+    target?.scrollIntoView({ block: "start", behavior: "auto" });
+    const frame = requestAnimationFrame(() => {
+      pendingContinuousPageRef.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [viewMode, pageNumber]);
 
   function handleContinuousScroll() {
     const pdf = pdfRef.current;
     const container = continuousContainerRef.current;
     if (!pdf || !container) return;
+    const pendingPage = pendingContinuousPageRef.current;
+    if (pendingPage !== null) {
+      setPageNumber(pendingPage);
+      saveLocation(pendingPage, pdf.numPages);
+      return;
+    }
     const heights = canvasRefs.current.map((c) => (c ? c.clientHeight + 16 : 0)); // + gap
     const current = currentPageFromScroll(heights, container.scrollTop);
     setPageNumber(current);
@@ -471,7 +506,59 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
   }
 
+  function navigatePage(delta: -1 | 1) {
+    const nextPage = Math.min(pageCount || 1, Math.max(1, pageNumber + delta));
+    if (nextPage === pageNumber) return;
+    if (viewMode === "continuous") pendingContinuousPageRef.current = nextPage;
+    setPageNumber(nextPage);
+    playPageTurn();
+    if (viewMode === "single") {
+      triggerPageTurnAnimation();
+    } else if (pageCount > 0) {
+      saveLocation(nextPage, pageCount);
+    }
+  }
+
+  async function applyFit(nextFitMode: Exclude<PdfFitMode, "custom">) {
+    const pdf = pdfRef.current;
+    const surface = viewMode === "continuous" ? continuousContainerRef.current : singlePageSurfaceRef.current;
+    if (!pdf || !surface) return;
+    const page = await pdf.getPage(pageNumber);
+    const natural = page.getViewport({ scale: 1 });
+    const availableWidth = Math.max(1, surface.clientWidth - 32);
+    const availableHeight = Math.max(1, surface.clientHeight - 32);
+    const widthScale = availableWidth / natural.width;
+    const nextScale = nextFitMode === "width" ? widthScale : Math.min(widthScale, availableHeight / natural.height);
+    setFitMode(nextFitMode);
+    setZoomScale(clampPdfScale(nextScale));
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        (event.key !== "ArrowLeft" && event.key !== "ArrowRight") ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        blocksPdfNavigationShortcut(event.target) ||
+        notebookOpen ||
+        ocrWorkspaceOpen ||
+        showCompletionPrompt ||
+        checkpoint.showPrompt ||
+        selection !== null
+      ) {
+        return;
+      }
+      event.preventDefault();
+      navigatePage(event.key === "ArrowLeft" ? -1 : 1);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pageNumber, pageCount, viewMode, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, selection, soundEnabled]);
+
   function switchViewMode(next: PdfViewMode) {
+    setFitMode("custom");
     setViewMode(next);
   }
 
@@ -491,16 +578,41 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             <option value="single">Single page</option>
             <option value="continuous">Continuous scroll</option>
           </select>
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={zoomScale <= MIN_PDF_SCALE}
+            onClick={() => {
+              setFitMode("custom");
+              setZoomScale((scale) => clampPdfScale(scale - PDF_ZOOM_STEP));
+            }}
+          >
+            −
+          </button>
+          <span aria-label="PDF zoom">{Math.round(zoomScale * 100)}%</span>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoomScale >= MAX_PDF_SCALE}
+            onClick={() => {
+              setFitMode("custom");
+              setZoomScale((scale) => clampPdfScale(scale + PDF_ZOOM_STEP));
+            }}
+          >
+            +
+          </button>
+          <button type="button" aria-label="Fit page" aria-pressed={fitMode === "page"} onClick={() => void applyFit("page")}>
+            Fit Page
+          </button>
+          <button type="button" aria-label="Fit width" aria-pressed={fitMode === "width"} onClick={() => void applyFit("width")}>
+            Fit Width
+          </button>
           {viewMode === "single" && (
             <>
               <button
                 type="button"
                 disabled={pageNumber <= 1}
-                onClick={() => {
-                  setPageNumber((p) => p - 1);
-                  playPageTurn();
-                  triggerPageTurnAnimation();
-                }}
+                onClick={() => navigatePage(-1)}
               >
                 Previous
               </button>
@@ -511,11 +623,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               <button
                 type="button"
                 disabled={pageCount > 0 && pageNumber >= pageCount}
-                onClick={() => {
-                  setPageNumber((p) => p + 1);
-                  playPageTurn();
-                  triggerPageTurnAnimation();
-                }}
+                onClick={() => navigatePage(1)}
               >
                 Next
               </button>
@@ -664,7 +772,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         </div>
       )}
       {viewMode === "single" ? (
-        <div className="reader-surface">
+        <div ref={singlePageSurfaceRef} className="reader-surface">
           <div className="pdf-page">
             <canvas ref={canvasRef} />
             <div ref={textLayerRef} className="pdf-text-layer" />

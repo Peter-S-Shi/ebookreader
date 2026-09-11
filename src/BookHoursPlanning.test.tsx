@@ -181,6 +181,29 @@ function setupDefaultMocks(overview: BookHoursOverviewDTO = mockPopulatedOvervie
 }
 
 describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A & BH-3B)", () => {
+  it("keeps the header and all six tabs outside the scrolling content viewport", async () => {
+    const user = userEvent.setup();
+    setupDefaultMocks();
+    render(<BookHoursPlanning onBack={vi.fn()} />);
+    await screen.findByText("What are Book Hours?");
+
+    const shell = screen.getByRole("region", { name: "Book Hours Planning" });
+    const viewport = shell.querySelector(".bhViewport");
+    const tablist = screen.getByRole("tablist", { name: "Book Hours Planning Views" });
+
+    expect(shell.firstElementChild?.tagName).toBe("HEADER");
+    expect(tablist.parentElement).toBe(shell);
+    expect(viewport?.parentElement).toBe(shell);
+    expect(viewport?.contains(tablist)).toBe(false);
+    expect(screen.getAllByRole("tab")).toHaveLength(6);
+
+    for (const name of ["Overview", "By Profile", "By Collection", "Books", "Profiles", "Formula & Defaults"]) {
+      await user.click(screen.getByRole("tab", { name }));
+      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+      expect(viewport?.contains(screen.getByRole("tabpanel", { name }))).toBe(true);
+      expect(tablist.parentElement).toBe(shell);
+    }
+  });
   it("navigates from Data workspace Book Data card to Book Hours Planning and back", async () => {
     const user = userEvent.setup();
     invokeMock.mockImplementation(async (cmd: string) => {
@@ -864,5 +887,3 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
       expect(within(drawer).getByText("Needs setup (global baseline speeds unavailable; enter speed override).")).toBeInTheDocument();
     });
   });
-
-

@@ -6,8 +6,13 @@ const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
 const mockRenderTask = { promise: Promise.resolve(), cancel: vi.fn() };
+const viewportScales: number[] = [];
 const mockGetPage = vi.fn().mockImplementation(async (_pageNo: number) => ({
-  getViewport: ({ scale }: { scale?: number } = {}) => ({ width: 600 * (scale ?? 1.2), height: 800 * (scale ?? 1.2), scale: scale ?? 1.2 }),
+  getViewport: ({ scale }: { scale?: number } = {}) => {
+    const resolvedScale = scale ?? 1.2;
+    viewportScales.push(resolvedScale);
+    return { width: 600 * resolvedScale, height: 800 * resolvedScale, scale: resolvedScale };
+  },
   render: () => mockRenderTask,
   getTextContent: async () => ({ items: [] }), // No text items -> scanned PDF
   streamTextContent: async () => ({ items: [] }),
@@ -31,8 +36,10 @@ vi.mock("pdfjs-dist", () => ({
 }));
 
 beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn();
   invokeMock.mockReset();
   mockGetPage.mockClear();
+  viewportScales.length = 0;
   mockRenderTask.cancel.mockClear();
   invokeMock.mockImplementation(async (cmd: string, args: any) => {
     if (cmd === "read_book_file_command") {
@@ -61,6 +68,75 @@ beforeEach(() => {
       return { state: "active", total_excluded_ms: 0, total_note_taking_ms: 0 };
     }
     return null;
+  });
+});
+
+describe("PdfReader — Zoom and keyboard navigation", () => {
+  it("uses one zoom state for rendering and exposes conventional fit controls", async () => {
+    render(<PdfReader bookId="pdf1" title="PDF controls" onBack={vi.fn()} />);
+    await screen.findByText("Page 12 of 50");
+
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fit page" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fit width" })).toBeInTheDocument();
+    expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("120%");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("130%"));
+    expect(viewportScales).toContain(1.3);
+    expect(document.querySelector<HTMLElement>(".pdf-text-layer")?.style.getPropertyValue("--total-scale-factor")).toBe("1.3");
+
+    const surface = document.querySelector<HTMLElement>(".reader-surface")!;
+    Object.defineProperties(surface, {
+      clientWidth: { configurable: true, value: 1232 },
+      clientHeight: { configurable: true, value: 832 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fit width" }));
+    await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("200%"));
+    fireEvent.click(screen.getByRole("button", { name: "Fit page" }));
+    await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("100%"));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+    expect(screen.getByRole("button", { name: "Fit page" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("100%");
+  });
+
+  it("navigates with unmodified arrow keys but ignores editable controls and modifiers", async () => {
+    render(<PdfReader bookId="pdf1" title="PDF keyboard" onBack={vi.fn()} />);
+    await screen.findByText("Page 12 of 50");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(await screen.findByText("Page 13 of 50")).toBeInTheDocument();
+
+    const mode = screen.getByRole("combobox", { name: "View mode" });
+    mode.focus();
+    fireEvent.keyDown(mode, { key: "ArrowLeft" });
+    expect(screen.getByText("Page 13 of 50")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "ArrowLeft", ctrlKey: true });
+    expect(screen.getByText("Page 13 of 50")).toBeInTheDocument();
+
+    const alertDialog = document.createElement("div");
+    alertDialog.setAttribute("role", "alertdialog");
+    document.body.append(alertDialog);
+    fireEvent.keyDown(alertDialog, { key: "ArrowLeft" });
+    expect(screen.getByText("Page 13 of 50")).toBeInTheDocument();
+    alertDialog.remove();
+  });
+
+  it("moves continuous mode to the adjacent page with arrow keys", async () => {
+    render(<PdfReader bookId="pdf1" title="PDF continuous keyboard" onBack={vi.fn()} />);
+    await screen.findByText("Page 12 of 50");
+    fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(await screen.findByText("Page 13 of 50")).toBeInTheDocument();
+
+    const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
+    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 0 });
+    fireEvent.scroll(continuousSurface);
+    expect(screen.getByText("Page 13 of 50")).toBeInTheDocument();
   });
 });
 
