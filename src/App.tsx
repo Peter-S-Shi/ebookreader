@@ -9,6 +9,7 @@ import { BilingualReader } from "./BilingualReader";
 import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
+import { BookHoursPlanning } from "./BookHoursPlanning";
 import { loadAndApplyMotionPreference, loadDefaultImportMode, loadUpdateCheckOnStartupPreference } from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import { formatSearchSnippet } from "./searchUtils";
@@ -114,7 +115,7 @@ function App() {
   // not independently-toggled sections that can pile up on screen at
   // once. Reader/Bilingual stay contextual overlays (below), and Search
   // is a persistent topbar affordance rather than a sixth destination.
-  const [destination, setDestination] = useState<"library" | "notes" | "calendar" | "data" | "settings">("library");
+  const [destination, setDestination] = useState<"library" | "notes" | "calendar" | "data" | "settings" | "bookHours">("library");
   const [globalNotes, setGlobalNotes] = useState<ReadingAssetDTO[]>([]);
   const [notesKindFilter, setNotesKindFilter] = useState<"" | "annotation" | "excerpt" | "note">("");
   const [openBilingual, setOpenBilingual] = useState<
@@ -561,6 +562,7 @@ function App() {
     calendar: "Calendar",
     data: "Data",
     settings: "Settings",
+    bookHours: "Book Hours Planning",
   };
 
   return (
@@ -571,38 +573,48 @@ function App() {
           <h1 className="visually-hidden">EbookReader</h1>
         </div>
         <nav aria-label="Main" className="nav-group">
-          {destinations.slice(0, 3).map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className={`nav ${destination === d.id ? "active" : ""}`}
-              aria-current={destination === d.id ? "page" : undefined}
-              onClick={d.onSelect}
-            >
-              <span className="nav-icon" aria-hidden="true">{d.icon}</span>
-              {d.label}
-            </button>
-          ))}
+          {destinations.slice(0, 3).map((d) => {
+            const isCurrent = destination === d.id || (d.id === "data" && destination === "bookHours");
+            return (
+              <button
+                key={d.id}
+                type="button"
+                className={`nav ${isCurrent ? "active" : ""}`}
+                aria-current={isCurrent ? "page" : undefined}
+                onClick={d.onSelect}
+              >
+                <span className="nav-icon" aria-hidden="true">{d.icon}</span>
+                {d.label}
+              </button>
+            );
+          })}
           <div className="spacer" />
-          {destinations.slice(3).map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className={`nav ${destination === d.id ? "active" : ""}`}
-              aria-current={destination === d.id ? "page" : undefined}
-              onClick={d.onSelect}
-            >
-              <span className="nav-icon" aria-hidden="true">{d.icon}</span>
-              {d.label}
-            </button>
-          ))}
+          {destinations.slice(3).map((d) => {
+            const isCurrent = destination === d.id || (d.id === "data" && destination === "bookHours");
+            return (
+              <button
+                key={d.id}
+                type="button"
+                className={`nav ${isCurrent ? "active" : ""}`}
+                aria-current={isCurrent ? "page" : undefined}
+                onClick={d.onSelect}
+              >
+                <span className="nav-icon" aria-hidden="true">{d.icon}</span>
+                {d.label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
       <main className="main">
-        <header className="top">
-          <div className="title">{destinationTitles[destination]}</div>
-          <div className="grow" />
+        {destination === "bookHours" ? (
+          <BookHoursPlanning onBack={() => setDestination("data")} />
+        ) : (
+          <>
+            <header className="top">
+              <div className="title">{destinationTitles[destination]}</div>
+              <div className="grow" />
 
           {/* Search is topbar/context, not a top-level destination
               (`DESIGN.md`; FC-C06) -- it stays visible across every
@@ -727,7 +739,7 @@ function App() {
 
       {destination === "data" && (
         <section aria-label="Data">
-          <DataRecovery />
+          <DataRecovery onOpenBookHours={() => setDestination("bookHours")} />
         </section>
       )}
 
@@ -1080,9 +1092,11 @@ function App() {
           </div>
         </div>
       )}
-    </div>
-  </main>
-</div>
+          </div>
+        </>
+      )}
+    </main>
+  </div>
 );
 }
 

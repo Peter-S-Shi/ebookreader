@@ -1,43 +1,45 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-10 (Book Hours V1 Redesign — BH-2.1 Application-Boundary Hardening Complete)
+Last Updated: 2026-09-10 (Book Hours V1 Redesign — BH-3A Planning Frontend Foundation & Overview Complete)
 
-Current Phase: **Pre-Freeze Book Hours V1 Redesign (BH-2.1 Application-Boundary Hardening Complete — Awaiting Approval for BH-3)**. The pre-Freeze V1 scope has been reopened for the Book Hours product amendment. Feature Freeze remains unapproved and M9 unstarted.
+Current Phase: **Pre-Freeze Book Hours V1 Redesign (BH-3A Planning Frontend Foundation & Read-Only Overview Complete — Awaiting Approval for BH-3B)**. The pre-Freeze V1 scope has been reopened for the Book Hours product amendment. Feature Freeze remains unapproved and M9 unstarted.
 
-**Book Hours V1 Redesign — BH-2 / BH-2.1 Tauri IPC, Application Services, Validation & Atomic Recalculation Engine Summary (2026-09-10):**
-- **Typed Tauri IPC Commands & DTOs**:
-  - Reading Profile CRUD: `list_reading_profiles_command`, `get_reading_profile_command`, `create_reading_profile_command`, `update_reading_profile_command`, `delete_reading_profile_command` (reassigns referencing books to default profile).
-  - Book Workload Setup: `get_book_workload_command`, `set_book_workload_command`.
-  - Global Defaults Persistence: `get_global_book_hours_defaults_command`, `set_global_book_hours_defaults_command` backed by `ebookreader_domain::settings` (`keys::BOOK_HOURS_DEFAULTS`).
-  - Book Hours Overview & Single Book Query: `get_book_hours_overview_command`, `get_book_hours_item_command` returning full calculations and coverage.
-  - Recalculation Preview & Atomic Apply Engine: `preview_book_hours_recalculation_command` (strictly read-only calculation, non-mutating on DB, computes affected books, coverage deltas, profile/collection impacts, guarantees `progress_changed_count = 0`), and `apply_book_hours_recalculation_command` (atomic transactional savepoint commit/rollback, guarantees complete mutation safety).
-- **BH-2.1 Targeted Application-Boundary Hardening**:
-  - Positive/finite numeric validation: Strict rejection of zero, negative, NaN, infinity on `pages_per_hour`, `words_per_hour`, `characters_per_hour`, and Profile `difficulty_multiplier`.
-  - Input guards on direct setters and Profile CRUD: `save_global_book_hours_defaults`, `create_reading_profile`, and `update_reading_profile` enforce validation and reject unknown profile IDs.
-  - Validation Parity: `preview_book_hours_recalculation` and `apply_book_hours_recalculation` share the identical validation contract (`validate_recalculation_request`), rejecting duplicate profile IDs, unknown profile IDs, and invalid numbers before any execution.
-  - Atomic Savepoint Rollback: `apply_book_hours_recalculation` wraps all mutations inside a SQLite savepoint transaction, ensuring rollback and complete preservation of live database state on mid-apply failure.
-- **Backward Compatibility**:
-  - Preserved legacy `get_book_hours_command`, `save_workload_config_command`, `list_workload_config_revisions_command` for existing frontend components.
+**Book Hours V1 Redesign — BH-3A Planning Frontend Foundation & Read-Only Overview Summary (2026-09-10):**
+- **Data Workspace Book Hours Planning Entry**:
+  - Added dedicated Book Hours Planning entry under Data workspace (`DataRecovery.tsx`), matching Prototype v0.6 visual hierarchy and IA.
+  - Seamless navigation between Data and Book Hours Planning screen with persistent topbar back button (`←`).
+- **Approved 6-Tab Shell & Inert Placeholders**:
+  - Implemented 6-tab shell in [`src/BookHoursPlanning.tsx`](file:///f:/CodexWorkspaces/Ebookreader/src/BookHoursPlanning.tsx): `Overview` (active), `By Profile`, `By Collection`, `Books`, `Profiles`, and `Formula & Defaults`.
+  - Non-overview tabs render clearly marked, inert placeholder panels explaining scope for upcoming batches (`BH-3B` / `BH-3C`), with accessible ARIA keyboard navigation.
+- **Production Overview Connected to Real BH-2 Tauri IPC**:
+  - Live data fetching via `get_book_hours_overview_command` without hardcoded or demo numbers.
+  - Rendered Total Planned Book Hours, Current Book Hours, independent Reading Progress context, and Calculation Coverage with setup warnings (`.attn` state when uncalculated books exist).
+  - Summary by Profile and Summary by Collection tables with exact coverage counts and overlap explanation.
+  - Preserved semantic rules visibly: Planned Book Hours is system-calculated, Reading Progress is an independent fact, and Not Calculated books remain visible without false 0h representation.
+- **Visual Design & Theme Convergence**:
+  - Ported Prototype v0.6 styling into [`src/App.css`](file:///f:/CodexWorkspaces/Ebookreader/src/App.css) using canonical semantic theme tokens (`var(--surface)`, `var(--surface2)`, `var(--border)`, `var(--accent)`, `var(--accentSoft)`, `var(--text)`, `var(--muted)`).
+  - Verified Light and Dark theme-safe rendering and responsive multi-column layouts.
 - **Test Validation**:
-  - `ebookreader-domain`: 208 passed; 0 failed (includes new tests for invalid numerics rejection, profile CRUD validation, preview/apply parity, trigger-verified mid-apply atomic savepoint rollback, and multi-profile atomic persistence).
-  - Rust workspace `cargo test`: 208 passed; 0 failed.
-  - Frontend `npm.cmd test -- --run`: 35 test files, 256 passed; 0 failed.
-  - TypeScript typecheck `npm.cmd run typecheck`: 0 errors.
+  - Frontend unit tests `npm test -- --run`: 36 test files, 264 passed; 0 failed (added comprehensive `BookHoursPlanning.test.tsx` suite).
+  - TypeScript typecheck `npm run typecheck`: 0 errors.
+  - Rust workspace tests `cargo test`: 208 passed; 0 failed.
 - **Implementation Batch Roadmap**:
-  - `BH-1` / `BH-1.1` (Complete): Rust domain models, hardened SQLite schema migration (`reading_profiles`, `book.profile_id`, lossless legacy `workload_config` migration), dynamic formula & coverage calculations, aggregate queries, unit/integration tests.
-  - `BH-2` / `BH-2.1` (Complete): Tauri command layer, IPC DTOs, settings/profile command integration, validation & atomic recalculation preview/apply engine, durability & integration tests.
-  - `BH-3` (Next): Frontend UI implementation matching Prototype v0.6 (`BookHoursPlanning.tsx`, overview metrics, profile/collection views, books table, profile management, formula/defaults drawer, recalculation preview modal, details integration).
+  - `BH-1` / `BH-1.1` (Complete): Rust domain models, hardened SQLite schema migration (`reading_profiles`, `book.profile_id`, lossless legacy `workload_config` migration), dynamic formula & coverage calculations, aggregate queries.
+  - `BH-2` / `BH-2.1` (Complete): Tauri command layer, IPC DTOs, validation & atomic recalculation preview/apply engine.
+  - `BH-3A` (Complete): Book Hours Planning frontend foundation, 6-tab shell, and read-only Overview connected to real IPC.
+  - `BH-3B` (Next): Profile/Collection master-detail breakdown views, Books management table, and Book setup drawer.
+  - `BH-3C` (Upcoming): Reading Profile CRUD drawer, Formula & Defaults editor, recalculation impact preview modal, and Book Details integration.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`. Full Exit Gate evidence for every Milestone is in `ROADMAP.md`.
-Current Checkpoint / Promotion Unit: **Book Hours V1 Redesign Implementation Gate (BH-2.1 complete → awaiting user approval for BH-3)**.
+Current Checkpoint / Promotion Unit: **Book Hours V1 Redesign Implementation Gate (BH-3A complete → awaiting user review/approval for BH-3B)**.
 Current Branch / PR: `main`
 Current Blockers: None.
 Open Escalations: None.
-Architecture State: **Accepted Architecture Baseline (Updated for Book Hours V1 Redesign BH-0.2 / BH-2.1)**.
+Architecture State: **Accepted Architecture Baseline (Updated for Book Hours V1 Redesign BH-0.2 / BH-2.1 / BH-3A)**.
 Feature Complete: Reopened for Book Hours V1 Redesign.
 Feature Freeze: Unapproved (Awaiting user decision after Book Hours implementation; M9 unstarted).
 RC / Release State: Not started.
-Next Action: Await user review and approval of BH-2.1 before starting Frontend UI implementation (`BH-3`).
+Next Action: Await user visual and functional review of BH-3A before proceeding with BH-3B.
 
 
 

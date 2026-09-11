@@ -3362,4 +3362,337 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
+/* --------------------------------------------------------------------------
+   v0.6 Book Hours Planning Styles
+   -------------------------------------------------------------------------- */
+.book-hours-screen {
+  position: relative;
+  inset: auto;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.bhShell {
+  height: calc(100vh - 74px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.bhTabs {
+  display: flex;
+  gap: 7px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.bhTab {
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+  transition: 0.18s ease;
+}
+
+.bhTab:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.bhTab.active {
+  background: var(--accentSoft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  font-weight: 700;
+}
+
+.bhViewport {
+  overflow-y: auto;
+  padding: 24px 26px 50px;
+}
+
+.bhPane {
+  display: none;
+}
+
+.bhPane.active {
+  display: block;
+}
+
+.bhHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.55fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.bhCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.04);
+}
+
+.bhCard h2,
+.bhCard h3 {
+  margin: 0;
+}
+
+.bhCard h2 {
+  font-size: 20px;
+}
+
+.bhCard h3 {
+  font-size: 14px;
+}
+
+.bhLead {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin-top: 6px;
+}
+
+.bhRule {
+  margin-top: 13px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.bhRule b {
+  color: var(--accent);
+}
+
+.bhSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.bhMetric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px;
+}
+
+.bhMetric span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bhMetric b {
+  display: block;
+  font-size: 24px;
+  margin-top: 4px;
+}
+
+.bhMetric small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.bhMetric.attn {
+  border-color: color-mix(in srgb, #9a6b27 32%, var(--border));
+  background: color-mix(in srgb, #9a6b27 5%, var(--surface));
+}
+
+.bhMetric.attn b {
+  color: #9a6b27;
+}
+
+.bhTwo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.bhSubhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.bhSubhead h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.bhSubhead .grow {
+  flex: 1;
+}
+
+.bhTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.bhTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 480px;
+}
+
+.bhTable th {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 700;
+  text-align: left;
+  padding: 9px 11px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.bhTable td {
+  font-size: 11px;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.bhTable tr:last-child td {
+  border-bottom: 0;
+}
+
+.bhTable tr:hover td {
+  background: color-mix(in srgb, var(--accentSoft) 35%, transparent);
+}
+
+.bhName {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.bhMuted {
+  color: var(--muted);
+}
+
+.bhBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 10px;
+  background: var(--surface2);
+  white-space: nowrap;
+}
+
+.bhBadge.profile {
+  color: var(--accent);
+  background: var(--accentSoft);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+}
+
+.bhBadge.warn {
+  color: #9a6b27;
+  background: color-mix(in srgb, #9a6b27 7%, var(--surface));
+  border-color: color-mix(in srgb, #9a6b27 30%, var(--border));
+}
+
+.bhBadge.good {
+  color: #487452;
+  background: color-mix(in srgb, #487452 7%, var(--surface));
+  border-color: color-mix(in srgb, #487452 28%, var(--border));
+}
+
+.bhNote {
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.bhWarn {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, #9a6b27 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, #9a6b27 6%, var(--surface));
+  color: #8e6727;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.stateBadge {
+  font-size: 10px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stateBadge.good {
+  color: #487452;
+  border-color: color-mix(in srgb, #487452 35%, var(--border));
+  background: color-mix(in srgb, #487452 8%, var(--surface));
+}
+
+.stateBadge.warn {
+  color: #9a6b27;
+  border-color: color-mix(in srgb, #9a6b27 35%, var(--border));
+  background: color-mix(in srgb, #9a6b27 8%, var(--surface));
+}
+
+.bhBadge.default {
+  font-size: 9px;
+  margin-left: 4px;
+}
+
+.bhEmptyCell {
+  text-align: center;
+  padding: 18px;
+}
+
+.bhNoteMargin {
+  margin-top: 10px;
+}
+
+.bhBadgeGroup {
+  margin-top: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 1050px) {
+  .bhHero,
+  .bhTwo {
+    grid-template-columns: 1fr;
+  }
+  .bhSummary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
 

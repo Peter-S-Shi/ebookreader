@@ -32,10 +32,14 @@ interface SnapshotRecord {
   reason: string;
 }
 
-/// `DESIGN.md` SS14 "Data / Recovery" (canonical `ER-DATA-001`): a safety center.
+interface DataRecoveryProps {
+  onOpenBookHours?: () => void;
+}
+
+/// `DESIGN.md` §14 "Data / Recovery" (canonical `ER-DATA-001`): a safety center.
 /// Restore always Previews before replacement, and an incomplete archive is refused
 /// rather than partially applied.
-export function DataRecovery() {
+export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ path: string; data: BackupPreviewDTO } | null>(null);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
@@ -265,8 +269,55 @@ export function DataRecovery() {
           {statusMessage && <p role="status" className="notice">{statusMessage}</p>}
         </div>
 
-        <div className="dataCard data-recovery-group">
+        <section className="dataCard data-recovery-group" aria-label="Book Data">
           <h3>Book Data</h3>
+          <div
+            className="dataRow"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "44px minmax(0, 1fr) auto",
+              gap: "12px",
+              alignItems: "center",
+              border: "1px solid var(--border)",
+              background: "var(--surface2)",
+              borderRadius: "13px",
+              padding: "12px",
+              marginBottom: "12px",
+            }}
+          >
+            <div
+              className="rowIcon"
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "10px",
+                display: "grid",
+                placeItems: "center",
+                background: "var(--accentSoft)",
+                color: "var(--accent)",
+                fontWeight: 700,
+                fontSize: "13px",
+              }}
+            >
+              BH
+            </div>
+            <div>
+              <b style={{ display: "block", fontSize: "13px", marginBottom: "2px" }}>
+                Book Hours Planning
+              </b>
+              <div style={{ fontSize: "11px", color: "var(--muted)", lineHeight: 1.4 }}>
+                Plan and understand reading workload across Books, Profiles, and Collections. Book Hours are system-calculated; Reading Progress remains an independent reading fact.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn primary"
+              id="openBookHours"
+              onClick={onOpenBookHours}
+            >
+              Open
+            </button>
+          </div>
           <button type="button" className="btn" onClick={loadBookData}>
             Load Book Data
           </button>
@@ -301,7 +352,7 @@ export function DataRecovery() {
               </ul>
             )
           )}
-        </div>
+        </section>
 
         <div className="dataCard data-recovery-group">
           <h3>Update Awareness</h3>
