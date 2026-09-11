@@ -4,7 +4,7 @@ Status: **Feature Complete Candidate #2** (2026-09-10, commit `ebe33f6`; Human A
 
 **The first candidate (`f47452f`, 2026-09-09) was NOT APPROVED at the Human Feature Freeze Gate.** That gate found several frozen V1 behaviors were backend-only, prototype-only, or unwired despite Milestone-complete/CI-green status -- "Milestone Complete" had been treated as proof of user-reachable completeness without independently auditing production source. This report is produced after a corrective pass that explicitly rejected that inference: `FEATURE_COMPLETE_REQUIREMENT_COVERAGE_AUDIT.md` was built by reading actual production source against the frozen authorities (`PRODUCT_SPEC.md`, `DESIGN.md`, `FORMAT_CAPABILITY_MATRIX.md`, `MANUAL_QA.md`), not by citing Milestone status, and every gap it found was closed as its own ticket in `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` with its own fresh Failure Attribution, TDD evidence, and CI-green verification.
 
-**This report did not self-promote the project into Feature Freeze.** Per `ROADMAP.md`, only the Human Feature Freeze Gate may make that transition. That transition has now occurred by explicit human approval on 2026-09-11 after the user's real native Tauri PASS evidence closed the Human Acceptance corrective loop. V1 scope is locked, M9 Product Hardening is active, and RC / Windows Release has not started.
+**This report did not self-promote the project into Feature Freeze.** Per `ROADMAP.md`, only the Human Feature Freeze Gate may make that transition. That transition later occurred by explicit human approval on 2026-09-11 after the user's real native Tauri PASS evidence closed the Human Acceptance corrective loop. V1 scope is locked, M9 Product Hardening is complete, full automated regression has passed, and RC / Windows Release has not started.
 
 ---
 
@@ -74,10 +74,12 @@ None. No Stop/Escalate condition was triggered by any of the 20 corrective-pass 
 
 ---
 
-**Per `ROADMAP.md`'s Feature Complete Candidate Gate, this report originally stopped before Feature Freeze.** The required second Human Feature Freeze review was later performed outside this report and explicitly approved by the user on 2026-09-11. Current execution has therefore moved into M9 Product Hardening; M10 / RC remains unstarted.
+**Per `ROADMAP.md`'s Feature Complete Candidate Gate, this report originally stopped before Feature Freeze.** The required second Human Feature Freeze review was later performed outside this report and explicitly approved by the user on 2026-09-11. M9 Product Hardening and full automated regression were subsequently completed; M10 / RC remains unstarted.
 
 **Post-candidate Human Acceptance closure (2026-09-10):** the user reported real native Tauri PASS for the remaining HA-007, HA-009, HA-010, and HA-011. `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` is fully closed.
 
 **Post-candidate Feature Freeze approval (2026-09-11):** the user explicitly approved Human Feature Freeze. V1 scope is locked; M9 Product Hardening was authorized; M10 / RC is not started.
 
-**Post-freeze M9 Product Hardening closure (2026-09-11):** the first M9 pass closed the known native layout/form overlap and card/button overflow release-readiness defect within the frozen UI contract and found no additional known release blocker inside the bounded M9 audit scope. The project is now awaiting Full Regression & Human Acceptance, not RC.
+**Post-freeze M9 Product Hardening closure (2026-09-11):** the first M9 pass closed the known native layout/form overlap and card/button overflow release-readiness defect within the frozen UI contract and found no additional known release blocker inside the bounded M9 audit scope. That closure led to the Full Regression stage, not RC.
+
+**Post-M9 automated regression (2026-09-11):** full automated regression passed after M9. The project is awaiting native Human Acceptance and has not entered M10 / RC.

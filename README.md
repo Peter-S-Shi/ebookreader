@@ -4,15 +4,15 @@
 
 ## Current Status
 
-- **Phase:** **M9 Product Hardening Complete — Awaiting Full Regression & Human Acceptance** — Human Feature Freeze approved, V1 scope locked, RC not started
-- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1, M2, M3, M4, M5, M6, M7, and M8 complete** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
+- **Phase:** **Full Automated Regression PASS — Awaiting Human Acceptance** — Human Feature Freeze approved, V1 scope locked, M9 complete, RC not started
+- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M8 complete, M9 Product Hardening complete, and full automated regression PASS** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
 - **V1 product/domain scope:** Frozen
 - **V1 UI baseline:** Frozen
 - **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)
 - **Feature Freeze:** Human-approved
 - **Release:** Not started
 
-This baseline defines the intended V1 product and its development-control model. It does **not** claim that the application is already implemented or released.
+The Feature-Frozen V1 application is implemented through M9 Product Hardening, and full automated regression has passed. Native Human Acceptance and M10 RC / Windows Release remain pending.
 
 ## Product Identity
 

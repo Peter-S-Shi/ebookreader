@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-11 (M9 Product Hardening Complete)
+Last Updated: 2026-09-11 (Full Automated Regression PASS)
 
-Current Phase: **M9 Product Hardening Complete — Awaiting Full Regression & Human Acceptance**. Human Feature Freeze is **APPROVED**, V1 scope is locked, and RC / Windows Release has **not** started.
+Current Phase: **Full Automated Regression PASS — Awaiting Human Acceptance**. Human Feature Freeze is **APPROVED**, V1 scope is locked, M9 Product Hardening is complete, and RC / Windows Release has **not** started.
 
 **Feature Freeze Decision Summary:**
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
@@ -48,8 +48,27 @@ Current Phase: **M9 Product Hardening Complete — Awaiting Full Regression & Hu
 - Tauri/Rust release build `cargo build --manifest-path src-tauri\Cargo.toml --release`: passed on the local GNU toolchain after elevated execution, with the existing non-fatal `.rsrc merge failure: multiple non-default manifests` linker warning.
 - Production Tauri bundle build `npm run tauri build`: passed; generated MSI and NSIS bundles locally. This was a build check only, not RC promotion.
 
+**Full Automated Regression (2026-09-11):**
+- `npm test`: passed, 36 test files, 285 tests.
+- `npm run typecheck`: passed.
+- `cargo test`: passed under elevated local execution, 216 passed, 2 ignored, doc-tests passed. The non-elevated sandbox run still fails at Windows test-binary execution with `0xc0000022`, while the identical elevated command and CI Windows runner pass; this is attributed to the local execution environment, not a product test failure.
+- `npm run build`: passed. Vite emitted the existing main-bundle >500 kB warning.
+- `cargo build --manifest-path src-tauri\Cargo.toml --release`: passed. The local GNU toolchain emitted the existing non-fatal `.rsrc merge failure: multiple non-default manifests` linker warning.
+- `npm run tauri build`: passed; generated local MSI and NSIS bundles as a build check only. M10 / RC packaging has not started.
+
+**Risk-Based Native Human Regression Checklist:**
+1. Import/open/read/reopen: import one EPUB, one PDF, and one TXT; read each briefly; close and reopen the app; confirm last-opened book, location/progress, and readable content persist.
+2. M9 layout/modal/overflow: in a small native window, open Settings panes, Manage Collections, Library bulk-action bar, Book Hours setup, and Book Hours Recalculation Preview; confirm no form overlap, no button/card overflow, long modal content scrolls, and footer actions remain reachable.
+3. Highlight lifecycle: create a highlight, change its color, delete it, reopen the book, and confirm persistence/removal is by the intended asset, not by matching visible text.
+4. Book Hours: configure a profile/workload, preview and apply a recalculation, and confirm Reading Progress and Actual Reading Time remain unchanged by planning recalculation.
+5. Bilingual Alignment: import/manage an alignment package, open bilingual reading, switch/swap/toggle sync, and confirm unpairing removes only the alignment package, not books or reading data.
+6. OCR: open a scanned PDF, run a current-page OCR smoke, correct recognized text, rebuild raw OCR/search where available, reopen, and confirm the correction survives.
+7. Collections and multi-select: create/rename/delete a collection, add multiple books, bulk Remove from Library, and confirm soft removal preserves source files and reading data.
+8. Settings/theme persistence: change explicit Light/Dark/Match System, typography, sound/motion, default import mode, and update-awareness preference; restart and confirm settings persist and contextual panels keep readable contrast.
+9. Backup/Restore: create app-data and full-library backup previews, restore in a controlled state, and confirm books, collections, progress, notes/highlights, Book Hours, OCR corrections, alignments, and settings return without overwriting Reference source files.
+
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`. Full Exit Gate evidence for every Milestone is in `ROADMAP.md`.
-Current Checkpoint / Promotion Unit: **M9 Product Hardening Gate (Complete → Awaiting Full Regression & Human Acceptance)**.
+Current Checkpoint / Promotion Unit: **Full Automated Regression PASS → Awaiting Human Acceptance**.
 Current Branch / PR: `main`
 Current Blockers: None known after M9 release-blocker audit.
 Current Escalations: None.
@@ -57,8 +76,7 @@ Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX 
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
 RC / Release State: Not started.
-Next Action: HARD STOP for Full Regression & Human Acceptance. Do not start M10 / RC without explicit authorization.
-
+Next Action: HARD STOP for native Human Acceptance using the risk-based checklist above. Do not start M10 / RC without explicit authorization.
 
 
 
