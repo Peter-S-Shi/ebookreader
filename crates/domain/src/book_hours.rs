@@ -90,16 +90,20 @@ impl Default for GlobalBookHoursDefaults {
 
 impl GlobalBookHoursDefaults {
     pub fn resolve_baseline_speed(&self, unit: &QuantityUnit, speed_override: Option<f64>) -> Option<f64> {
-        if let Some(speed) = speed_override {
-            if speed > 0.0 {
-                return Some(speed);
+        match speed_override {
+            Some(speed) => {
+                if speed > 0.0 {
+                    Some(speed)
+                } else {
+                    None // Explicitly invalid non-positive override must NOT fallback to global defaults
+                }
             }
-        }
-        match unit {
-            QuantityUnit::Pages => Some(self.pages_per_hour),
-            QuantityUnit::Words => Some(self.words_per_hour),
-            QuantityUnit::Characters => Some(self.characters_per_hour),
-            QuantityUnit::LegacyUntyped => None, // legacy_untyped must have an override to calculate
+            None => match unit {
+                QuantityUnit::Pages => Some(self.pages_per_hour),
+                QuantityUnit::Words => Some(self.words_per_hour),
+                QuantityUnit::Characters => Some(self.characters_per_hour),
+                QuantityUnit::LegacyUntyped => None, // legacy_untyped must have a valid override to calculate
+            },
         }
     }
 }
@@ -883,6 +887,42 @@ mod tests {
         .expect("legacy with override should calculate");
         assert_eq!(calc_legacy.planned_book_hours, 5.0);
         assert_eq!(calc_legacy.current_book_hours, 1.0);
+
+        // 7. Explicit non-positive speed override -> returns None (Needs Setup), must NOT fall back to global defaults
+        assert!(
+            calculate_book_hours(
+                Some(300.0),
+                Some(QuantityUnit::Pages),
+                Some(0.0),
+                Some(&default_profile),
+                &defaults,
+                50.0,
+            )
+            .is_none(),
+            "speed override of 0.0 must be rejected and not fall back to global 60 pph"
+        );
+        assert!(
+            calculate_book_hours(
+                Some(300.0),
+                Some(QuantityUnit::Pages),
+                Some(-10.0),
+                Some(&default_profile),
+                &defaults,
+                50.0,
+            )
+            .is_none(),
+            "negative speed override must be rejected and not fall back to global 60 pph"
+        );
+        assert_eq!(
+            defaults.resolve_baseline_speed(&QuantityUnit::Pages, Some(0.0)),
+            None,
+            "resolve_baseline_speed must return None on 0.0 override"
+        );
+        assert_eq!(
+            defaults.resolve_baseline_speed(&QuantityUnit::Pages, Some(-5.0)),
+            None,
+            "resolve_baseline_speed must return None on negative override"
+        );
     }
 
     #[test]

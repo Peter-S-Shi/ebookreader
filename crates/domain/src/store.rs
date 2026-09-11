@@ -279,14 +279,30 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
             );
             INSERT OR IGNORE INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
             VALUES ('profile-default', 'Default', 1.0, 'Neutral default reading profile', 1, datetime('now'), datetime('now'));
-
-            ALTER TABLE book ADD COLUMN profile_id TEXT REFERENCES reading_profiles(id);
-            ALTER TABLE book ADD COLUMN workload_quantity REAL;
-            ALTER TABLE book ADD COLUMN workload_unit TEXT;
-            ALTER TABLE book ADD COLUMN workload_speed_override REAL;
-            CREATE INDEX IF NOT EXISTS idx_book_profile ON book(profile_id);
             ",
         )?;
+
+        // Introspect existing columns on book table to ensure idempotent ADD COLUMN
+        let mut col_stmt = conn.prepare("PRAGMA table_info(book)")?;
+        let existing_cols: std::collections::HashSet<String> = col_stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .collect();
+
+        const V15_COLUMNS: &[(&str, &str)] = &[
+            ("profile_id", "ALTER TABLE book ADD COLUMN profile_id TEXT REFERENCES reading_profiles(id);"),
+            ("workload_quantity", "ALTER TABLE book ADD COLUMN workload_quantity REAL;"),
+            ("workload_unit", "ALTER TABLE book ADD COLUMN workload_unit TEXT;"),
+            ("workload_speed_override", "ALTER TABLE book ADD COLUMN workload_speed_override REAL;"),
+        ];
+
+        for (col_name, ddl) in V15_COLUMNS {
+            if !existing_cols.contains(*col_name) {
+                conn.execute(ddl, [])?;
+            }
+        }
+
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_book_profile ON book(profile_id);")?;
 
         let has_workload_config: bool = conn
             .query_row(
@@ -310,28 +326,42 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
                 ))
             })?;
 
-            let mut custom_profiles: std::collections::HashMap<String, String> =
-                std::collections::HashMap::new();
+            // Load all existing profiles from DB for idempotency and collision prevention
+            let mut prof_stmt = conn.prepare("SELECT id, name, difficulty_multiplier FROM reading_profiles")?;
+            let mut existing_profiles: Vec<(String, String, f64)> = prof_stmt
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                .filter_map(Result::ok)
+                .collect();
 
             for item in rows {
                 let (book_id, quantity, baseline_speed, difficulty) = item?;
                 let profile_id = if (difficulty - 1.0).abs() < 1e-6 {
                     "profile-default".to_string()
+                } else if let Some((pid, _, _)) = existing_profiles.iter().find(|(_, _, d)| (*d - difficulty).abs() < 1e-6) {
+                    pid.clone()
                 } else {
-                    let diff_key = format!("{:.2}", difficulty);
-                    if let Some(pid) = custom_profiles.get(&diff_key) {
-                        pid.clone()
-                    } else {
-                        let pid = format!("profile-custom-{}", diff_key.replace('.', "_"));
-                        let pname = format!("Custom ({:.1}x)", difficulty);
-                        conn.execute(
-                            "INSERT OR IGNORE INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
-                             VALUES (?1, ?2, ?3, 'Migrated custom difficulty profile', 0, datetime('now'), datetime('now'))",
-                            (&pid, &pname, difficulty),
-                        )?;
-                        custom_profiles.insert(diff_key, pid.clone());
-                        pid
+                    let diff_str = format!("{:.4}", difficulty);
+                    let diff_clean = diff_str.trim_end_matches('0').trim_end_matches('.');
+                    let base_pid = format!("profile-custom-{}", diff_clean.replace('.', "_"));
+                    let base_name = format!("Custom ({}x)", diff_clean);
+
+                    let mut pid = base_pid.clone();
+                    let mut pname = base_name.clone();
+                    let mut counter = 1;
+
+                    while existing_profiles.iter().any(|(id, name, _)| id == &pid || name == &pname) {
+                        counter += 1;
+                        pid = format!("{}_{}", base_pid, counter);
+                        pname = format!("Custom ({}x-{})", diff_clean, counter);
                     }
+
+                    conn.execute(
+                        "INSERT INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
+                         VALUES (?1, ?2, ?3, 'Migrated custom difficulty profile', 0, datetime('now'), datetime('now'))",
+                        (&pid, &pname, difficulty),
+                    )?;
+                    existing_profiles.push((pid.clone(), pname, difficulty));
+                    pid
                 };
 
                 conn.execute(
@@ -1161,10 +1191,8 @@ mod tests {
         assert_eq!(title, "Second Detected Title");
     }
 
-    #[test]
-    fn migration_15_migrates_legacy_workload_config_and_creates_profiles() {
+    fn setup_v14_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        // Setup schema up to migration 14
         conn.execute_batch(
             "
             CREATE TABLE book (
@@ -1191,6 +1219,12 @@ mod tests {
             PRAGMA user_version = 14;
             ",
         ).unwrap();
+        conn
+    }
+
+    #[test]
+    fn migration_15_migrates_legacy_workload_config_and_creates_profiles() {
+        let conn = setup_v14_test_db();
 
         // Insert legacy books & workload_configs
         conn.execute("INSERT INTO book (id, title) VALUES ('b1', 'Book 1')", []).unwrap();
@@ -1242,7 +1276,7 @@ mod tests {
             [&p2],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ).unwrap();
-        assert_eq!(p2_name, "Custom (1.2x)");
+        assert_eq!(p2_name, "Custom (1.25x)");
         assert_eq!(p2_diff, 1.25);
         assert_eq!(p2_default, 0);
 
@@ -1262,5 +1296,118 @@ mod tests {
         ).unwrap();
         assert_eq!(p_del, None);
         assert_eq!(q_del, None);
+    }
+
+    #[test]
+    fn migration_15_recovers_from_partially_applied_state() {
+        let conn = setup_v14_test_db();
+
+        // Simulate crash halfway through migration 15:
+        // reading_profiles table created, profile-default inserted,
+        // and only 2 of the 4 book columns added before crash
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS reading_profiles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                difficulty_multiplier REAL NOT NULL DEFAULT 1.0,
+                description TEXT NOT NULL DEFAULT '',
+                is_default INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
+            VALUES ('profile-default', 'Default', 1.0, 'Neutral default reading profile', 1, datetime('now'), datetime('now'));
+
+            ALTER TABLE book ADD COLUMN profile_id TEXT REFERENCES reading_profiles(id);
+            ALTER TABLE book ADD COLUMN workload_quantity REAL;
+            ",
+        ).unwrap();
+
+        conn.execute("INSERT INTO book (id, title) VALUES ('b-crash', 'Crash Recovery Book')", []).unwrap();
+        conn.execute(
+            "INSERT INTO workload_config (book_id, quantity, baseline_speed, difficulty_coefficient) VALUES ('b-crash', 500.0, 100.0, 1.3)",
+            [],
+        ).unwrap();
+
+        // Run migrations on partially applied state
+        run_migrations(&conn).expect("migration 15 must recover from partial application without duplicate column error");
+
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 15);
+
+        // Verify book was properly migrated
+        let (pid, q, u, s): (String, f64, String, f64) = conn.query_row(
+            "SELECT profile_id, workload_quantity, workload_unit, workload_speed_override FROM book WHERE id = 'b-crash'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        ).unwrap();
+        assert_eq!(pid, "profile-custom-1_3");
+        assert_eq!(q, 500.0);
+        assert_eq!(u, "legacy_untyped");
+        assert_eq!(s, 100.0);
+
+        // Verify profile exists
+        let prof_exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM reading_profiles WHERE id = ?1",
+            [&pid],
+            |r| Ok(r.get::<_, i64>(0)? > 0),
+        ).unwrap();
+        assert!(prof_exists);
+    }
+
+    #[test]
+    fn migration_15_handles_precision_and_avoids_name_collisions_on_custom_profiles() {
+        let conn = setup_v14_test_db();
+
+        // Insert distinct close difficulty values and one duplicate
+        let test_data = vec![
+            ("b-1_20", 1.20),
+            ("b-1_24", 1.24),
+            ("b-1_25", 1.25),
+            ("b-1_25-dup", 1.25),
+            ("b-1_2345", 1.2345),
+        ];
+
+        for (id, diff) in &test_data {
+            conn.execute("INSERT INTO book (id, title) VALUES (?1, 'Book')", [id]).unwrap();
+            conn.execute(
+                "INSERT INTO workload_config (book_id, quantity, baseline_speed, difficulty_coefficient) VALUES (?1, 1000.0, 200.0, ?2)",
+                (id, diff),
+            ).unwrap();
+        }
+
+        run_migrations(&conn).unwrap();
+
+        // Every book must have a profile_id that exists in reading_profiles
+        for (id, diff) in &test_data {
+            let pid: String = conn.query_row(
+                "SELECT profile_id FROM book WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            ).unwrap();
+
+            let prof_diff: f64 = conn.query_row(
+                "SELECT difficulty_multiplier FROM reading_profiles WHERE id = ?1",
+                [&pid],
+                |r| r.get(0),
+            ).expect("every migrated book must point to a real profile");
+
+            assert!(
+                (prof_diff - diff).abs() < 1e-4,
+                "profile difficulty {} must match book difficulty {}",
+                prof_diff,
+                diff
+            );
+        }
+
+        // Duplicate 1.25 should reuse the exact same profile_id
+        let pid1: String = conn.query_row("SELECT profile_id FROM book WHERE id = 'b-1_25'", [], |r| r.get(0)).unwrap();
+        let pid2: String = conn.query_row("SELECT profile_id FROM book WHERE id = 'b-1_25-dup'", [], |r| r.get(0)).unwrap();
+        assert_eq!(pid1, pid2, "identical difficulties must reuse the same profile");
+
+        // Distinct difficulties must have distinct profiles
+        let pid_1_24: String = conn.query_row("SELECT profile_id FROM book WHERE id = 'b-1_24'", [], |r| r.get(0)).unwrap();
+        assert_ne!(pid1, pid_1_24, "distinct difficulties must not share profile");
     }
 }
