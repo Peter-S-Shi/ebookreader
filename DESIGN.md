@@ -399,9 +399,9 @@ The Book Hours Planning surface is accessible via **Data → Book Data → Book 
 - **Overview (`#bhOverview`)**:
   - Hero explanation cards emphasizing that Book Hours is a planning model and Reading Progress is an independent reading fact.
   - Summary metric cards: Total Planned Book Hours, Current Book Hours, Library Progress %, Calculation Coverage (e.g. `11 / 13 calculated`, `2 Books need setup`).
-  - Summary by Profile and Summary by Collection tables (Collections are the multi-grouping mechanism; Reading Profiles are the singular workload classification; generic Tags are not a separate V1 classification system).
+  - Summary by Profile and Summary by Collection tables (Collections are the multi-grouping mechanism; Reading Profiles are the singular difficulty classification; generic Tags are not a separate V1 classification system).
 - **By Profile (`#bhProfilesView`)**:
-  - Master-detail view of Reading Profiles (user-authored profiles with neutral system fallback).
+  - Master-detail view of Reading Profiles (user-authored profiles defining Difficulty Coefficient only, with neutral system fallback).
   - Books using the selected Profile with individual progress %, planned hours, current hours, and remaining hours.
 - **By Collection (`#bhCollectionsView`)**:
   - Master-detail view of Collections.
@@ -410,23 +410,23 @@ The Book Hours Planning surface is accessible via **Data → Book Data → Book 
   - Clear note explaining collection totals may overlap because books can belong to multiple collections.
 - **Books (`#bhBooksView`)**:
   - Searchable/filterable library table with profile, collection, and calculation state filters.
-  - Shows calculation status badges: `Calculated` (good) vs `Needs setup` / `Needs quantity` (warn). Quantity reflects format-appropriate units (PDF physical pages, EPUB/TXT words or characters).
+  - Shows calculation status badges: `Calculated` (good) vs `Needs setup` / `Needs quantity` (warn). Quantity reflects format-appropriate units (PDF physical pages, EPUB/TXT words or characters, or legacy untyped).
   - Quick action to open the Book Hours Setup drawer for any book.
 - **Profiles (`#bhProfilesManage`)**:
-  - Profile cards grid displaying difficulty coefficient, books count, planned BH, current BH, preferred speed, and unit.
-  - Actions to add new profile or edit existing user-authored profile.
+  - Profile cards grid displaying difficulty coefficient, books count, planned BH, current BH, and description.
+  - Actions to add new profile or edit existing user-authored difficulty profile.
 - **Formula & Defaults (`#bhFormula`)**:
   - Canonical formula flow visualization: `(Quantity ÷ Baseline Speed) × Difficulty = Planned Book Hours`; `Planned Book Hours × Cumulative Reading % = Current Book Hours`.
-  - Global defaults configuration: fallback profile, default quantity unit, fallback baseline speed, fallback difficulty coefficient.
+  - Global defaults configuration: fallback profile, unit-specific baseline speeds (pages/hour for PDF, words/hour for EPUB/TXT, characters/hour for EPUB/TXT), fallback difficulty coefficient.
   - Recalculation impact card with preview and explicit confirmation flow.
 
 #### 13.2.2 Side Drawers & Modals
 - **Book Hours Setup Drawer (`#bhBookDrawer`)**:
-  - Configure singular Reading Profile, Collections list, Quantity, Quantity Unit, Baseline Speed override.
+  - Configure singular Reading Profile (provides Difficulty Coefficient), Collections list, Quantity, Quantity Unit (`pages`, `words`, `characters`, `legacy_untyped`), and optional Baseline Speed override (defaults to the global baseline speed for the chosen unit).
   - Live calculation preview showing Planned Book Hours and Current Book Hours.
   - Clear lock badges indicating Difficulty is owned by Profile and Reading Progress is an independent fact.
 - **Profile Editor Drawer (`#bhProfileDrawer`)**:
-  - Edit Profile Name, Difficulty Coefficient, Preferred Baseline Speed, Speed Unit, and Description.
+  - Edit Profile Name, Difficulty Coefficient, and Description.
   - Impact summary (Books affected, Collections touched, Progress changed: 0).
 - **Recalculation Preview Modal (`#bhImpactOverlay`)**:
   - Impact overview before applying global/profile changes (Books affected, old vs new Planned BH).

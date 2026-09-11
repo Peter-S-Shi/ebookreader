@@ -140,8 +140,7 @@ Core concepts:
 - Book;
 - BookFile;
 - Collection;
-- Tag;
-- WorkloadCategory;
+- ReadingProfile;
 - DocumentLocation;
 - Annotation;
 - Excerpt;
@@ -362,23 +361,25 @@ Book Hours is EbookReader's reading workload planning system.
   ```text
   Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
   ```
+- **Difficulty vs Speed Separation**:
+  - **Reading Profile** owns the **Difficulty Coefficient only** (`difficulty_multiplier`, e.g. 1.0, 1.5, 2.0).
+  - **Baseline Speed** is resolved separately by quantity unit: configurable global defaults for `pages/hour` (PDF fixed-layout), `words/hour` (EPUB/TXT), and `characters/hour` (EPUB/TXT), with an optional per-Book override (`workload_speed_override`).
+  - This ensures automatic calculation is mathematically sound and format-appropriate without unit confusion.
 - **Format-Appropriate Trustworthy Quantity Discovery**:
   - **PDF (fixed-layout)**: physical document page count (`pages`) is used when discoverable.
   - **Reflowable EPUB / TXT**: reliable word count (`words`) or character count (`characters`) when reliably extracted from document content/metadata. If quantity is unknown, the Book remains in `Needs Setup` (`Not Calculated`). The system never fabricates or invents a fictional page count for reflowable formats.
-- **Automatic Import Calculation**: Newly imported Books with discoverable trustworthy quantity automatically receive Planned Book Hours using the default neutral profile or global fallback defaults.
+- **Automatic Import Calculation**: Newly imported Books with discoverable trustworthy quantity automatically receive Planned Book Hours using unit-specific global baseline speed and default neutral profile difficulty.
 - **Needs Setup State**: If required inputs are missing (Quantity is missing/zero, or Speed ≤ 0), the Book is marked `Needs Setup` (`Not Calculated`). It is excluded from aggregate Book Hours sums and tracked in explicit calculation coverage metrics (`11 of 13 Books calculated`).
 - **Strictly Derived / Planning State**: Users never directly enter Planned Book Hours.
 
 ### 8.2 Database Schema & Migration Path
 
 ```sql
--- Reading Profiles table
+-- Reading Profiles table (Difficulty only)
 CREATE TABLE reading_profiles (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     difficulty_multiplier REAL NOT NULL DEFAULT 1.0,
-    baseline_speed REAL NOT NULL DEFAULT 60.0,
-    speed_unit TEXT NOT NULL DEFAULT 'pages', -- 'pages' | 'words' | 'characters'
     description TEXT NOT NULL DEFAULT '',
     is_default INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -387,21 +388,29 @@ CREATE TABLE reading_profiles (
 
 -- Minimum neutral system fallback:
 -- Only a single neutral default profile is seeded:
--- id: 'profile-default', name: 'Default', difficulty_multiplier: 1.0, baseline_speed: 60.0, speed_unit: 'pages', is_default: 1.
--- (Note: Demo profile names in Prototype v0.6 such as Textbook/Novel/Paper/Poem are illustrative UI examples and are not hardcoded into production architecture. User-authored Profiles are the intended model.)
+-- id: 'profile-default', name: 'Default', difficulty_multiplier: 1.0, is_default: 1.
+-- (Note: Demo profile names in Prototype v0.6 such as Textbook/Novel are illustrative UI examples. User-authored Profiles are the intended model.)
 ```
 
-- **Book Profile Binding**:
-  - `books` table schema is updated with `profile_id TEXT REFERENCES reading_profiles(id)`, `workload_quantity REAL`, `workload_unit TEXT`, `workload_speed_override REAL`.
-  - Every Book has at most one Reading Profile (1:1 or 1:0).
-- **Lossless Legacy `workload_config` Migration**:
-  - In the legacy schema, `workload_config` held a per-book `(quantity, baseline_speed, difficulty_coefficient)`.
-  - In the V1 schema, difficulty is 100% owned by `reading_profiles`.
+- **Global Book Hours Defaults**:
+  - `fallback_profile_id: 'profile-default'`
+  - `speed_pages_per_hour: 60.0` (default for PDF `pages`)
+  - `speed_words_per_hour: 15000.0` (default for EPUB/TXT `words`, ~250 wpm)
+  - `speed_chars_per_hour: 30000.0` (default for EPUB/TXT `characters`, ~500 cpm)
+- **Book Profile & Workload Columns**:
+  - `books.profile_id TEXT REFERENCES reading_profiles(id)` (singular 1:1 or 1:0)
+  - `books.workload_quantity REAL`
+  - `books.workload_unit TEXT` (`'pages'` | `'words'` | `'characters'` | `'legacy_untyped'`)
+  - `books.workload_speed_override REAL` (nullable; when present, overrides unit global speed)
+- **Genuinely Lossless Legacy `workload_config` Migration**:
+  - In the legacy schema, `workload_config` held `(quantity, baseline_speed, difficulty_coefficient)`.
   - **Migration logic**:
-    1. For books with default difficulty (1.0), migrate quantity to `books.workload_quantity` and set `books.profile_id = 'profile-default'`.
-    2. For books with custom legacy `difficulty_coefficient != 1.0` (e.g. 1.1), migration creates an explicit user-visible `reading_profile` row (e.g. `Custom (1.1x)` with `difficulty_multiplier = 1.1`) and assigns `books.profile_id` to it.
-    3. This guarantees that difficulty remains 100% Profile-owned in the domain model with zero hidden secondary multipliers, while preserving all existing user-configured coefficients and quantities losslessly.
-    4. The legacy `workload_config_revision` table is preserved as an immutable audit snapshot history.
+    1. **Baseline speed preservation**: Store legacy `baseline_speed` into `books.workload_speed_override`.
+    2. **Quantity preservation**: Store legacy `quantity` into `books.workload_quantity`.
+    3. **Untyped compatibility state**: Because legacy schema did not record a quantity unit, set `books.workload_unit = 'legacy_untyped'` rather than inventing a unit label. This guarantees `(quantity / speed_override) * difficulty` preserves the exact historical calculation while truthfully prompting user review.
+    4. **Profile difficulty binding**: If legacy `difficulty_coefficient == 1.0`, bind `books.profile_id = 'profile-default'`. If custom (e.g. `1.1`), create an explicit user-visible `reading_profile` (e.g. `Custom (1.1x)`) and bind `books.profile_id`.
+    5. **100% Profile-Owned Difficulty**: Difficulty remains strictly owned by `reading_profiles` with zero hidden secondary multipliers.
+    6. **Audit trail**: Legacy `workload_config_revision` table is preserved as immutable snapshot history.
 - **Legacy Tag Reconciliation**:
   - Collections are the multi-membership organization system; Reading Profiles are the singular workload classification system.
   - Legacy `tags` and `book_tags` database tables remain in SQLite as unindexed legacy rows to avoid destructive drops, but are removed from V1 product APIs, commands, and UI surfaces.

@@ -939,9 +939,9 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
             <div class="bhHero" style="grid-template-columns:1fr 320px">
               <div class="bhCard">
                 <div class="bhSubhead"><h3>Reading Profiles</h3><div class="grow"></div><button class="primary" id="newProfileBtn">＋ New Profile</button></div>
-                <div class="bhLead">Profiles are not ordinary multi-tags. A Book selects exactly one Profile for Book Hours calculation. A Profile supplies the difficulty behavior and can also define preferred speed defaults while continuing to use the global canonical formula.</div>
+                <div class="bhLead">Profiles are not ordinary multi-tags. A Book selects exactly one Profile for Book Hours calculation. A Profile defines the Difficulty Coefficient. Baseline reading speed is configured per quantity unit (pages/hour, words/hour, characters/hour) under Formula & Defaults or overridden on the Book.</div>
               </div>
-              <div class="bhCard"><h3>Profile inheritance</h3><div class="bhLead">Global Formula → Profile defaults → Book inputs. Changing a Profile recalculates the Books using that Profile, but never their Reading Progress.</div></div>
+              <div class="bhCard"><h3>Profile inheritance</h3><div class="bhLead">Global Formula (Unit Speeds) × Profile Difficulty → Book inputs. Changing a Profile recalculates the Books using that Profile, but never their Reading Progress.</div></div>
             </div>
 
             <div class="bhProfileCards">
@@ -949,25 +949,25 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
                 <div class="topline"><span class="bhBadge profile">Profile</span><b>Textbook</b><div class="grow"></div><button class="btn" data-open-profile-editor style="height:30px">Edit</button></div>
                 <div class="bhLead">Dense instructional material such as university textbooks.</div>
                 <div class="profileStats"><div><span>Difficulty</span><b>2.4</b></div><div><span>Books</span><b>4</b></div><div><span>Planned</span><b>88.0h</b></div><div><span>Current</span><b>34.8h</b></div></div>
-                <div class="bhNote">Preferred speed: 50 pages/hour · Uses global formula</div>
+                <div class="bhNote">Difficulty coefficient 2.4 · Uses unit-based baseline speed</div>
               </div>
               <div class="bhProfileCard">
                 <div class="topline"><span class="bhBadge profile">Profile</span><b>Novel</b><div class="grow"></div><button class="btn" style="height:30px">Edit</button></div>
                 <div class="bhLead">General continuous prose intended for comparatively fluent reading.</div>
                 <div class="profileStats"><div><span>Difficulty</span><b>1.0</b></div><div><span>Books</span><b>4</b></div><div><span>Planned</span><b>38.4h</b></div><div><span>Current</span><b>25.6h</b></div></div>
-                <div class="bhNote">Preferred speed: 70 pages/hour · Uses global formula</div>
+                <div class="bhNote">Difficulty coefficient 1.0 · Uses unit-based baseline speed</div>
               </div>
               <div class="bhProfileCard">
                 <div class="topline"><span class="bhBadge profile">Profile</span><b>Research Paper</b><div class="grow"></div><button class="btn" style="height:30px">Edit</button></div>
                 <div class="bhLead">Technical or academic papers requiring slow, analytical reading.</div>
                 <div class="profileStats"><div><span>Difficulty</span><b>2.8</b></div><div><span>Books</span><b>2</b></div><div><span>Planned</span><b>31.8h</b></div><div><span>Current</span><b>14.5h</b></div></div>
-                <div class="bhNote">Preferred speed: 18 pages/hour · Uses global formula</div>
+                <div class="bhNote">Difficulty coefficient 2.8 · Uses unit-based baseline speed</div>
               </div>
               <div class="bhProfileCard">
                 <div class="topline"><span class="bhBadge profile">Profile</span><b>Poem</b><div class="grow"></div><button class="btn" style="height:30px">Edit</button></div>
                 <div class="bhLead">Short-form poetic reading that may carry a lower workload coefficient.</div>
                 <div class="profileStats"><div><span>Difficulty</span><b>0.7</b></div><div><span>Books</span><b>1</b></div><div><span>Planned</span><b>6.0h</b></div><div><span>Current</span><b>4.5h</b></div></div>
-                <div class="bhNote">Preferred speed: 30 pages/hour · Uses global formula</div>
+                <div class="bhNote">Difficulty coefficient 0.7 · Uses unit-based baseline speed</div>
               </div>
             </div>
           </section>
@@ -976,10 +976,10 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
             <div class="bhHero">
               <div class="bhCard">
                 <h2>Global Book Hours Formula</h2>
-                <div class="bhLead">This is the system-wide fallback rule. Newly imported Books use it automatically when sufficient information is available. Profiles refine the defaults; users never type the Planned Book Hours result directly.</div>
+                <div class="bhLead">This is the system-wide fallback rule. Newly imported Books use it automatically when sufficient information is available. Profiles supply the difficulty; baseline speed resolves per quantity unit. Users never type the Planned Book Hours result directly.</div>
                 <div class="bhFormulaFlow">
                   <div class="bhFormulaToken"><span>Quantity</span><b>Book size</b></div><span class="bhOp">÷</span>
-                  <div class="bhFormulaToken"><span>Baseline Speed</span><b>units / hour</b></div><span class="bhOp">×</span>
+                  <div class="bhFormulaToken"><span>Baseline Speed</span><b>unit-specific speed</b></div><span class="bhOp">×</span>
                   <div class="bhFormulaToken"><span>Difficulty</span><b>Profile coefficient</b></div><span class="bhOp">=</span>
                   <div class="bhFormulaToken bhFormulaResult"><span>System result</span><b>Planned Book Hours</b></div>
                 </div>
@@ -999,10 +999,11 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
             <div class="bhRuleGrid">
               <div class="bhCard">
                 <h3>Global defaults</h3>
-                <div class="bhControl"><div><b>Fallback Reading Profile</b><div class="desc">Used when a Book has no explicit Profile assignment yet.</div></div><select><option selected>General</option><option>Novel</option><option>Textbook</option></select></div>
-                <div class="bhControl"><div><b>Default Quantity Unit</b><div class="desc">Preferred unit when a format exposes a compatible measurable quantity.</div></div><select><option selected>Pages</option><option>Words</option><option>Characters</option></select></div>
-                <div class="bhControl"><div><b>Fallback Baseline Speed</b><div class="desc">Expressed in the chosen quantity unit per hour.</div></div><input id="bhGlobalSpeed" type="number" value="60"></div>
-                <div class="bhControl"><div><b>Fallback Difficulty Coefficient</b><div class="desc">Used only when no Profile-specific coefficient applies.</div></div><input id="bhGlobalDifficulty" type="number" step="0.1" value="1.0"></div>
+                <div class="bhControl"><div><b>Fallback Reading Profile</b><div class="desc">Used when a Book has no explicit Profile assignment yet.</div></div><select><option selected>General (1.0)</option><option>Novel (1.0)</option><option>Textbook (2.4)</option></select></div>
+                <div class="bhControl"><div><b>Baseline Speed (Pages)</b><div class="desc">Default speed for physical pages (PDF).</div></div><input id="bhGlobalSpeedPages" type="number" value="60"></div>
+                <div class="bhControl"><div><b>Baseline Speed (Words)</b><div class="desc">Default speed for words (EPUB/TXT, ~250 wpm).</div></div><input id="bhGlobalSpeedWords" type="number" value="15000"></div>
+                <div class="bhControl"><div><b>Baseline Speed (Characters)</b><div class="desc">Default speed for characters (EPUB/TXT, ~500 cpm).</div></div><input id="bhGlobalSpeedChars" type="number" value="30000"></div>
+                <div class="bhControl"><div><b>Fallback Difficulty Coefficient</b><div class="desc">Used only when no Profile applies.</div></div><input id="bhGlobalDifficulty" type="number" step="0.1" value="1.0"></div>
               </div>
 
               <div class="bhCard">
@@ -1027,12 +1028,12 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
         <div class="bhLead" id="bhDrawerBookName">Introduction to Psychology</div>
         <div class="sep"></div>
 
-        <div class="bhField"><label>Reading Profile · exactly one</label><select id="bhDrawerProfile"><option>Textbook</option><option>Novel</option><option>Research Paper</option><option>Poem</option><option>General</option></select></div>
+        <div class="bhField"><label>Reading Profile · exactly one (defines difficulty)</label><select id="bhDrawerProfile"><option>Textbook</option><option>Novel</option><option>Research Paper</option><option>Poem</option><option>General</option></select></div>
         <div class="bhField"><label>Collections · may be multiple</label><div class="bhCollections"><span class="bhCollectionChip">Semester Reading ×</span><span class="bhCollectionChip">Textbooks ×</span><span class="bhCollectionChip">Interest ×</span><button class="miniBtn">＋ Add</button></div></div>
         <div class="bhField"><label>Quantity</label><input id="bhDrawerQuantity" type="number" value="720" placeholder="Required for calculation"></div>
-        <div class="bhField"><label>Quantity Unit</label><select id="bhDrawerUnit"><option value="pages">Pages</option><option value="words">Words</option><option value="characters">Characters</option></select></div>
-        <div class="bhField"><label>Baseline Speed</label><input id="bhDrawerSpeed" type="number" value="50"></div>
-        <div class="bhLock">Baseline Speed defaults from the selected Profile / Global Defaults and is expressed in quantity units per hour.</div>
+        <div class="bhField"><label>Quantity Unit</label><select id="bhDrawerUnit"><option value="pages">Pages (PDF)</option><option value="words">Words (EPUB/TXT)</option><option value="characters">Characters (EPUB/TXT)</option><option value="legacy_untyped">Legacy / Untyped</option></select></div>
+        <div class="bhField"><label>Baseline Speed Override</label><input id="bhDrawerSpeed" type="number" value="50"></div>
+        <div class="bhLock">Baseline Speed resolves from unit defaults (60 pages/h, 15,000 words/h, 30,000 chars/h) and can be overridden for this Book.</div>
         <div class="bhField"><label>Difficulty Coefficient</label><input id="bhDrawerDifficulty" value="2.4" disabled></div>
         <div class="bhLock">Difficulty is owned by the Reading Profile. Change the Profile definition to change the shared coefficient.</div>
         <div class="bhField"><label>Reading Progress</label><input id="bhDrawerProgress" value="36%" disabled></div>
@@ -1050,12 +1051,10 @@ select{height:35px;border:1px solid var(--border);border-radius:10px;background:
 
       <aside class="bhDrawer" id="bhProfileDrawer">
         <div class="bhDrawerHead"><h2>Edit Reading Profile</h2><div class="grow"></div><button class="icon" id="closeBhProfileDrawer">×</button></div>
-        <div class="bhLead">A Reading Profile is a shared Book Hours calculation profile, not a free-form tag.</div>
+        <div class="bhLead">A Reading Profile defines a shared difficulty coefficient, not a baseline speed or format unit.</div>
         <div class="sep"></div>
         <div class="bhField"><label>Profile Name</label><input value="Textbook"></div>
         <div class="bhField"><label>Difficulty Coefficient</label><input type="number" step="0.1" value="2.4"></div>
-        <div class="bhField"><label>Preferred Baseline Speed</label><input type="number" value="50"></div>
-        <div class="bhField"><label>Speed Unit</label><select><option>pages/hour</option><option>words/hour</option><option>characters/hour</option></select></div>
         <div class="bhField"><label>Description</label><input value="Dense instructional material such as university textbooks."></div>
         <div class="bhWarn">Saving this Profile can recalculate Book Hours for every Book using it. Their Reading Progress remains unchanged.</div>
         <div class="bhImpact"><div><span>Books affected</span><b>4</b></div><div><span>Collections touched</span><b>3</b></div><div><span>Progress changed</span><b>0</b></div><div><span>Formula</span><b>Global</b></div></div>
@@ -1576,24 +1575,34 @@ function recalcBhDrawer(){
   const unit=$("#bhDrawerUnit").value;
   $("#bhDrawerFormula").textContent=q>0?`${q} ${unit} ÷ ${speed} ${unit}/hour × ${diff} = ${planned.toFixed(1)}h`:"Quantity is required before Book Hours can be calculated.";
 }
+function unitDefaultSpeed(unit){
+  if(unit==="words") return 15000;
+  if(unit==="characters") return 30000;
+  return 60;
+}
 $$(".bhEditBook").forEach(btn=>btn.onclick=()=>{
   $("#bhDrawerBookName").textContent=btn.dataset.bookName;
   $("#bhDrawerProfile").value=btn.dataset.bookProfile;
   $("#bhDrawerQuantity").value=btn.dataset.bookQuantity;
-  $("#bhDrawerUnit").value=btn.dataset.bookUnit||"pages";
+  const unit=btn.dataset.bookUnit||"pages";
+  $("#bhDrawerUnit").value=unit;
   $("#bhDrawerProgress").value=(btn.dataset.bookProgress||"0")+"%";
   const diffs={Textbook:2.4,Novel:1.0,"Research Paper":2.8,Poem:0.7,General:1.0};
-  const speeds={Textbook:50,Novel:70,"Research Paper":18,Poem:30,General:60};
   $("#bhDrawerDifficulty").value=diffs[btn.dataset.bookProfile]??1.0;
-  $("#bhDrawerSpeed").value=speeds[btn.dataset.bookProfile]??60;
+  $("#bhDrawerSpeed").value=unitDefaultSpeed(unit);
   recalcBhDrawer();
   $("#bhBookDrawer").classList.add("open");
 });
-$("#bhDrawerQuantity").oninput=recalcBhDrawer;$("#bhDrawerSpeed").oninput=recalcBhDrawer;$("#bhDrawerUnit").onchange=recalcBhDrawer;
+$("#bhDrawerQuantity").oninput=recalcBhDrawer;
+$("#bhDrawerSpeed").oninput=recalcBhDrawer;
+$("#bhDrawerUnit").onchange=e=>{
+  $("#bhDrawerSpeed").value=unitDefaultSpeed(e.target.value);
+  recalcBhDrawer();
+};
 $("#bhDrawerProfile").onchange=e=>{
   const diffs={Textbook:2.4,Novel:1.0,"Research Paper":2.8,Poem:0.7,General:1.0};
-  const speeds={Textbook:50,Novel:70,"Research Paper":18,Poem:30,General:60};
-  $("#bhDrawerDifficulty").value=diffs[e.target.value]??1.0;$("#bhDrawerSpeed").value=speeds[e.target.value]??60;recalcBhDrawer();
+  $("#bhDrawerDifficulty").value=diffs[e.target.value]??1.0;
+  recalcBhDrawer();
 };
 $("#closeBhBookDrawer").onclick=()=>$("#bhBookDrawer").classList.remove("open");
 $("#cancelBhBook").onclick=()=>$("#bhBookDrawer").classList.remove("open");

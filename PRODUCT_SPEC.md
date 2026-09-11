@@ -156,13 +156,14 @@ A Book may belong to multiple Collections. Collection aggregates may overlap sin
 
 A user-authored reading workload classification. Each Book belongs to at most one Reading Profile (1:1 or 1:0).
 
-The Reading Profile is the singular mechanism for workload/difficulty behavior and owns:
+The Reading Profile exists specifically to define reading difficulty and owns:
 
-- difficulty coefficient (e.g. 1.0, 1.5, 2.0; demo profile names in Prototype v0.6 are illustrative examples, not hardcoded presets);
-- preferred baseline reading speed and matching quantity unit defaults;
-- descriptive notes and planning metadata.
+- **Difficulty Coefficient only** (e.g. 1.0, 1.5, 2.0; demo profile names in Prototype v0.6 are illustrative examples, not hardcoded presets);
+- identity and description metadata.
 
-Profile-level updates only affect Books assigned to that Profile. If a Book has no assigned Profile, it uses the minimal neutral global fallback defaults.
+Baseline reading speed and quantity units are format/quantity-dependent and are **not** owned by the Reading Profile; they resolve separately by quantity unit (via global defaults per unit: pages/hour, words/hour, characters/hour) with optional per-Book speed overrides.
+
+Profile-level updates only affect Books assigned to that Profile. If a Book has no assigned Profile, it uses the minimal neutral global fallback default (difficulty 1.0).
 
 *(Note: Legacy tag rows from pre-V1 schemas are safely preserved as unindexed historical data during migration, but generic Tags are not a parallel first-class V1 product classification mechanism.)*
 
@@ -433,10 +434,14 @@ Book Hours is EbookReader's planning model for estimating reading workload.
   ```text
   Planned Book Hours = (Quantity / Baseline Speed) × Difficulty Coefficient
   ```
+- **Difficulty & Baseline Speed Separation**:
+  - **Reading Profile** owns the **Difficulty Coefficient only** (e.g. 1.0, 1.5, 2.0).
+  - **Baseline Speed** is a separate calculation input resolved by quantity unit (e.g. configurable global defaults for `pages/hour`, `words/hour`, `characters/hour`), with an optional per-Book speed override (`workload_speed_override`).
+  - This ensures automatic calculation is mathematically sound across PDF page quantities and EPUB/TXT word/character quantities without unit contamination.
 - **Format-Appropriate Trustworthy Quantity Discovery**:
   - **PDF (fixed-layout)**: uses physical document page count (`pages`) where discoverable and reliable.
   - **EPUB & TXT (reflowable)**: uses supported word count (`words`) or character count (`characters`) when reliably extracted from document structure/content. If a trustworthy quantity cannot be determined, the Book remains in the `Needs Setup` state until the user provides quantity. The system never invents or fabricates an arbitrary page count for reflowable formats.
-- **Automatic Import Calculation**: When a Book is imported and sufficient measurable inputs exist (e.g. valid quantity > 0, baseline speed > 0), the system automatically calculates Planned Book Hours using global fallback defaults or assigned Reading Profile defaults.
+- **Automatic Import Calculation**: When a Book is imported and sufficient measurable inputs exist (e.g. valid quantity > 0), the system automatically calculates Planned Book Hours using the unit-specific global baseline speed and default/assigned Reading Profile difficulty.
 - **Completed-Equivalent Current Book Hours**:
   ```text
   Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
@@ -450,8 +455,8 @@ Book Hours is EbookReader's planning model for estimating reading workload.
 
 ### 9.3 Reading Profiles & Collections Aggregation
 
-- **Singular Profile Binding**: Each Book has at most one Reading Profile (1:1 or 1:0). Profiles partition Books cleanly for workload modeling.
-- **User-Authored Model**: Reading Profiles are user-created and user-configured; the system ships only a single neutral fallback default (difficulty 1.0, neutral baseline speed) without subjective preset profiles.
+- **Singular Profile Binding**: Each Book has at most one Reading Profile (1:1 or 1:0). Profiles partition Books cleanly for workload difficulty modeling.
+- **User-Authored Model**: Reading Profiles are user-created and user-configured; the system ships only a single neutral fallback default (difficulty 1.0) without subjective preset profiles.
 - **Multiple Collections**: A Book may belong to multiple Collections.
 - **Global vs Collection Aggregates**:
   - Global library totals deduplicate Books (each Book contributes once to library Planned/Current Book Hours).
