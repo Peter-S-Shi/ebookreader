@@ -7,7 +7,7 @@ import process from "node:process";
 const rootDir = process.cwd();
 const ocrAssetsDir = join(rootDir, "ocr-assets");
 const outputDir = join(rootDir, "target", "release", "bundle", "ocr-pack");
-const outputFile = join(outputDir, "EbookReader_OCR_Pack_0.1.0_x64-setup.exe");
+const outputFile = join(outputDir, "EbookReader_OCR_Pack_1.0.0_x64-setup.exe");
 const nsiScript = join(rootDir, "tooling", "ocr_pack.nsi");
 
 export const REQUIRED_OCR_FILES = [

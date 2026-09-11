@@ -106,7 +106,28 @@ describe("Packaging runtime dependency closure & Core lightweight boundary", () 
       }
     }
   });
+
+  it("enforces release identity consistency (v1.0.0) across all packaging and manifest sources", () => {
+    const pkg = JSON.parse(readFileSync(join(rootDir, "package.json"), "utf-8"));
+    expect(pkg.version).toBe("1.0.0");
+
+    const tauriConf = JSON.parse(readFileSync(tauriConfPath, "utf-8"));
+    expect(tauriConf.version).toBe("1.0.0");
+
+    const srcTauriCargo = readFileSync(join(rootDir, "src-tauri", "Cargo.toml"), "utf-8");
+    expect(srcTauriCargo).toMatch(/^version\s*=\s*"1\.0\.0"/m);
+
+    const domainCargo = readFileSync(join(rootDir, "crates", "domain", "Cargo.toml"), "utf-8");
+    expect(domainCargo).toMatch(/^version\s*=\s*"1\.0\.0"/m);
+
+    const updateAwarenessTs = readFileSync(join(rootDir, "src", "updateAwareness.ts"), "utf-8");
+    expect(updateAwarenessTs).toContain('export const CURRENT_VERSION = "1.0.0";');
+
+    const ocrNsi = readFileSync(ocrNsiPath, "utf-8");
+    expect(ocrNsi).toContain('!define PRODUCT_VERSION "1.0.0"');
+    expect(ocrNsi).toContain('EbookReader_OCR_Pack_1.0.0_x64-setup.exe');
+
+    const ocrBuildScript = readFileSync(ocrBuildScriptPath, "utf-8");
+    expect(ocrBuildScript).toContain('EbookReader_OCR_Pack_1.0.0_x64-setup.exe');
+  });
 });
-
-
-

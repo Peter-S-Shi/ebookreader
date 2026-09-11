@@ -517,7 +517,7 @@ describe("Startup Update Awareness check (PRODUCT_SPEC.md SS17; FC-C08)", () => 
     updateCheckPrefMock.mockResolvedValue("true");
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ tag_name: "v0.1.0", html_url: "https://example.invalid/releases/v0.1.0" }),
+      json: async () => ({ tag_name: "v1.0.0", html_url: "https://example.invalid/releases/v1.0.0" }),
     } as Response);
 
     render(<App />);

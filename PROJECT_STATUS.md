@@ -29,7 +29,7 @@ Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication
 - OCR Architectural Reconciliation:
   - EbookReader Core is a lightweight standalone application (~13 MB installed); heavy neural network models (~100 MB) are decoupled from the Core installer.
   - Scanned PDFs remain fully readable visually without OCR; text-dependent features present a truthful, neutral degraded state (`OCR Pack Not Installed`).
-  - Standalone Optional OCR Pack: Created official `EbookReader_OCR_Pack_0.1.0_x64-setup.exe` (~56.5 MB solid LZMA compression) packaging ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0).
+  - Standalone Optional OCR Pack: Created official `EbookReader_OCR_Pack_1.0.0_x64-setup.exe` (~56.5 MB solid LZMA compression) packaging ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0).
   - Zero-Configuration Discovery: Core automatically detects installed OCR assets in `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\` or `$INSTDIR\ocr-assets\` with full integrity validation (`is_complete_ocr_dir`).
 - Authoritative Human Acceptance Evidence:
   - Clean Core install on Windows 11 VM passed.
@@ -44,14 +44,15 @@ Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication
 - **M10-B Verdict: HUMAN PASS & CI GREEN (Closed).**
 
 **M10-C Release Governance & Publication (Active):**
-- Verified release-facing candidate artifacts and SHA256 checksums:
-  - Core NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (4,817,866 bytes, SHA256: `1F947C2482FF0734ACDAD9EEC036B47265A488F5EBC7FEAE82709626ED8C6D64`)
-  - Core MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi` (6,365,184 bytes, SHA256: `9BF631C346AE43C9EC1E33B5E19F13FBF364774FFC32B7208A7BEE27BA7A03C2`)
-  - Optional OCR Pack: `target/release/bundle/ocr-pack/EbookReader_OCR_Pack_0.1.0_x64-setup.exe` (59,202,756 bytes, SHA256: `F446F02E2528625B5F35253328D7E497D93B786703CB55E840B32C2664920B3D`)
+- Release Identity Finalization: Upgraded release identity consistently to **v1.0.0** across all package manifests, Tauri configuration, Update Awareness, OCR pack builder, tests, and documentation.
+- Verified release-facing candidate artifacts, exact file sizes, and SHA256 checksums:
+  - Core NSIS Installer: `target/release/bundle/nsis/EbookReader_1.0.0_x64-setup.exe` (4,818,366 bytes, SHA256: `87C6F9AD61E3D5832CCDCAC4C9B165C64C88AC51349109B0678724FFE3A0D212`)
+  - Core MSI Installer: `target/release/bundle/msi/EbookReader_1.0.0_x64_en-US.msi` (6,361,088 bytes, SHA256: `3CD29E9114225E03BAD875BEF1237685A6CC6C164F8EB95DACF164057A713BC9`)
+  - Optional OCR Pack: `target/release/bundle/ocr-pack/EbookReader_OCR_Pack_1.0.0_x64-setup.exe` (59,183,570 bytes, SHA256: `6A9D8ECD1500EE4C8DFE2DE610F2398EA72F51B222BDE4B4A4C1DFED0DA8ECA3`)
 - Verified third-party redistribution licenses & attributions: Microsoft ONNX Runtime (MIT), PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0).
 
 **Full Automated Regression Verification:**
-- Frontend unit tests `npm test`: 38 test files, 307 passed; 0 failed.
+- Frontend unit tests `npm test`: 38 test files, 308 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
 - Rust workspace tests `cargo test --workspace` + `cargo test -p ebookreader`: 219 passed, 2 ignored; 0 failed.
 - PE runtime dependency closure `node tooling/audit_runtime_closure.mjs`: 100% closure verified (0 unresolved DLLs).
@@ -59,15 +60,15 @@ Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication
 - Production Tauri release build `npm run tauri build`: passed.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Active).
-Current Checkpoint / Promotion Unit: **M10-C (Release Governance & Publication Preflight — RELEASE_READY_FOR_HUMAN_APPROVAL)**.
+Current Checkpoint / Promotion Unit: **M10-C (Release Identity Finalized — VERSION_FINALIZATION_READY_FOR_TARGETED_HUMAN_SMOKE)**.
 Current Branch / PR: `milestone/10a-rc-clean-install` / PR #1
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
-RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance PASS (HUMAN PASS); M10-C Release Governance Active.
-Next Action: Await human approval for release tag creation and GitHub publication.
+RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance PASS (HUMAN PASS); M10-C Release Identity Finalization Complete.
+Next Action: Perform targeted human smoke test (4 items) on v1.0.0 candidate artifacts, then proceed with PR #1 merge, tag v1.0.0, and GitHub release creation upon human authorization.
 
 
 

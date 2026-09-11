@@ -13,7 +13,8 @@
 // there is exactly one place either would need updating for a release.
 export const REPO_OWNER = "Peter-S-Shi";
 export const REPO_NAME = "ebookreader";
-export const CURRENT_VERSION = "0.1.0";
+/// The current stable product version of this release candidate.
+export const CURRENT_VERSION = "1.0.0";
 
 export type UpdateCheckStatus = "up_to_date" | "update_available" | "check_failed";
 

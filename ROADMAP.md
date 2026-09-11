@@ -1007,7 +1007,7 @@ Hardening is system-wide quality convergence, not feature growth.
 
 ### M10-B — Packaged RC Acceptance (Complete — HUMAN PASS)
 - Core Installer: Lightweight (~13MB setup executable), zero external dependencies, bundles complete runtime DLL closure (`WebView2Loader.dll`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). Normal visual reading for scanned PDF works without OCR.
-- Optional OCR Pack: Official standalone installer (`EbookReader_OCR_Pack_0.1.0_x64-setup.exe`, ~56.5MB setup executable) packaging verified ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0). Auto-discovered at `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\`. When uninstalled, UI displays a neutral informational degraded state (`OCR Pack Not Installed`).
+- Optional OCR Pack: Official standalone installer (`EbookReader_OCR_Pack_1.0.0_x64-setup.exe`, ~56.5MB setup executable) packaging verified ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0). Auto-discovered at `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\`. When uninstalled, UI displays a neutral informational degraded state (`OCR Pack Not Installed`).
 - Human Clean-Environment Retest Acceptance Evidence:
   - Clean Core install on Windows 11 VM passed.
   - Neutral degraded state when no pack is installed verified.

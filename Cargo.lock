@@ -1122,7 +1122,7 @@ dependencies = [
 
 [[package]]
 name = "ebookreader"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "ebookreader-domain",
  "image",
@@ -1140,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "ebookreader-domain"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "geo",
  "geo-clipper",
