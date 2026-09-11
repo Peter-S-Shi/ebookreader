@@ -46,6 +46,9 @@ pub mod keys {
     pub const PAUSE_ON_BACKGROUND: &str = "actual_reading_time.pause_on_background"; // "true" | "false"
     pub const AUTO_PAUSE_AFTER_INACTIVITY: &str = "actual_reading_time.auto_pause_after_inactivity"; // "true" | "false"
     pub const COUNT_NOTE_TAKING: &str = "actual_reading_time.count_note_taking"; // "true" | "false"
+
+    // BH-2: Book Hours global baseline reading speed defaults (JSON-serialized GlobalBookHoursDefaults)
+    pub const BOOK_HOURS_DEFAULTS: &str = "book_hours.defaults";
 }
 
 #[cfg(test)]

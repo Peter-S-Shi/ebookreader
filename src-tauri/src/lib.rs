@@ -25,6 +25,13 @@ use commands::{
     save_ocr_page_result_command, save_reading_location_command, save_workload_config_command,
     rebuild_search_index_command, search_in_book_command, search_library_command, set_daily_goal_command,
     set_ocr_job_status_command, set_setting_command, start_next_read_command, update_book_title_command,
+    // BH-2 Book Hours commands
+    list_reading_profiles_command, get_reading_profile_command, create_reading_profile_command,
+    update_reading_profile_command, delete_reading_profile_command,
+    get_book_workload_command, set_book_workload_command,
+    get_global_book_hours_defaults_command, set_global_book_hours_defaults_command,
+    get_book_hours_overview_command, get_book_hours_item_command,
+    preview_book_hours_recalculation_command, apply_book_hours_recalculation_command,
 };
 use ebookreader_domain::ocr_engine::OcrEngine;
 use ebookreader_domain::reading_session::ReadingSession;
@@ -123,7 +130,21 @@ pub fn run() {
             clear_ocr_cache_command,
             run_ocr_job_command,
             get_setting_command,
-            set_setting_command
+            set_setting_command,
+            // BH-2 Book Hours commands
+            list_reading_profiles_command,
+            get_reading_profile_command,
+            create_reading_profile_command,
+            update_reading_profile_command,
+            delete_reading_profile_command,
+            get_book_workload_command,
+            set_book_workload_command,
+            get_global_book_hours_defaults_command,
+            set_global_book_hours_defaults_command,
+            get_book_hours_overview_command,
+            get_book_hours_item_command,
+            preview_book_hours_recalculation_command,
+            apply_book_hours_recalculation_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -12,8 +12,14 @@ use ebookreader_domain::alignment::{self, AlignmentPackage};
 use ebookreader_domain::assets::{self, AssetKind, ReadingAsset};
 use ebookreader_domain::backup::{self, BackupManifest, BackupPreview};
 use ebookreader_domain::book_hours::{
-    cumulative_book_hours, list_workload_config_revisions, load_workload_config, save_workload_config,
-    WorkloadConfig, WorkloadConfigRevision,
+    apply_book_hours_recalculation, compute_book_hours_overview, create_reading_profile,
+    cumulative_book_hours, delete_reading_profile, get_book_hours_item, get_book_workload,
+    get_reading_profile, list_reading_profiles, list_workload_config_revisions,
+    load_global_book_hours_defaults, load_workload_config, preview_book_hours_recalculation,
+    save_global_book_hours_defaults, save_workload_config, set_book_workload,
+    update_reading_profile, BookHoursItem, BookHoursOverview, BookWorkloadSetup,
+    GlobalBookHoursDefaults, ReadingProfile, RecalculationPreviewRequest,
+    RecalculationPreviewResult, WorkloadConfig, WorkloadConfigRevision,
 };
 use ebookreader_domain::calendar::{self, DayDetail};
 use ebookreader_domain::collections;
@@ -525,6 +531,135 @@ pub fn list_workload_config_revisions_command(
 ) -> Result<Vec<WorkloadConfigRevision>, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     list_workload_config_revisions(&conn, &book_id).map_err(|e| format!("could not list workload config revisions: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Reading Profile Commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn list_reading_profiles_command(state: State<DbState>) -> Result<Vec<ReadingProfile>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    list_reading_profiles(&conn).map_err(|e| format!("could not list reading profiles: {e}"))
+}
+
+#[tauri::command]
+pub fn get_reading_profile_command(state: State<DbState>, id: String) -> Result<Option<ReadingProfile>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    get_reading_profile(&conn, &id).map_err(|e| format!("could not get reading profile: {e}"))
+}
+
+#[tauri::command]
+pub fn create_reading_profile_command(
+    state: State<DbState>,
+    id: String,
+    name: String,
+    difficulty_multiplier: f64,
+    description: String,
+    is_default: bool,
+    created_at: String,
+) -> Result<ReadingProfile, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    create_reading_profile(&conn, &id, &name, difficulty_multiplier, &description, is_default, &created_at)
+        .map_err(|e| format!("could not create reading profile: {e}"))
+}
+
+#[tauri::command]
+pub fn update_reading_profile_command(
+    state: State<DbState>,
+    id: String,
+    name: String,
+    difficulty_multiplier: f64,
+    description: String,
+    updated_at: String,
+) -> Result<Option<ReadingProfile>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    update_reading_profile(&conn, &id, &name, difficulty_multiplier, &description, &updated_at)
+        .map_err(|e| format!("could not update reading profile: {e}"))
+}
+
+#[tauri::command]
+pub fn delete_reading_profile_command(state: State<DbState>, id: String) -> Result<bool, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    delete_reading_profile(&conn, &id).map_err(|e| format!("could not delete reading profile: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Book Workload Setup & Global Defaults Commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_book_workload_command(state: State<DbState>, book_id: String) -> Result<Option<BookWorkloadSetup>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    get_book_workload(&conn, &book_id).map_err(|e| format!("could not get book workload setup: {e}"))
+}
+
+#[tauri::command]
+pub fn set_book_workload_command(
+    state: State<DbState>,
+    book_id: String,
+    setup: BookWorkloadSetup,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    set_book_workload(&conn, &book_id, &setup).map_err(|e| format!("could not set book workload setup: {e}"))
+}
+
+#[tauri::command]
+pub fn get_global_book_hours_defaults_command(state: State<DbState>) -> Result<GlobalBookHoursDefaults, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    load_global_book_hours_defaults(&conn).map_err(|e| format!("could not get global book hours defaults: {e}"))
+}
+
+#[tauri::command]
+pub fn set_global_book_hours_defaults_command(
+    state: State<DbState>,
+    defaults: GlobalBookHoursDefaults,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    save_global_book_hours_defaults(&conn, &defaults)
+        .map_err(|e| format!("could not set global book hours defaults: {e}"))
+}
+
+// ---------------------------------------------------------------------------
+// Book Hours Overview, Item & Recalculation Commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_book_hours_overview_command(state: State<DbState>) -> Result<BookHoursOverview, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let defaults = load_global_book_hours_defaults(&conn)
+        .map_err(|e| format!("could not load global book hours defaults: {e}"))?;
+    compute_book_hours_overview(&conn, &defaults)
+        .map_err(|e| format!("could not compute book hours overview: {e}"))
+}
+
+#[tauri::command]
+pub fn get_book_hours_item_command(state: State<DbState>, book_id: String) -> Result<Option<BookHoursItem>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    let defaults = load_global_book_hours_defaults(&conn)
+        .map_err(|e| format!("could not load global book hours defaults: {e}"))?;
+    get_book_hours_item(&conn, &book_id, &defaults)
+        .map_err(|e| format!("could not get book hours item: {e}"))
+}
+
+#[tauri::command]
+pub fn preview_book_hours_recalculation_command(
+    state: State<DbState>,
+    request: RecalculationPreviewRequest,
+) -> Result<RecalculationPreviewResult, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    preview_book_hours_recalculation(&conn, &request)
+        .map_err(|e| format!("could not preview book hours recalculation: {e}"))
+}
+
+#[tauri::command]
+pub fn apply_book_hours_recalculation_command(
+    state: State<DbState>,
+    request: RecalculationPreviewRequest,
+) -> Result<RecalculationPreviewResult, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    apply_book_hours_recalculation(&conn, &request)
+        .map_err(|e| format!("could not apply book hours recalculation: {e}"))
 }
 
 /// `PRODUCT_SPEC.md` SS10: a Book's accumulated Actual Reading Time.

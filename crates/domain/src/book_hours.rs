@@ -108,6 +108,24 @@ impl GlobalBookHoursDefaults {
     }
 }
 
+pub fn load_global_book_hours_defaults(conn: &Connection) -> rusqlite::Result<GlobalBookHoursDefaults> {
+    if let Some(json_val) = crate::settings::get_setting(conn, crate::settings::keys::BOOK_HOURS_DEFAULTS)? {
+        if let Ok(defaults) = serde_json::from_str::<GlobalBookHoursDefaults>(&json_val) {
+            return Ok(defaults);
+        }
+    }
+    Ok(GlobalBookHoursDefaults::default())
+}
+
+pub fn save_global_book_hours_defaults(
+    conn: &Connection,
+    defaults: &GlobalBookHoursDefaults,
+) -> rusqlite::Result<()> {
+    let json_val = serde_json::to_string(defaults)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    crate::settings::set_setting(conn, crate::settings::keys::BOOK_HOURS_DEFAULTS, &json_val)
+}
+
 /// Book-level workload setup parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BookWorkloadSetup {
@@ -370,21 +388,107 @@ pub struct CollectionBookHoursSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BookHoursItem {
+    pub book_id: String,
+    pub title: String,
+    pub profile_id: Option<String>,
+    pub profile_name: Option<String>,
+    pub quantity: Option<f64>,
+    pub unit: Option<QuantityUnit>,
+    pub speed_override: Option<f64>,
+    pub cumulative_percent: f64,
+    pub calculation: Option<BookHoursCalculation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BookHoursOverview {
     pub total_planned_hours: f64,
     pub total_current_hours: f64,
     pub global_coverage: CalculationCoverage,
     pub profiles: Vec<ProfileBookHoursSummary>,
     pub collections: Vec<CollectionBookHoursSummary>,
+    pub books: Vec<BookHoursItem>,
 }
 
 struct BookRecord {
     id: String,
+    title: String,
     profile_id: Option<String>,
     quantity: Option<f64>,
     unit: Option<QuantityUnit>,
     speed_override: Option<f64>,
     cumulative_percent: f64,
+}
+
+pub fn get_book_hours_item(
+    conn: &Connection,
+    book_id: &str,
+    defaults: &GlobalBookHoursDefaults,
+) -> rusqlite::Result<Option<BookHoursItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.title, b.profile_id, b.workload_quantity, b.workload_unit, b.workload_speed_override,
+                COALESCE(
+                    rp.completed_read_count * 100.0 + (CASE WHEN rp.active_read_in_progress != 0 THEN rp.active_pass_progress ELSE 0.0 END),
+                    0.0
+                )
+         FROM book b
+         LEFT JOIN reading_progress rp ON rp.book_id = b.id
+         WHERE b.id = ?1",
+    )?;
+
+    let row_opt = stmt
+        .query_row([book_id], |row| {
+            let id: String = row.get(0)?;
+            let title: String = row.get(1)?;
+            let profile_id: Option<String> = row.get(2)?;
+            let quantity: Option<f64> = row.get(3)?;
+            let unit_str: Option<String> = row.get(4)?;
+            let speed_override: Option<f64> = row.get(5)?;
+            let cumulative_percent: f64 = row.get(6)?;
+            let unit = unit_str.as_deref().and_then(QuantityUnit::from_str);
+            Ok(BookRecord {
+                id,
+                title,
+                profile_id,
+                quantity,
+                unit,
+                speed_override,
+                cumulative_percent,
+            })
+        })
+        .optional()?;
+
+    let Some(b) = row_opt else {
+        return Ok(None);
+    };
+
+    let profile = if let Some(ref pid) = b.profile_id {
+        get_reading_profile(conn, pid)?
+    } else {
+        None
+    };
+
+    let profile_name = profile.as_ref().map(|p| p.name.clone());
+    let calculation = calculate_book_hours(
+        b.quantity,
+        b.unit,
+        b.speed_override,
+        profile.as_ref(),
+        defaults,
+        b.cumulative_percent,
+    );
+
+    Ok(Some(BookHoursItem {
+        book_id: b.id,
+        title: b.title,
+        profile_id: b.profile_id,
+        profile_name,
+        quantity: b.quantity,
+        unit: b.unit,
+        speed_override: b.speed_override,
+        cumulative_percent: b.cumulative_percent,
+        calculation,
+    }))
 }
 
 pub fn compute_book_hours_overview(
@@ -400,26 +504,29 @@ pub fn compute_book_hours_overview(
 
     // 2. Load all active books with progress
     let mut stmt = conn.prepare(
-        "SELECT b.id, b.profile_id, b.workload_quantity, b.workload_unit, b.workload_speed_override,
+        "SELECT b.id, b.title, b.profile_id, b.workload_quantity, b.workload_unit, b.workload_speed_override,
                 COALESCE(
                     rp.completed_read_count * 100.0 + (CASE WHEN rp.active_read_in_progress != 0 THEN rp.active_pass_progress ELSE 0.0 END),
                     0.0
                 )
          FROM book b
          LEFT JOIN reading_progress rp ON rp.book_id = b.id
-         WHERE b.library_status = 'active'",
+         WHERE b.library_status = 'active'
+         ORDER BY b.title ASC",
     )?;
 
     let book_rows = stmt.query_map([], |row| {
         let id: String = row.get(0)?;
-        let profile_id: Option<String> = row.get(1)?;
-        let quantity: Option<f64> = row.get(2)?;
-        let unit_str: Option<String> = row.get(3)?;
-        let speed_override: Option<f64> = row.get(4)?;
-        let cumulative_percent: f64 = row.get(5)?;
+        let title: String = row.get(1)?;
+        let profile_id: Option<String> = row.get(2)?;
+        let quantity: Option<f64> = row.get(3)?;
+        let unit_str: Option<String> = row.get(4)?;
+        let speed_override: Option<f64> = row.get(5)?;
+        let cumulative_percent: f64 = row.get(6)?;
         let unit = unit_str.as_deref().and_then(QuantityUnit::from_str);
         Ok(BookRecord {
             id,
+            title,
             profile_id,
             quantity,
             unit,
@@ -436,6 +543,7 @@ pub fn compute_book_hours_overview(
     // 3. Calculate per book
     let mut book_calc_map: std::collections::HashMap<String, Option<BookHoursCalculation>> =
         std::collections::HashMap::new();
+    let mut book_items: Vec<BookHoursItem> = Vec::with_capacity(books.len());
 
     let mut global_planned = 0.0;
     let mut global_current = 0.0;
@@ -459,7 +567,18 @@ pub fn compute_book_hours_overview(
         } else {
             global_uncalculated += 1;
         }
-        book_calc_map.insert(b.id.clone(), calc);
+        book_calc_map.insert(b.id.clone(), calc.clone());
+        book_items.push(BookHoursItem {
+            book_id: b.id.clone(),
+            title: b.title.clone(),
+            profile_id: b.profile_id.clone(),
+            profile_name: prof.map(|p| p.name.clone()),
+            quantity: b.quantity,
+            unit: b.unit,
+            speed_override: b.speed_override,
+            cumulative_percent: b.cumulative_percent,
+            calculation: calc,
+        });
     }
 
     let global_coverage = CalculationCoverage {
@@ -557,7 +676,356 @@ pub fn compute_book_hours_overview(
         global_coverage,
         profiles: profile_summaries,
         collections: coll_summaries,
+        books: book_items,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Recalculation Impact Preview & Apply
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProfileDifficultyUpdate {
+    pub profile_id: String,
+    pub difficulty_multiplier: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecalculationPreviewRequest {
+    pub proposed_defaults: Option<GlobalBookHoursDefaults>,
+    pub proposed_profiles: Option<Vec<ProfileDifficultyUpdate>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BookRecalculationImpact {
+    pub book_id: String,
+    pub title: String,
+    pub old_planned_hours: Option<f64>,
+    pub new_planned_hours: Option<f64>,
+    pub old_current_hours: Option<f64>,
+    pub new_current_hours: Option<f64>,
+    pub hours_delta: f64,
+    pub was_calculated: bool,
+    pub is_calculated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CoverageDelta {
+    pub old_calculated_books: usize,
+    pub new_calculated_books: usize,
+    pub delta: i64,
+    pub total_books: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProfileRecalculationImpact {
+    pub profile_id: String,
+    pub profile_name: String,
+    pub old_planned_hours: f64,
+    pub new_planned_hours: f64,
+    pub hours_delta: f64,
+    pub coverage_delta: CoverageDelta,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionRecalculationImpact {
+    pub collection_id: String,
+    pub collection_name: String,
+    pub old_planned_hours: f64,
+    pub new_planned_hours: f64,
+    pub hours_delta: f64,
+    pub coverage_delta: CoverageDelta,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecalculationPreviewResult {
+    pub total_books_count: usize,
+    pub affected_books_count: usize,
+    pub progress_changed_count: usize, // ALWAYS 0
+    pub old_total_planned_hours: f64,
+    pub new_total_planned_hours: f64,
+    pub total_hours_delta: f64,
+    pub old_total_current_hours: f64,
+    pub new_total_current_hours: f64,
+    pub global_coverage_delta: CoverageDelta,
+    pub affected_books: Vec<BookRecalculationImpact>,
+    pub profile_impacts: Vec<ProfileRecalculationImpact>,
+    pub collection_impacts: Vec<CollectionRecalculationImpact>,
+}
+
+pub fn preview_book_hours_recalculation(
+    conn: &Connection,
+    request: &RecalculationPreviewRequest,
+) -> rusqlite::Result<RecalculationPreviewResult> {
+    let current_defaults = load_global_book_hours_defaults(conn)?;
+    let effective_defaults = request.proposed_defaults.unwrap_or(current_defaults);
+
+    let profiles = list_reading_profiles(conn)?;
+    let current_profile_map: std::collections::HashMap<String, ReadingProfile> = profiles
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect();
+
+    let mut effective_profile_map = current_profile_map.clone();
+    if let Some(ref updates) = request.proposed_profiles {
+        for u in updates {
+            if let Some(p) = effective_profile_map.get_mut(&u.profile_id) {
+                p.difficulty_multiplier = u.difficulty_multiplier;
+            }
+        }
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.title, b.profile_id, b.workload_quantity, b.workload_unit, b.workload_speed_override,
+                COALESCE(
+                    rp.completed_read_count * 100.0 + (CASE WHEN rp.active_read_in_progress != 0 THEN rp.active_pass_progress ELSE 0.0 END),
+                    0.0
+                )
+         FROM book b
+         LEFT JOIN reading_progress rp ON rp.book_id = b.id
+         WHERE b.library_status = 'active'
+         ORDER BY b.title ASC",
+    )?;
+
+    let book_rows = stmt.query_map([], |row| {
+        let id: String = row.get(0)?;
+        let title: String = row.get(1)?;
+        let profile_id: Option<String> = row.get(2)?;
+        let quantity: Option<f64> = row.get(3)?;
+        let unit_str: Option<String> = row.get(4)?;
+        let speed_override: Option<f64> = row.get(5)?;
+        let cumulative_percent: f64 = row.get(6)?;
+        let unit = unit_str.as_deref().and_then(QuantityUnit::from_str);
+        Ok(BookRecord {
+            id,
+            title,
+            profile_id,
+            quantity,
+            unit,
+            speed_override,
+            cumulative_percent,
+        })
+    })?;
+
+    let mut books = Vec::new();
+    for b in book_rows {
+        books.push(b?);
+    }
+
+    let mut affected_books = Vec::new();
+    let mut old_total_planned = 0.0;
+    let mut new_total_planned = 0.0;
+    let mut old_total_current = 0.0;
+    let mut new_total_current = 0.0;
+    let mut old_calc_count = 0;
+    let mut new_calc_count = 0;
+
+    let mut old_book_calcs: std::collections::HashMap<String, Option<BookHoursCalculation>> =
+        std::collections::HashMap::new();
+    let mut new_book_calcs: std::collections::HashMap<String, Option<BookHoursCalculation>> =
+        std::collections::HashMap::new();
+
+    for b in &books {
+        let old_prof = b.profile_id.as_deref().and_then(|pid| current_profile_map.get(pid));
+        let new_prof = b.profile_id.as_deref().and_then(|pid| effective_profile_map.get(pid));
+
+        let old_calc = calculate_book_hours(
+            b.quantity,
+            b.unit,
+            b.speed_override,
+            old_prof,
+            &current_defaults,
+            b.cumulative_percent,
+        );
+        let new_calc = calculate_book_hours(
+            b.quantity,
+            b.unit,
+            b.speed_override,
+            new_prof,
+            &effective_defaults,
+            b.cumulative_percent,
+        );
+
+        if let Some(ref c) = old_calc {
+            old_total_planned += c.planned_book_hours;
+            old_total_current += c.current_book_hours;
+            old_calc_count += 1;
+        }
+        if let Some(ref c) = new_calc {
+            new_total_planned += c.planned_book_hours;
+            new_total_current += c.current_book_hours;
+            new_calc_count += 1;
+        }
+
+        let is_affected = match (&old_calc, &new_calc) {
+            (None, None) => false,
+            (Some(_), None) | (None, Some(_)) => true,
+            (Some(o), Some(n)) => {
+                (o.planned_book_hours - n.planned_book_hours).abs() > 1e-6
+                    || (o.current_book_hours - n.current_book_hours).abs() > 1e-6
+            }
+        };
+
+        let old_planned = old_calc.as_ref().map(|c| c.planned_book_hours);
+        let new_planned = new_calc.as_ref().map(|c| c.planned_book_hours);
+        let old_curr = old_calc.as_ref().map(|c| c.current_book_hours);
+        let new_curr = new_calc.as_ref().map(|c| c.current_book_hours);
+        let delta = match (new_planned, old_planned) {
+            (Some(n), Some(o)) => n - o,
+            (Some(n), None) => n,
+            (None, Some(o)) => -o,
+            (None, None) => 0.0,
+        };
+
+        if is_affected {
+            affected_books.push(BookRecalculationImpact {
+                book_id: b.id.clone(),
+                title: b.title.clone(),
+                old_planned_hours: old_planned,
+                new_planned_hours: new_planned,
+                old_current_hours: old_curr,
+                new_current_hours: new_curr,
+                hours_delta: delta,
+                was_calculated: old_calc.is_some(),
+                is_calculated: new_calc.is_some(),
+            });
+        }
+
+        old_book_calcs.insert(b.id.clone(), old_calc);
+        new_book_calcs.insert(b.id.clone(), new_calc);
+    }
+
+    // Profile impacts
+    let mut profile_impacts = Vec::new();
+    for (pid, prof) in &current_profile_map {
+        let mut old_p_planned = 0.0;
+        let mut new_p_planned = 0.0;
+        let mut old_p_calc = 0;
+        let mut new_p_calc = 0;
+        let mut p_total = 0;
+
+        for b in &books {
+            if b.profile_id.as_deref() == Some(pid.as_str()) {
+                p_total += 1;
+                if let Some(Some(ref c)) = old_book_calcs.get(&b.id) {
+                    old_p_planned += c.planned_book_hours;
+                    old_p_calc += 1;
+                }
+                if let Some(Some(ref c)) = new_book_calcs.get(&b.id) {
+                    new_p_planned += c.planned_book_hours;
+                    new_p_calc += 1;
+                }
+            }
+        }
+
+        profile_impacts.push(ProfileRecalculationImpact {
+            profile_id: pid.clone(),
+            profile_name: prof.name.clone(),
+            old_planned_hours: old_p_planned,
+            new_planned_hours: new_p_planned,
+            hours_delta: new_p_planned - old_p_planned,
+            coverage_delta: CoverageDelta {
+                old_calculated_books: old_p_calc,
+                new_calculated_books: new_p_calc,
+                delta: new_p_calc as i64 - old_p_calc as i64,
+                total_books: p_total,
+            },
+        });
+    }
+    profile_impacts.sort_by(|a, b| b.profile_id.cmp(&a.profile_id));
+
+    // Collection impacts
+    let mut coll_stmt = conn.prepare("SELECT id, name FROM collection ORDER BY name ASC")?;
+    let coll_rows = coll_stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+
+    let mut collection_impacts = Vec::new();
+    for c in coll_rows {
+        let (coll_id, coll_name) = c?;
+        let mut member_stmt = conn.prepare("SELECT book_id FROM book_collection WHERE collection_id = ?1")?;
+        let member_rows = member_stmt.query_map([&coll_id], |row| row.get::<_, String>(0))?;
+
+        let mut old_c_planned = 0.0;
+        let mut new_c_planned = 0.0;
+        let mut old_c_calc = 0;
+        let mut new_c_calc = 0;
+        let mut c_total = 0;
+
+        for m in member_rows {
+            let book_id = m?;
+            if let Some(calc_opt) = old_book_calcs.get(&book_id) {
+                c_total += 1;
+                if let Some(ref c) = calc_opt {
+                    old_c_planned += c.planned_book_hours;
+                    old_c_calc += 1;
+                }
+            }
+            if let Some(Some(ref c)) = new_book_calcs.get(&book_id) {
+                new_c_planned += c.planned_book_hours;
+                new_c_calc += 1;
+            }
+        }
+
+        collection_impacts.push(CollectionRecalculationImpact {
+            collection_id: coll_id,
+            collection_name: coll_name,
+            old_planned_hours: old_c_planned,
+            new_planned_hours: new_c_planned,
+            hours_delta: new_c_planned - old_c_planned,
+            coverage_delta: CoverageDelta {
+                old_calculated_books: old_c_calc,
+                new_calculated_books: new_c_calc,
+                delta: new_c_calc as i64 - old_c_calc as i64,
+                total_books: c_total,
+            },
+        });
+    }
+
+    let total_books_count = books.len();
+    let affected_books_count = affected_books.len();
+
+    Ok(RecalculationPreviewResult {
+        total_books_count,
+        affected_books_count,
+        progress_changed_count: 0,
+        old_total_planned_hours: old_total_planned,
+        new_total_planned_hours: new_total_planned,
+        total_hours_delta: new_total_planned - old_total_planned,
+        old_total_current_hours: old_total_current,
+        new_total_current_hours: new_total_current,
+        global_coverage_delta: CoverageDelta {
+            old_calculated_books: old_calc_count,
+            new_calculated_books: new_calc_count,
+            delta: new_calc_count as i64 - old_calc_count as i64,
+            total_books: total_books_count,
+        },
+        affected_books,
+        profile_impacts,
+        collection_impacts,
+    })
+}
+
+pub fn apply_book_hours_recalculation(
+    conn: &Connection,
+    request: &RecalculationPreviewRequest,
+) -> rusqlite::Result<RecalculationPreviewResult> {
+    let preview = preview_book_hours_recalculation(conn, request)?;
+
+    if let Some(ref defaults) = request.proposed_defaults {
+        save_global_book_hours_defaults(conn, defaults)?;
+    }
+
+    if let Some(ref profile_updates) = request.proposed_profiles {
+        for u in profile_updates {
+            conn.execute(
+                "UPDATE reading_profiles SET difficulty_multiplier = ?1, updated_at = datetime('now') WHERE id = ?2",
+                params![u.difficulty_multiplier, &u.profile_id],
+            )?;
+        }
+    }
+
+    Ok(preview)
 }
 
 // ---------------------------------------------------------------------------
@@ -990,5 +1458,117 @@ mod tests {
         let config = WorkloadConfig { quantity: 300.0, baseline_speed: 200.0, difficulty_coefficient: 1.0 };
         assert_eq!(config.base_book_hours(), base_book_hours(300.0, 200.0, 1.0));
     }
+
+    #[test]
+    fn global_book_hours_defaults_round_trip() {
+        let conn = test_conn();
+        let initial = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(initial, GlobalBookHoursDefaults::default());
+
+        let custom = GlobalBookHoursDefaults {
+            pages_per_hour: 50.0,
+            words_per_hour: 12_000.0,
+            characters_per_hour: 25_000.0,
+        };
+        save_global_book_hours_defaults(&conn, &custom).unwrap();
+
+        let loaded = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(loaded, custom);
+    }
+
+    #[test]
+    fn get_book_hours_item_query() {
+        let conn = test_conn();
+        let defaults = GlobalBookHoursDefaults::default();
+
+        conn.execute("INSERT INTO book (id, title, profile_id, workload_quantity, workload_unit) VALUES ('b1', 'Test Book', 'profile-default', 300.0, 'pages')", []).unwrap();
+        conn.execute("INSERT INTO reading_progress (book_id, completed_read_count, active_read_in_progress, active_pass_progress) VALUES ('b1', 0, 1, 50.0)", []).unwrap();
+
+        let item = get_book_hours_item(&conn, "b1", &defaults).unwrap().expect("should find book");
+        assert_eq!(item.book_id, "b1");
+        assert_eq!(item.title, "Test Book");
+        assert_eq!(item.profile_id.as_deref(), Some("profile-default"));
+        assert_eq!(item.profile_name.as_deref(), Some("Default"));
+        assert_eq!(item.quantity, Some(300.0));
+        assert_eq!(item.unit, Some(QuantityUnit::Pages));
+        assert_eq!(item.cumulative_percent, 50.0);
+        let calc = item.calculation.expect("should calculate");
+        assert_eq!(calc.planned_book_hours, 5.0);
+        assert_eq!(calc.current_book_hours, 2.5);
+
+        assert!(get_book_hours_item(&conn, "nonexistent", &defaults).unwrap().is_none());
+    }
+
+    #[test]
+    fn preview_and_apply_book_hours_recalculation() {
+        let conn = test_conn();
+        let defaults = GlobalBookHoursDefaults::default();
+
+        // Setup custom profile
+        create_reading_profile(&conn, "prof-deep", "Deep", 1.5, "Deep reading", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // Add 2 books:
+        // b1: 300 pages, profile-default (1.0 diff) -> 300 / 60 * 1.0 = 5.0h planned, 2.5h current (50% progress)
+        // b2: 60,000 words, prof-deep (1.5 diff) -> 60000 / 15000 * 1.5 = 6.0h planned, 6.0h current (100% progress)
+        conn.execute("INSERT INTO book (id, title, profile_id, workload_quantity, workload_unit) VALUES ('b1', 'Book 1', 'profile-default', 300.0, 'pages')", []).unwrap();
+        conn.execute("INSERT INTO book (id, title, profile_id, workload_quantity, workload_unit) VALUES ('b2', 'Book 2', 'prof-deep', 60000.0, 'words')", []).unwrap();
+        conn.execute("INSERT INTO reading_progress (book_id, completed_read_count, active_read_in_progress, active_pass_progress) VALUES ('b1', 0, 1, 50.0)", []).unwrap();
+        conn.execute("INSERT INTO reading_progress (book_id, completed_read_count, active_read_in_progress, active_pass_progress) VALUES ('b2', 1, 0, 0.0)", []).unwrap();
+
+        // Collection c1 with both books
+        conn.execute("INSERT INTO collection (id, name) VALUES ('c1', 'Reading List')", []).unwrap();
+        conn.execute("INSERT INTO book_collection (book_id, collection_id) VALUES ('b1', 'c1')", []).unwrap();
+        conn.execute("INSERT INTO book_collection (book_id, collection_id) VALUES ('b2', 'c1')", []).unwrap();
+
+        // 1. Preview changes: pages_per_hour from 60 -> 30, prof-deep difficulty from 1.5 -> 2.0
+        let req = RecalculationPreviewRequest {
+            proposed_defaults: Some(GlobalBookHoursDefaults {
+                pages_per_hour: 30.0,
+                words_per_hour: 15_000.0,
+                characters_per_hour: 30_000.0,
+            }),
+            proposed_profiles: Some(vec![
+                ProfileDifficultyUpdate {
+                    profile_id: "prof-deep".to_string(),
+                    difficulty_multiplier: 2.0,
+                },
+            ]),
+        };
+
+        let preview = preview_book_hours_recalculation(&conn, &req).unwrap();
+
+        // Preview checks
+        assert_eq!(preview.total_books_count, 2);
+        assert_eq!(preview.affected_books_count, 2);
+        assert_eq!(preview.progress_changed_count, 0, "Invariant: progress_changed_count MUST be 0");
+        assert_eq!(preview.old_total_planned_hours, 11.0);
+        // b1 new: 300 / 30 * 1.0 = 10.0h planned, 5.0h current
+        // b2 new: 60000 / 15000 * 2.0 = 8.0h planned, 8.0h current
+        // new total planned = 18.0h
+        assert_eq!(preview.new_total_planned_hours, 18.0);
+        assert_eq!(preview.total_hours_delta, 7.0);
+        assert_eq!(preview.old_total_current_hours, 8.5);
+        assert_eq!(preview.new_total_current_hours, 13.0);
+        assert_eq!(preview.global_coverage_delta.old_calculated_books, 2);
+        assert_eq!(preview.global_coverage_delta.new_calculated_books, 2);
+        assert_eq!(preview.global_coverage_delta.delta, 0);
+
+        // Verify that preview did NOT mutate the database!
+        let defaults_after_preview = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(defaults_after_preview, defaults);
+        let prof_after_preview = get_reading_profile(&conn, "prof-deep").unwrap().unwrap();
+        assert_eq!(prof_after_preview.difficulty_multiplier, 1.5);
+
+        // 2. Apply recalculation
+        let applied = apply_book_hours_recalculation(&conn, &req).unwrap();
+        assert_eq!(applied.new_total_planned_hours, 18.0);
+
+        // Verify that database WAS mutated after apply
+        let defaults_after_apply = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(defaults_after_apply.pages_per_hour, 30.0);
+        let prof_after_apply = get_reading_profile(&conn, "prof-deep").unwrap().unwrap();
+        assert_eq!(prof_after_apply.difficulty_multiplier, 2.0);
+    }
 }
+
 
