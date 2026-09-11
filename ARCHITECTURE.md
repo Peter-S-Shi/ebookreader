@@ -351,28 +351,74 @@ Historical facts should remain explainable when Settings change.
 
 ## 8. Book Hours Architecture
 
-Base estimate:
+### 8.1 Model & Formula Architecture
 
-```text
-(Quantity / Baseline Speed) × Difficulty Coefficient
+Book Hours is EbookReader's reading workload planning system.
+
+- **System-Calculated Formula**:
+  ```text
+  Planned Book Hours = (Quantity / Baseline Speed) × Difficulty Coefficient
+  ```
+  ```text
+  Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
+  ```
+- **Automatic Calculation on Import**: Newly imported Books with discoverable measurable quantity (e.g. PDF/EPUB page count) automatically receive Planned Book Hours using global fallback defaults or profile defaults.
+- **Needs Setup State**: If required inputs are missing (Quantity is missing/zero, or Speed ≤ 0), the Book is marked `Needs Setup` (`Not Calculated`). It is excluded from aggregate Book Hours sums and counted in coverage metrics.
+- **Strictly Derived / Planning State**: Users never directly enter Planned Book Hours.
+
+### 8.2 Database Schema & Migration Path
+
+```sql
+-- Reading Profiles table
+CREATE TABLE reading_profiles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    difficulty_multiplier REAL NOT NULL DEFAULT 1.0,
+    baseline_speed REAL NOT NULL DEFAULT 60.0,
+    speed_unit TEXT NOT NULL DEFAULT 'pages', -- 'pages' | 'words' | 'characters'
+    description TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Seed defaults:
+-- - General (Diff: 1.0, Speed: 60 pages/h, is_default: 1)
+-- - Textbook (Diff: 2.4, Speed: 50 pages/h)
+-- - Novel (Diff: 1.0, Speed: 70 pages/h)
+-- - Research Paper (Diff: 2.8, Speed: 18 pages/h)
+-- - Poem (Diff: 0.7, Speed: 30 pages/h)
 ```
 
-Persist or reconstruct:
+- **Book Profile Binding**:
+  - `books` table schema is updated with `profile_id TEXT REFERENCES reading_profiles(id)`, `workload_quantity REAL`, `workload_unit TEXT`, `workload_speed_override REAL`.
+  - Every Book has at most one Reading Profile (1:1 or 1:0).
+- **Migration & History Preservation**:
+  - Migration copies legacy `workload_config` quantities and coefficients into the new structure without data loss.
+  - Legacy `workload_config_revision` is preserved for historical audit snapshots.
+  - Generic `tags` and `book_tags` remain decoupled from Book Hours calculation.
 
-- Workload Category;
-- quantity source;
-- baseline speed;
-- coefficient;
-- formula version;
-- estimate timestamp/revision.
+### 8.3 Aggregation & Deduplication
 
-Cumulative Book Hours:
+- **Global Library Totals**: Deduplicate Books. Each Book is counted exactly once toward Total Planned Book Hours, Current Book Hours, and Calculation Coverage (`calculated_count / total_count`).
+- **Collection Breakdown**: Sums Books within each Collection. Since a Book may belong to multiple Collections, collection totals may overlap. Each Collection displays its local coverage (e.g. `5 of 6 Books`).
+- **Profile Breakdown**: Sums Books assigned to each Profile. Since each Book has at most one Profile, profile totals partition calculated books cleanly.
 
-```text
-Base Book Hours × Cumulative Reading % / 100
-```
+### 8.4 Tauri IPC Command Layer
 
-ReadingSession history is immutable factual evidence and must not be recomputed because Book Hours changes.
+- `get_book_hours_overview()` -> `BookHoursOverviewDto` (global totals, profile summaries, collection summaries, coverage)
+- `list_reading_profiles()` -> `Vec<ReadingProfileDto>`
+- `save_reading_profile(profile)` -> `ReadingProfileDto`
+- `delete_reading_profile(profile_id)` -> `Result<(), String>`
+- `update_book_workload_setup(book_id, profile_id, quantity, unit, speed_override)` -> `BookWorkloadSetupDto`
+- `get_global_book_hours_defaults()` -> `GlobalBookHoursDefaultsDto`
+- `save_global_book_hours_defaults(defaults)` -> `GlobalBookHoursDefaultsDto`
+- `preview_recalculation_impact(change_type, params)` -> `RecalculationImpactPreviewDto`
+
+### 8.5 Non-Interference Safety Contract
+
+- Book Hours domain logic is strictly isolated from `actual_reading_time`, `reading_sessions`, `reading_progress`, and `DocumentLocation`.
+- Changing global defaults, editing Reading Profiles, or executing bulk recalculation recalculates only planning fields (`Planned Book Hours`, `Current Book Hours`); it **never modifies** reading progress %, reading position, completed reads, actual reading time, or `ReadingSession` history.
 
 ---
 

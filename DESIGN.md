@@ -89,10 +89,11 @@ These belong to Book/contextual workflows.
 | `ER-BI-001` | Bilingual Reading | CANONICAL | Two independent Books, synchronized navigation |
 | `ER-NOTES-001` | Global Notes | CANONICAL/PATTERN | List-first cross-book reading assets |
 | `ER-CAL-001` | Calendar | CANONICAL/PATTERN | Planned Book Hours vs Actual Reading Time |
+| `ER-BH-001` | Book Hours Planning | CANONICAL (v0.6) | Workload planning across Books, Profiles, & Collections; system-calculated |
 | `ER-DATA-001` | Data / Recovery | CANONICAL | Safety center; backup/restore/relink/destructive data |
 | `ER-SET-001` | Settings | CANONICAL | Compact user preferences + About & Updates |
 
-The v0.5 prototype contains the accepted overall composition. A production implementation may adapt exact spacing/font metrics to the native desktop framework, but must not silently replace the composition model.
+The v0.5 prototype contains the accepted overall composition baseline; `docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html` is the canonical visual and information-architecture authority for `ER-BH-001` (Book Hours Planning, Reading Profiles, and Collection Workload breakdowns). A production implementation may adapt exact spacing/font metrics to the native desktop framework, but must not silently replace the composition model.
 
 ---
 
@@ -373,7 +374,9 @@ Do not turn Global Notes into a general-purpose knowledge-base editor.
 
 ---
 
-## 13. Calendar
+## 13. Calendar & Book Hours Planning
+
+### 13.1 Calendar (`ER-CAL-001`)
 
 Calendar answers:
 
@@ -385,6 +388,49 @@ Primary metrics:
 - Actual Reading Time.
 
 Do not copy enterprise calendar/dashboard patterns or gamify heavily.
+
+### 13.2 Book Hours Planning (`ER-BH-001`)
+
+Visual & IA Authority: `docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html`.
+
+The Book Hours Planning surface is accessible via **Data → Book Data → Book Hours Planning**, **Calendar → Planning**, or **Book Details → Book Hours → Manage in Data**.
+
+#### 13.2.1 Core Sub-Panes
+- **Overview (`#bhOverview`)**:
+  - Hero explanation cards emphasizing that Book Hours is a planning model and Reading Progress is an independent reading fact.
+  - Summary metric cards: Total Planned Book Hours, Current Book Hours, Library Progress %, Calculation Coverage (e.g. `11 / 13 calculated`, `2 Books need setup`).
+  - Summary by Profile and Summary by Collection tables.
+- **By Profile (`#bhProfilesView`)**:
+  - Master-detail view of Reading Profiles (Textbook, Novel, Research Paper, Poem, etc.).
+  - Books using the selected Profile with individual progress %, planned hours, current hours, and remaining hours.
+- **By Collection (`#bhCollectionsView`)**:
+  - Master-detail view of Collections.
+  - Collection coverage indicator (e.g. `5 of 6 Books contribute · 1 Needs setup`).
+  - Table of Books in the collection showing Profile, Difficulty, Progress %, Planned BH, Current BH, and Status.
+  - Clear note explaining collection totals may overlap because books can belong to multiple collections.
+- **Books (`#bhBooksView`)**:
+  - Searchable/filterable library table with profile, collection, and calculation state filters.
+  - Shows calculation status badges: `Calculated` (good) vs `Needs setup` / `Needs quantity` (warn).
+  - Quick action to open the Book Hours Setup drawer for any book.
+- **Profiles (`#bhProfilesManage`)**:
+  - Profile cards grid displaying difficulty coefficient, books count, planned BH, current BH, preferred speed, and unit.
+  - Actions to add new profile or edit existing profile.
+- **Formula & Defaults (`#bhFormula`)**:
+  - Canonical formula flow visualization: `(Quantity ÷ Baseline Speed) × Difficulty = Planned Book Hours`; `Planned Book Hours × Cumulative Reading % = Current Book Hours`.
+  - Global defaults configuration: fallback profile, default quantity unit, fallback baseline speed, fallback difficulty coefficient.
+  - Recalculation impact card with preview and explicit confirmation flow.
+
+#### 13.2.2 Side Drawers & Modals
+- **Book Hours Setup Drawer (`#bhBookDrawer`)**:
+  - Configure singular Reading Profile, Collections list, Quantity, Quantity Unit, Baseline Speed override.
+  - Live calculation preview showing Planned Book Hours and Current Book Hours.
+  - Clear lock badges indicating Difficulty is owned by Profile and Reading Progress is an independent fact.
+- **Profile Editor Drawer (`#bhProfileDrawer`)**:
+  - Edit Profile Name, Difficulty Coefficient, Preferred Baseline Speed, Speed Unit, and Description.
+  - Impact summary (Books affected, Collections touched, Progress changed: 0).
+- **Recalculation Preview Modal (`#bhImpactOverlay`)**:
+  - Impact overview before applying global/profile changes (Books affected, old vs new Planned BH).
+  - Guarantees reading facts (progress %, actual reading time, sessions) remain completely untouched.
 
 ---
 

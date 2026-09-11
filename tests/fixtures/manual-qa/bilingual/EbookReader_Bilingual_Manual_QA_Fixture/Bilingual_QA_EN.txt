@@ -1,0 +1,27 @@
+Bilingual Manual QA — English Test Book
+
+Checkpoint 1 — Morning
+The library opened just after sunrise. Mira placed a blue notebook on the wooden table and wrote one sentence: “A clear beginning makes later checks easier.” This paragraph should appear near the top of the English pane.
+
+Checkpoint 2 — Bridge
+At noon, Mira crossed a narrow bridge above a quiet river. Three red boats moved slowly downstream, while a cyclist waited beside a stone marker. This paragraph is intentionally longer so synchronized scrolling can be observed across unequal paragraph lengths.
+
+Checkpoint 3 — Tea
+In the afternoon, she ordered jasmine tea and a small lemon cake. The waiter brought two cups by mistake, laughed, and left the second cup on the table. This checkpoint should align cleanly with one Chinese paragraph.
+
+Checkpoint 4 — Split Passage
+Mira opened a letter from her brother. The first half described a storm over the northern hills; the second half described the power returning after midnight. In the Chinese test book, this single English checkpoint is deliberately split into two paragraphs so the Alignment panel can show one non-1:1 mapping for review.
+
+Checkpoint 5 — Station
+Near sunset, the station clock showed 18:40. A silver train arrived on platform four, and an announcement repeated twice that the departure would be delayed by five minutes.
+
+Checkpoint 6 — Window
+On the train, Mira sat beside the window. Farms, warehouses, and rows of poplar trees passed in sequence. She kept the blue notebook open but did not write.
+
+Checkpoint 7 — Lanterns
+After dark, the train entered a town decorated with paper lanterns. Yellow lights reflected on wet streets, and a dog slept under the awning of a closed bakery.
+
+Checkpoint 8 — Arrival
+Mira reached home before ten. She placed the blue notebook beside the door, checked that every page was still there, and marked the journey complete.
+
+End of bilingual manual QA fixture.

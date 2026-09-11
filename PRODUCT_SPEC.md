@@ -149,22 +149,23 @@ Important properties include:
 
 A user-controlled grouping of Books.
 
-A Book may belong to multiple Collections.
+A Book may belong to multiple Collections. Collection aggregates may overlap since Books can appear in several Collections simultaneously.
 
 ### 4.4 Tag
 
-A descriptive label. Tags do not drive Book Hours.
+A generic descriptive label for search and organization. Tags do not drive Book Hours or workload calculations.
 
-### 4.5 WorkloadCategory
+### 4.5 ReadingProfile
 
-A Book has one primary Workload Category for Book Hours computation.
+A Book belongs to at most one Reading Profile (1:1 or 1:0).
 
-It owns or resolves:
+A Reading Profile replaces the legacy concept of Book-Hours tags/categories and owns:
 
-- baseline quantity unit;
-- baseline reading speed;
-- difficulty coefficient;
-- formula version.
+- shared difficulty coefficient (e.g. Textbook 2.4, Novel 1.0, Research Paper 2.8, Poem 0.7);
+- preferred baseline reading speed and quantity unit defaults;
+- descriptive notes and planning metadata.
+
+Profile-level updates only affect Books assigned to that Profile. If a Book has no assigned Profile, it uses the global fallback defaults.
 
 ### 4.6 DocumentLocation
 
@@ -424,35 +425,45 @@ It must not fabricate historical completion events.
 
 ## 9. Book Hours
 
-### 9.1 Base Book Hours
+### 9.1 Core Concept & Canonical Formula
 
-```text
-Base Book Hours
-=
-(Quantity / Baseline Speed) × Difficulty Coefficient
-```
+Book Hours is EbookReader's planning model for estimating reading workload.
 
-The exact Quantity may depend on format/category and can be word-, character-, or page-based.
+- **System-Calculated Only**: Planned Book Hours is always system-calculated from measurable inputs; users never directly enter or overwrite the Planned Book Hours number.
+- **Canonical Formula**:
+  ```text
+  Planned Book Hours = (Quantity / Baseline Speed) × Difficulty Coefficient
+  ```
+- **Automatic Import Calculation**: When a Book is imported and sufficient measurable inputs exist (e.g. valid page count > 0), the system automatically calculates Planned Book Hours using global defaults or assigned Reading Profile defaults.
+- **Completed-Equivalent Current Book Hours**:
+  ```text
+  Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
+  ```
 
-### 9.2 Cumulative Book Hours
+### 9.2 Calculation Coverage & "Needs Setup" State
 
-Frozen V1 algorithm:
+- A Book with missing required inputs (e.g. quantity unknown, speed ≤ 0) legitimately receives no Book Hours result and enters the **`Needs Setup` (`Not Calculated`)** state.
+- Books in `Needs Setup` remain fully valid, readable Library Books; they are excluded from aggregate Book Hours sums rather than silently coerced to `0h`.
+- Aggregates always expose explicit calculation coverage (e.g. `11 of 13 Books calculated` / `1 Needs setup`).
 
-```text
-Cumulative Book Hours
-=
-Base Book Hours
-×
-Cumulative Reading % / 100
-```
+### 9.3 Reading Profiles & Collections Aggregation
 
-### 9.3 History
+- **Singular Profile Binding**: Each Book has at most one Reading Profile (1:1 or 1:0). Profiles partition Books cleanly for workload modeling.
+- **Multiple Collections**: A Book may belong to multiple Collections.
+- **Global vs Collection Aggregates**:
+  - Global library totals deduplicate Books (each Book contributes once to library Planned/Current Book Hours).
+  - Collection totals reflect the local workload of each collection and may overlap across collections.
 
-Book Hours calculations are versioned/explainable.
+### 9.4 Independence of Reading Facts
 
-Changing a Workload Category, formula input, or formula version must not rewrite Actual Reading Time.
-
-Historical calendar/stat views should preserve the relevant estimate snapshot/revision needed to avoid retroactive distortion.
+- Book Hours is strictly a planning model.
+- Changing global formula defaults, updating Reading Profiles, or recalculating Book Hours across the library can adjust Planned and Current Book Hours, but **MUST NEVER ALTER**:
+  - Reading progress percentage;
+  - Current reading position / document location;
+  - Completed-read count;
+  - Actual Reading Time;
+  - Historical `ReadingSession` records.
+- Historical revision snapshots (`WorkloadConfigRevision`) are preserved for auditing and versioned tracking.
 
 ---
 

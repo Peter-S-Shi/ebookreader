@@ -1,0 +1,32 @@
+{
+  "book_a_fingerprint": "c6aec450479f692d8be3ddf8c3c2ad769369f5be8eee79df18a0509ee7b59f04",
+  "book_b_fingerprint": "9a4d5214b7cf238357d0b6c505cfdcbc1cafaf30e0eea71b9c37023161a95473",
+  "lang_a": "en",
+  "lang_b": "zh",
+  "mappings": [
+    {
+      "a": [
+        1
+      ],
+      "b": [
+        1
+      ]
+    },
+    {
+      "a": [
+        2
+      ],
+      "b": [
+        2
+      ]
+    },
+    {
+      "a": [
+        3
+      ],
+      "b": [
+        3
+      ]
+    }
+  ]
+}
