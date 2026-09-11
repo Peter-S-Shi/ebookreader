@@ -32,13 +32,21 @@ interface BilingualReaderProps {
   onBack: () => void;
 }
 
-// Minimal FoliateView shape, mirrored from Reader.tsx -- only the calls
-// needed to extract plain text, not to render a full reading surface.
 interface FoliateSection {
+  id?: string;
+  name?: string;
+  url?: string;
+  href?: string;
   createDocument?: () => Promise<Document>;
+}
+interface FoliateTocItem {
+  label: string;
+  href: string;
+  subitems?: FoliateTocItem[];
 }
 interface FoliateBook {
   sections?: FoliateSection[];
+  toc?: FoliateTocItem[];
 }
 interface FoliateView extends HTMLElement {
   open(file: File): Promise<void>;
@@ -57,10 +65,10 @@ export interface ExtractedBookData {
   contents: BookContentsItem[];
 }
 
-/// Extracts a Book's full plain text and structural contents (EPUB sections/TOC,
-/// PDF pages/outline), reusing exactly the same per-format paths already
-/// validated for Library-wide Search indexing. For unstructured TXT sources,
-/// `contents` is empty ([]), surfacing a truthful "No contents available".
+/// Extracts a Book's full plain text and structural contents:
+/// - EPUB: uses real publication TOC where available; falls back to section labels.
+/// - PDF: uses real document outline where available; falls back to Page 1..N.
+/// - TXT: empty contents ([]), surfacing truthful "No contents available for this source".
 async function extractBookData(bookId: string, format: string): Promise<ExtractedBookData> {
   const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
   const data = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
@@ -73,21 +81,71 @@ async function extractBookData(bookId: string, format: string): Promise<Extracte
   if (format === "pdf") {
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const pages: string[] = [];
-    const contents: BookContentsItem[] = [];
+    const pageOffsets: number[] = [];
     let currentOffset = 0;
     for (let i = 1; i <= pdf.numPages; i++) {
+      pageOffsets.push(currentOffset);
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
-      contents.push({
-        id: `page-${i}`,
-        label: `Page ${i}`,
-        pageNumber: i,
-        offset: currentOffset,
-      });
       pages.push(pageText);
       currentOffset += pageText.length + 2;
     }
+
+    const contents: BookContentsItem[] = [];
+    try {
+      if (typeof pdf.getOutline === "function") {
+        const outline = await pdf.getOutline();
+        if (outline && Array.isArray(outline) && outline.length > 0) {
+          async function traverseOutline(items: any[], depth = 0) {
+            for (const item of items) {
+              if (!item.title || !item.title.trim()) continue;
+              let pageNum = 1;
+              try {
+                let dest = item.dest;
+                if (typeof dest === "string" && typeof pdf.getDestination === "function") {
+                  dest = await pdf.getDestination(dest);
+                }
+                if (Array.isArray(dest) && dest.length > 0 && typeof pdf.getPageIndex === "function") {
+                  const pageIndex = await pdf.getPageIndex(dest[0]);
+                  if (typeof pageIndex === "number" && pageIndex >= 0) {
+                    pageNum = pageIndex + 1;
+                  }
+                }
+              } catch {
+                // fallback to page 1 on dest resolution error
+              }
+              const offset = pageOffsets[pageNum - 1] ?? 0;
+              contents.push({
+                id: `pdf-outline-${contents.length}-${pageNum}`,
+                label: depth > 0 ? `${"  ".repeat(depth)}${item.title.trim()}` : item.title.trim(),
+                pageNumber: pageNum,
+                offset,
+              });
+              if (item.items && Array.isArray(item.items) && item.items.length > 0) {
+                await traverseOutline(item.items, depth + 1);
+              }
+            }
+          }
+          await traverseOutline(outline);
+        }
+      }
+    } catch {
+      // ignore outline resolution error and use fallback
+    }
+
+    // Fallback to Page 1..N when no usable outline exists
+    if (contents.length === 0) {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        contents.push({
+          id: `page-${i}`,
+          label: `Page ${i}`,
+          pageNumber: i,
+          offset: pageOffsets[i - 1] ?? 0,
+        });
+      }
+    }
+
     return { text: pages.join("\n\n"), contents };
   }
 
@@ -99,24 +157,69 @@ async function extractBookData(bookId: string, format: string): Promise<Extracte
   await view.open(file);
   const sections = view.book?.sections ?? [];
   const parts: string[] = [];
-  const contents: BookContentsItem[] = [];
+  const sectionOffsets: number[] = [];
   let currentOffset = 0;
-  let secIdx = 1;
+
   for (const section of sections) {
+    sectionOffsets.push(currentOffset);
     if (!section.createDocument) continue;
     const doc = await section.createDocument();
     const text = (doc.body?.textContent ?? "").trim();
     if (text) {
-      contents.push({
-        id: `sec-${secIdx}`,
-        label: `Section ${secIdx}`,
-        offset: currentOffset,
-      });
       parts.push(text);
       currentOffset += text.length + 2;
-      secIdx++;
     }
   }
+
+  const rawToc = view.book?.toc ?? [];
+  const contents: BookContentsItem[] = [];
+
+  function matchSectionOffset(href: string): number {
+    if (!href) return 0;
+    const cleanHref = href.split("#")[0].split("/").pop() ?? href;
+    const idx = sections.findIndex((s) => {
+      const sName = s.name ? s.name.split("/").pop() : "";
+      const sHref = s.href ? s.href.split("/").pop() : "";
+      const sId = s.id ?? "";
+      const sUrl = typeof s.url === "string" ? s.url.split("/").pop() : "";
+      return sName === cleanHref || sHref === cleanHref || sId === cleanHref || sUrl === cleanHref;
+    });
+    if (idx >= 0 && idx < sectionOffsets.length) {
+      return sectionOffsets[idx];
+    }
+    return 0;
+  }
+
+  function flattenEpubToc(items: FoliateTocItem[], depth = 0) {
+    for (const item of items) {
+      if (item.label && item.label.trim()) {
+        contents.push({
+          id: `epub-toc-${contents.length}-${item.href || ""}`,
+          label: depth > 0 ? `${"  ".repeat(depth)}${item.label.trim()}` : item.label.trim(),
+          offset: matchSectionOffset(item.href),
+        });
+      }
+      if (item.subitems && item.subitems.length > 0) {
+        flattenEpubToc(item.subitems, depth + 1);
+      }
+    }
+  }
+
+  if (rawToc && Array.isArray(rawToc) && rawToc.length > 0) {
+    flattenEpubToc(rawToc);
+  }
+
+  // Fallback to Section 1..N if no usable publication TOC exists
+  if (contents.length === 0) {
+    for (let i = 0; i < sections.length; i++) {
+      contents.push({
+        id: `sec-${i + 1}`,
+        label: `Section ${i + 1}`,
+        offset: sectionOffsets[i] ?? 0,
+      });
+    }
+  }
+
   return { text: parts.join("\n\n"), contents };
 }
 
