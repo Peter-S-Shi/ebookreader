@@ -520,9 +520,13 @@ function App() {
       <main className="main">
         {destination === "bookHours" ? (
           <BookHoursPlanning
-            onBack={() => setDestination("data")}
+            onBack={() => {
+              setBookHoursInitialBookId(undefined);
+              setDestination("data");
+            }}
             initialTab={bookHoursInitialTab}
             initialBookId={bookHoursInitialBookId}
+            onConsumeInitialBookId={() => setBookHoursInitialBookId(undefined)}
           />
         ) : (
           <>
@@ -653,7 +657,13 @@ function App() {
 
       {destination === "data" && (
         <section aria-label="Data">
-          <DataRecovery onOpenBookHours={() => setDestination("bookHours")} />
+          <DataRecovery
+            onOpenBookHours={() => {
+              setBookHoursInitialTab("overview");
+              setBookHoursInitialBookId(undefined);
+              setDestination("bookHours");
+            }}
+          />
         </section>
       )}
 

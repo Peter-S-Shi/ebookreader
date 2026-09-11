@@ -73,11 +73,16 @@ export function BookDetails({
   onManageBookHours,
 }: BookDetailsProps) {
   const [progress, setProgress] = useState<ReadingProgressDTO | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
   const [actualTime, setActualTime] = useState<ActualReadingTimeDTO | null>(null);
+  const [actualTimeError, setActualTimeError] = useState<string | null>(null);
   const [bookHoursItem, setBookHoursItem] = useState<BookHoursItemDTO | null>(null);
   const [legacyBookHours, setLegacyBookHours] = useState<LegacyBookHoursDTO | null>(null);
+  const [bookHoursError, setBookHoursError] = useState<string | null>(null);
   const [allCollections, setAllCollections] = useState<CollectionDTO[]>([]);
   const [bookCollections, setBookCollections] = useState<CollectionDTO[]>([]);
+  const [collectionsError, setCollectionsError] = useState<string | null>(null);
+  const [collectionMutationError, setCollectionMutationError] = useState<string | null>(null);
   const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
   const [notebookOpen, setNotebookOpen] = useState(false);
 
@@ -86,40 +91,58 @@ export function BookDetails({
   const loadCollections = async () => {
     try {
       const [allColls, bookColls] = await Promise.all([
-        invoke<CollectionDTO[]>("list_collections_command").catch(() => []),
-        invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId: book.book_id }).catch(
-          () => [],
-        ),
+        invoke<CollectionDTO[]>("list_collections_command"),
+        invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId: book.book_id }),
       ]);
       setAllCollections(allColls || []);
       setBookCollections(bookColls || []);
-    } catch {
-      // Ignored
+      setCollectionsError(null);
+    } catch (err) {
+      setCollectionsError(String(err));
     }
   };
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id }).catch(
-        () => null,
-      ),
-      invoke<ActualReadingTimeDTO>("get_actual_reading_time_command", { bookId: book.book_id }).catch(
-        () => null,
-      ),
-      invoke<BookHoursItemDTO | null>("get_book_hours_item_command", { bookId: book.book_id }).catch(
-        () => null,
-      ),
-      invoke<LegacyBookHoursDTO | null>("get_book_hours_command", { bookId: book.book_id }).catch(
-        () => null,
-      ),
-    ]).then(([p, t, item, legacy]) => {
-      if (cancelled) return;
-      setProgress(p);
-      setActualTime(t);
-      setBookHoursItem(item);
-      setLegacyBookHours(legacy);
-    });
+    setProgress(null);
+    setProgressError(null);
+    setActualTime(null);
+    setActualTimeError(null);
+    setBookHoursItem(null);
+    setLegacyBookHours(null);
+    setBookHoursError(null);
+
+    invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id })
+      .then((p) => {
+        if (!cancelled) setProgress(p);
+      })
+      .catch((err) => {
+        if (!cancelled) setProgressError(String(err));
+      });
+
+    invoke<ActualReadingTimeDTO>("get_actual_reading_time_command", { bookId: book.book_id })
+      .then((t) => {
+        if (!cancelled) setActualTime(t);
+      })
+      .catch((err) => {
+        if (!cancelled) setActualTimeError(String(err));
+      });
+
+    invoke<BookHoursItemDTO | null>("get_book_hours_item_command", { bookId: book.book_id })
+      .then((item) => {
+        if (!cancelled) setBookHoursItem(item);
+      })
+      .catch((err) => {
+        if (!cancelled) setBookHoursError(String(err));
+      });
+
+    invoke<LegacyBookHoursDTO | null>("get_book_hours_command", { bookId: book.book_id })
+      .then((legacy) => {
+        if (!cancelled) setLegacyBookHours(legacy);
+      })
+      .catch(() => {
+        // legacy compatibility lookup failure ignored
+      });
 
     loadCollections();
 
@@ -137,6 +160,7 @@ export function BookDetails({
 
   const handleAddToCollection = async (collectionId: string) => {
     if (!collectionId) return;
+    setCollectionMutationError(null);
     try {
       await invoke("add_book_to_collection_command", {
         bookId: book.book_id,
@@ -145,11 +169,12 @@ export function BookDetails({
       setAddToCollectionChoice("");
       await loadCollections();
     } catch (err) {
-      console.error("Failed to add book to collection:", err);
+      setCollectionMutationError(`Failed to add book to collection: ${String(err)}`);
     }
   };
 
   const handleRemoveFromCollection = async (collectionId: string) => {
+    setCollectionMutationError(null);
     try {
       await invoke("remove_book_from_collection_command", {
         bookId: book.book_id,
@@ -157,7 +182,7 @@ export function BookDetails({
       });
       await loadCollections();
     } catch (err) {
-      console.error("Failed to remove book from collection:", err);
+      setCollectionMutationError(`Failed to remove book from collection: ${String(err)}`);
     }
   };
 
@@ -219,19 +244,31 @@ export function BookDetails({
           <div>
             <section className="detailCard" aria-label="Reading">
               <h3>Reading</h3>
-              {progress && (
+              {progressError ? (
+                <div role="alert" style={{ color: "var(--danger, #d9534f)", fontSize: "12px", marginTop: "8px" }}>
+                  Failed to load reading progress: {progressError}
+                </div>
+              ) : (
                 <div className="stats">
                   <div className="stat">
                     <span className="meta">Progress</span>
-                    <b>{`${cumulativePercent(progress).toFixed(0)}%`}</b>
+                    <b>{progress ? `${cumulativePercent(progress).toFixed(0)}%` : "—"}</b>
                   </div>
                   <div className="stat">
                     <span className="meta">Completed reads</span>
-                    <b>{progress.completed_read_count}</b>
+                    <b>{progress ? progress.completed_read_count : "—"}</b>
                   </div>
                   <div className="stat">
                     <span className="meta">Actual time</span>
-                    <b>{actualTime ? formatDuration(actualTime.total) : "0m"}</b>
+                    <b>
+                      {actualTimeError ? (
+                        <span style={{ color: "var(--danger, #d9534f)", fontSize: "11px" }}>Failed to load</span>
+                      ) : actualTime ? (
+                        formatDuration(actualTime.total)
+                      ) : (
+                        "0m"
+                      )}
+                    </b>
                   </div>
                 </div>
               )}
@@ -253,8 +290,17 @@ export function BookDetails({
                 <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px" }}>
                   Collections (a Book may belong to several)
                 </div>
+                {collectionMutationError && (
+                  <div role="alert" style={{ color: "var(--danger, #d9534f)", fontSize: "11px", marginBottom: "8px" }}>
+                    {collectionMutationError}
+                  </div>
+                )}
                 <div className="collectionManageList">
-                  {bookCollections.length === 0 ? (
+                  {collectionsError ? (
+                    <span role="alert" style={{ color: "var(--danger, #d9534f)", fontSize: "11px" }}>
+                      Failed to load collections: {collectionsError}
+                    </span>
+                  ) : bookCollections.length === 0 ? (
                     <span className="hint" style={{ fontSize: "11px" }}>
                       No Collections assigned.
                     </span>
@@ -287,6 +333,7 @@ export function BookDetails({
                       setAddToCollectionChoice(val);
                       handleAddToCollection(val);
                     }}
+                    disabled={!!collectionsError}
                     style={{ height: "32px", fontSize: "11px" }}
                   >
                     <option value="">Add to Collection…</option>
@@ -305,9 +352,15 @@ export function BookDetails({
                 <div className="kv">
                   <div>Reading Profile</div>
                   <div>
-                    <span className="bhBadge profile">
-                      {bookHoursItem?.profile_name ?? "Default"}
-                    </span>
+                    {bookHoursError ? (
+                      <span style={{ color: "var(--danger, #d9534f)", fontSize: "11px" }}>
+                        Failed to load profile
+                      </span>
+                    ) : (
+                      <span className="bhBadge profile">
+                        {bookHoursItem?.profile_name ?? "Default"}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -329,7 +382,13 @@ export function BookDetails({
                   </button>
                 )}
               </div>
-              {plannedHours ? (
+              {bookHoursError ? (
+                <div style={{ marginTop: "12px" }}>
+                  <p role="alert" style={{ margin: 0, color: "var(--danger, #d9534f)", fontSize: "12px" }}>
+                    Failed to load Book Hours: {bookHoursError}
+                  </p>
+                </div>
+              ) : plannedHours ? (
                 <div className="kv" style={{ marginTop: "12px" }}>
                   <div>Planned Book Hours</div>
                   <div id="dBase">{plannedHours}</div>

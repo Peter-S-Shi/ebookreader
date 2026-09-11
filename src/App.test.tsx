@@ -1093,3 +1093,78 @@ describe("Opening a book", () => {
     expect(screen.queryByRole("button", { name: "Missing EPUB" })).not.toBeInTheDocument();
   });
 });
+
+describe("Book Hours Planning Integration (BH-3C.1)", () => {
+  it("deep-links from Book Details to Book Hours Planning as a one-shot intent", async () => {
+    const user = userEvent.setup();
+    const mockBooks = [
+      { book_id: "book-1", title: "Target Book", path: "C:/books/target.epub", format: "epub", ownership_mode: "reference", available: true },
+    ];
+    const mockOverview = {
+      total_planned_hours: 10.0,
+      total_current_hours: 5.0,
+      global_coverage: { calculated_books: 1, uncalculated_books: 0, total_books: 1 },
+      profiles: [],
+      collections: [],
+      books: [
+        {
+          book_id: "book-1",
+          title: "Target Book",
+          profile_id: "p1",
+          profile_name: "Default",
+          collections: [],
+          quantity: 100,
+          unit: "pages",
+          speed_override: null,
+          cumulative_percent: 50,
+          calculation: null,
+        },
+      ],
+    };
+
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_library_command") return mockBooks;
+      if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: false, active_pass_progress: 0 };
+      if (cmd === "get_actual_reading_time_command") return { total: { secs: 0, nanos: 0 } };
+      if (cmd === "get_book_hours_item_command") return mockOverview.books[0];
+      if (cmd === "list_collections_command" || cmd === "list_collections_for_book_command") return [];
+      if (cmd === "get_book_hours_overview_command") return mockOverview;
+      if (cmd === "get_global_book_hours_defaults_command") return { pages_per_hour: 60, words_per_hour: 15000, characters_per_hour: 30000 };
+      if (cmd === "list_reading_profiles_command") return [{ id: "p1", name: "Default", difficulty_multiplier: 1.0, is_default: true, description: "", created_at: "", updated_at: "" }];
+      return null;
+    });
+
+    render(<App />);
+
+    // Open Book Details for Target Book
+    const detailsBtn = await screen.findByRole("button", { name: "Details" });
+    await user.click(detailsBtn);
+
+    // Click "Manage in Data" in Book Details
+    const manageBtn = await screen.findByRole("button", { name: "Manage in Data" });
+    await user.click(manageBtn);
+
+    // Should navigate to Book Hours Planning Books tab and open the drawer for Target Book
+    expect(await screen.findByRole("region", { name: "Book Hours Planning" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Book Hours Setup for Target Book" })).toBeInTheDocument();
+
+    // Close the drawer
+    const closeDrawerBtn = screen.getByRole("button", { name: "Close Book Setup Drawer" });
+    await user.click(closeDrawerBtn);
+    expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Target Book" })).not.toBeInTheDocument();
+
+    // Go back to Data
+    const backToDataBtn = screen.getByRole("button", { name: "Back to Data" });
+    await user.click(backToDataBtn);
+
+    expect(await screen.findByRole("region", { name: "Data" })).toBeInTheDocument();
+
+    // Re-enter Book Hours Planning from Data
+    const openBookHoursBtn = document.getElementById("openBookHours") || screen.getByRole("button", { name: "Open" });
+    await user.click(openBookHoursBtn);
+
+    // Should open on Overview tab without resurrecting Target Book's drawer
+    expect(await screen.findByRole("region", { name: "Book Hours Planning" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Target Book" })).not.toBeInTheDocument();
+  });
+});

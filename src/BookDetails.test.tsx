@@ -196,4 +196,63 @@ describe("BookDetails (DESIGN.md ER-BOOK-001; FC-A11)", () => {
     expect(await screen.findByRole("dialog", { name: "Notebook" })).toBeInTheDocument();
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith("list_reading_assets_command", { bookId: "b1" }));
   });
+
+  it("surfaces truthful errors on IPC failures without masquerading as 0m, Not configured yet, or No Collections assigned", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_reading_progress_command") {
+        throw new Error("Progress DB timeout");
+      }
+      if (cmd === "get_actual_reading_time_command") {
+        throw new Error("Time tracking unreachable");
+      }
+      if (cmd === "get_book_hours_item_command") {
+        throw new Error("Book Hours store corrupted");
+      }
+      if (cmd === "list_collections_command" || cmd === "list_collections_for_book_command") {
+        throw new Error("Collections query failed");
+      }
+      return null;
+    });
+
+    render(<BookDetails book={book} onClose={vi.fn()} onRead={vi.fn()} />);
+
+    // Reading progress failure
+    expect(await screen.findByText(/Failed to load reading progress:.*Progress DB timeout/)).toBeInTheDocument();
+
+    // Book Hours failure must NOT say "Not configured yet."
+    expect(await screen.findByText(/Failed to load Book Hours:.*Book Hours store corrupted/)).toBeInTheDocument();
+    expect(screen.queryByText("Not configured yet.")).not.toBeInTheDocument();
+
+    // Collections failure must NOT say "No Collections assigned."
+    expect(await screen.findByText(/Failed to load collections:.*Collections query failed/)).toBeInTheDocument();
+    expect(screen.queryByText("No Collections assigned.")).not.toBeInTheDocument();
+
+    // Profile in Organization must NOT say "Default"
+    expect(screen.getByText("Failed to load profile")).toBeInTheDocument();
+  });
+
+  it("displays non-destructive error when adding or removing collections fails", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") {
+        return [{ id: "c1", name: "Philosophy" }];
+      }
+      if (cmd === "list_collections_for_book_command") {
+        return [{ id: "c1", name: "Philosophy" }];
+      }
+      if (cmd === "remove_book_from_collection_command") {
+        throw new Error("Foreign key lock error");
+      }
+      return null;
+    });
+
+    render(<BookDetails book={book} onClose={vi.fn()} onRead={vi.fn()} />);
+
+    expect(await screen.findByText("Philosophy")).toBeInTheDocument();
+
+    const removeBtn = screen.getByRole("button", { name: "Remove from Philosophy" });
+    await user.click(removeBtn);
+
+    expect(await screen.findByText(/Failed to remove book from collection:.*Foreign key lock error/)).toBeInTheDocument();
+  });
 });

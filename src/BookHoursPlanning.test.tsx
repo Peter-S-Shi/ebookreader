@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -739,7 +739,7 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
 
     // Edit baseline speeds
     const pagesInput = within(formulaPane).getByLabelText("Baseline Speed (Pages)", { exact: false }) || document.getElementById("bhGlobalSpeedPages");
-    expect(pagesInput).toHaveValue(60);
+    await waitFor(() => expect(pagesInput).toHaveValue(60));
 
     // Click Preview recalculation
     const previewBtn = within(formulaPane).getByRole("button", { name: "Preview recalculation" });
@@ -773,17 +773,96 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     const applyBtn = within(impactModal).getByRole("button", { name: "Apply after confirmation" });
     await user.click(applyBtn);
 
-    expect(invokeMock).toHaveBeenCalledWith("apply_book_hours_recalculation_command", {
-      request: {
-        proposed_defaults: {
-          pages_per_hour: 60,
-          words_per_hour: 15000,
-          characters_per_hour: 30000,
+      expect(invokeMock).toHaveBeenCalledWith("apply_book_hours_recalculation_command", {
+        request: {
+          proposed_defaults: {
+            pages_per_hour: 60,
+            words_per_hour: 15000,
+            characters_per_hour: 30000,
+          },
+          proposed_profiles: null,
         },
-        proposed_profiles: null,
-      },
+      });
+    });
+
+    it("consumes initialBookId exactly once and calls onConsumeInitialBookId without reopening drawer after refresh", async () => {
+      setupDefaultMocks();
+      const user = userEvent.setup();
+      const onConsume = vi.fn();
+
+      render(
+        <BookHoursPlanning
+          onBack={vi.fn()}
+          initialTab="books"
+          initialBookId="b-3"
+          onConsumeInitialBookId={onConsume}
+        />,
+      );
+
+      // Drawer should open for b-3 on initial load
+      const drawer = await screen.findByRole("dialog", {
+        name: "Book Hours Setup for Pride and Prejudice",
+      });
+      expect(drawer).toBeInTheDocument();
+      expect(onConsume).toHaveBeenCalledTimes(1);
+
+      // Close drawer
+      const closeBtn = within(drawer).getByRole("button", { name: "Close Book Setup Drawer" });
+      await user.click(closeBtn);
+
+      // Verify drawer closed
+      expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Pride and Prejudice" })).not.toBeInTheDocument();
+    });
+
+    it("handles missing global defaults truthfully without inventing numbers", async () => {
+      // Mock global defaults IPC failure
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_book_hours_overview_command") return mockPopulatedOverview;
+        if (cmd === "get_global_book_hours_defaults_command") throw new Error("Defaults fetch failure");
+        if (cmd === "list_reading_profiles_command") return mockReadingProfiles;
+        return null;
+      });
+
+      render(<BookHoursPlanning onBack={vi.fn()} initialTab="formula" />);
+
+      // Tab 6 should show error/unavailable banner
+      const formulaPane = await screen.findByRole("tabpanel", { name: "Formula & Defaults" });
+      expect(
+        within(formulaPane).getByText(/Global baseline speeds are unavailable/),
+      ).toBeInTheDocument();
+
+      // Inputs should be empty and disabled
+      const pagesInput = document.getElementById("bhGlobalSpeedPages") as HTMLInputElement;
+      expect(pagesInput).toBeDisabled();
+      expect(pagesInput.value).toBe("");
+
+      // Preview button should be disabled
+      const previewBtn = within(formulaPane).getByRole("button", { name: "Preview recalculation" });
+      expect(previewBtn).toBeDisabled();
+    });
+
+    it("renders drawer with truthful unavailable state when global defaults are missing", async () => {
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "get_book_hours_overview_command") return mockPopulatedOverview;
+        if (cmd === "get_global_book_hours_defaults_command") throw new Error("Defaults fetch failure");
+        if (cmd === "list_reading_profiles_command") return mockReadingProfiles;
+        return null;
+      });
+
+      render(<BookHoursPlanning onBack={vi.fn()} initialTab="books" initialBookId="b-3" />);
+
+      const drawer = await screen.findByRole("dialog", {
+        name: "Book Hours Setup for Pride and Prejudice",
+      });
+      expect(drawer).toBeInTheDocument();
+
+      // Speed input placeholder must indicate defaults unavailable, not 60/15000/30000
+      const speedInput = within(drawer).getByLabelText("Baseline Speed Override");
+      expect(speedInput).toHaveAttribute("placeholder", "Global defaults unavailable — override required");
+
+      // Formula breakdown should indicate global baseline speeds are unavailable
+      expect(within(drawer).getByText("Needs setup (global baseline speeds unavailable; enter speed override).")).toBeInTheDocument();
     });
   });
-});
 
 

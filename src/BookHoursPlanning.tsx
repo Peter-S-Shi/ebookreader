@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface CalculationCoverageDTO {
@@ -145,6 +145,7 @@ interface BookHoursPlanningProps {
   onBack: () => void;
   initialTab?: BookHoursTab;
   initialBookId?: string;
+  onConsumeInitialBookId?: () => void;
 }
 
 const TABS: { id: BookHoursTab; label: string; paneId: string }[] = [
@@ -160,6 +161,7 @@ export function BookHoursPlanning({
   onBack,
   initialTab = "overview",
   initialBookId,
+  onConsumeInitialBookId,
 }: BookHoursPlanningProps) {
   const [activeTab, setActiveTab] = useState<BookHoursTab>(initialTab);
   const [overview, setOverview] = useState<BookHoursOverviewDTO | null>(null);
@@ -167,6 +169,9 @@ export function BookHoursPlanning({
   const [allProfiles, setAllProfiles] = useState<ReadingProfileDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // One-shot deep link consumption ref
+  const consumedInitialBookIdRef = useRef<string | null>(null);
 
   // By Profile & By Collection selection states
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -201,10 +206,10 @@ export function BookHoursPlanning({
   const [profileDeleting, setProfileDeleting] = useState(false);
   const [profileDeleteError, setProfileDeleteError] = useState<string | null>(null);
 
-  // Global defaults inputs
-  const [globalSpeedPages, setGlobalSpeedPages] = useState<string>("60");
-  const [globalSpeedWords, setGlobalSpeedWords] = useState<string>("15000");
-  const [globalSpeedChars, setGlobalSpeedChars] = useState<string>("30000");
+  // Global defaults inputs (truthful, no invented fallbacks)
+  const [globalSpeedPages, setGlobalSpeedPages] = useState<string>("");
+  const [globalSpeedWords, setGlobalSpeedWords] = useState<string>("");
+  const [globalSpeedChars, setGlobalSpeedChars] = useState<string>("");
 
   // Recalculation Impact Preview Modal state
   const [impactOverlayOpen, setImpactOverlayOpen] = useState(false);
@@ -215,16 +220,32 @@ export function BookHoursPlanning({
 
   const fetchOverview = async () => {
     try {
-      const [overviewData, defaultsData, profilesData] = await Promise.all([
+      const [overviewRes, defaultsRes, profilesRes] = await Promise.allSettled([
         invoke<BookHoursOverviewDTO>("get_book_hours_overview_command"),
         invoke<GlobalBookHoursDefaultsDTO>("get_global_book_hours_defaults_command"),
         invoke<ReadingProfileDTO[]>("list_reading_profiles_command"),
       ]);
-      setOverview(overviewData || null);
-      setGlobalDefaults(defaultsData || null);
-      setAllProfiles(profilesData || []);
+
+      if (overviewRes.status === "fulfilled") {
+        setOverview(overviewRes.value || null);
+        setError(null);
+      } else {
+        setError(String(overviewRes.reason));
+      }
+
+      if (defaultsRes.status === "fulfilled") {
+        setGlobalDefaults(defaultsRes.value || null);
+      } else {
+        setGlobalDefaults(null);
+      }
+
+      if (profilesRes.status === "fulfilled") {
+        setAllProfiles(profilesRes.value || []);
+      } else {
+        setAllProfiles([]);
+      }
+
       setLoading(false);
-      setError(null);
     } catch (err) {
       setError(String(err));
       setLoading(false);
@@ -261,18 +282,24 @@ export function BookHoursPlanning({
       setGlobalSpeedPages(String(globalDefaults.pages_per_hour));
       setGlobalSpeedWords(String(globalDefaults.words_per_hour));
       setGlobalSpeedChars(String(globalDefaults.characters_per_hour));
+    } else {
+      setGlobalSpeedPages("");
+      setGlobalSpeedWords("");
+      setGlobalSpeedChars("");
     }
   }, [globalDefaults]);
 
-  // Deep-link initialBookId
+  // Deep-link initialBookId (one-shot navigation intent)
   useEffect(() => {
-    if (initialBookId && overview) {
+    if (initialBookId && overview && consumedInitialBookIdRef.current !== initialBookId) {
+      consumedInitialBookIdRef.current = initialBookId;
       const b = overview.books.find((book) => book.book_id === initialBookId);
       if (b) {
         openBookSetupDrawer(b);
       }
+      onConsumeInitialBookId?.();
     }
-  }, [initialBookId, overview]);
+  }, [initialBookId, overview, onConsumeInitialBookId]);
 
   const uncalculatedCount = overview?.global_coverage.uncalculated_books ?? 0;
   const bookHoursCompletionPercent =
@@ -379,7 +406,7 @@ export function BookHoursPlanning({
     const sp = Number.parseFloat(overrideStr);
     if (Number.isFinite(sp) && sp > 0) return sp;
     if (unit === "legacy_untyped") return null;
-    if (!globalDefaults) return unit === "pages" ? 60 : unit === "words" ? 15000 : 30000;
+    if (!globalDefaults) return null;
     switch (unit) {
       case "pages":
         return globalDefaults.pages_per_hour;
@@ -1576,6 +1603,12 @@ export function BookHoursPlanning({
               </div>
             </div>
 
+            {!globalDefaults && (
+              <div className="bhWarn" role="alert" style={{ marginBottom: "16px", borderColor: "var(--danger, #d9534f)" }}>
+                <b>Error / Unavailable:</b> Global baseline speeds are unavailable (failed to load from system). Recalculation preview and saving defaults are disabled.
+              </div>
+            )}
+
             <div className="bhRuleGrid">
               <div className="bhCard">
                 <h3>Global defaults</h3>
@@ -1605,6 +1638,7 @@ export function BookHoursPlanning({
                     type="number"
                     min="1"
                     step="any"
+                    disabled={!globalDefaults}
                     value={globalSpeedPages}
                     onChange={(e) => setGlobalSpeedPages(e.target.value)}
                   />
@@ -1622,6 +1656,7 @@ export function BookHoursPlanning({
                     type="number"
                     min="1"
                     step="any"
+                    disabled={!globalDefaults}
                     value={globalSpeedWords}
                     onChange={(e) => setGlobalSpeedWords(e.target.value)}
                   />
@@ -1641,6 +1676,7 @@ export function BookHoursPlanning({
                     type="number"
                     min="1"
                     step="any"
+                    disabled={!globalDefaults}
                     value={globalSpeedChars}
                     onChange={(e) => setGlobalSpeedChars(e.target.value)}
                   />
@@ -1691,7 +1727,7 @@ export function BookHoursPlanning({
                     className="btn"
                     id="previewBhImpact"
                     onClick={handlePreviewRecalculation}
-                    disabled={previewLoading}
+                    disabled={!globalDefaults || !buildProposedDefaults() || previewLoading}
                   >
                     {previewLoading ? "Calculating…" : "Preview recalculation"}
                   </button>
@@ -1700,7 +1736,7 @@ export function BookHoursPlanning({
                     className="primary"
                     id="saveBhDefaults"
                     onClick={handlePreviewRecalculation}
-                    disabled={previewLoading}
+                    disabled={!globalDefaults || !buildProposedDefaults() || previewLoading}
                   >
                     Save defaults…
                   </button>
@@ -1848,21 +1884,30 @@ export function BookHoursPlanning({
                 placeholder={
                   drawerUnit === "legacy_untyped"
                     ? "Required for legacy untyped"
-                    : `Default: ${
-                        drawerUnit === "pages"
-                          ? globalDefaults?.pages_per_hour ?? 60
-                          : drawerUnit === "words"
-                            ? globalDefaults?.words_per_hour ?? 15000
-                            : globalDefaults?.characters_per_hour ?? 30000
-                      }`
+                    : globalDefaults
+                      ? `Default: ${
+                          drawerUnit === "pages"
+                            ? globalDefaults.pages_per_hour
+                            : drawerUnit === "words"
+                              ? globalDefaults.words_per_hour
+                              : globalDefaults.characters_per_hour
+                        }`
+                      : "Global defaults unavailable — override required"
                 }
               />
               <div className="bhLock">
-                Baseline Speed resolves from unit defaults (
-                {globalDefaults?.pages_per_hour ?? 60} pages/h,{" "}
-                {globalDefaults?.words_per_hour ?? 15000} words/h,{" "}
-                {globalDefaults?.characters_per_hour ?? 30000} chars/h) and can be overridden for
-                this Book.
+                {globalDefaults ? (
+                  <>
+                    Baseline Speed resolves from unit defaults ({globalDefaults.pages_per_hour} pages/h,{" "}
+                    {globalDefaults.words_per_hour} words/h, {globalDefaults.characters_per_hour} chars/h) and
+                    can be overridden for this Book.
+                  </>
+                ) : (
+                  <>
+                    Global baseline speeds are currently unavailable. An explicit speed override is required
+                    to calculate Book Hours.
+                  </>
+                )}
               </div>
             </div>
 
@@ -1904,7 +1949,11 @@ export function BookHoursPlanning({
                   ? `${previewQuantity} ${drawerUnit} ÷ ${previewSpeed} ${drawerUnit}/hour × ${drawerDifficulty.toFixed(
                       1,
                     )} = ${previewPlannedHours.toFixed(1)}h`
-                  : "Needs setup (enter quantity and valid unit speed)."}
+                  : drawerUnit === "legacy_untyped" && !drawerSpeedOverride
+                    ? "Needs setup (legacy untyped unit requires explicit speed override)."
+                    : !globalDefaults && !drawerSpeedOverride
+                      ? "Needs setup (global baseline speeds unavailable; enter speed override)."
+                      : "Needs setup (enter quantity and valid unit speed)."}
               </span>
               <div className="sep" />
               <span>Current Book Hours</span>

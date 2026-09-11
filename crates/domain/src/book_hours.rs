@@ -334,49 +334,84 @@ pub fn set_default_reading_profile(conn: &Connection, id: &str) -> rusqlite::Res
         )));
     }
 
-    conn.execute("UPDATE reading_profiles SET is_default = 0", [])?;
-    conn.execute(
-        "UPDATE reading_profiles SET is_default = 1, updated_at = datetime('now') WHERE id = ?1",
-        [id],
-    )?;
+    conn.execute("SAVEPOINT set_default_reading_profile", [])?;
 
-    get_reading_profile(conn, id)?.ok_or_else(|| {
-        rusqlite::Error::InvalidParameterName(format!("failed to fetch reading profile '{id}'"))
-    })
+    let result: rusqlite::Result<ReadingProfile> = (|| {
+        conn.execute("UPDATE reading_profiles SET is_default = 0", [])?;
+        let affected = conn.execute(
+            "UPDATE reading_profiles SET is_default = 1, updated_at = datetime('now') WHERE id = ?1",
+            [id],
+        )?;
+        if affected == 0 {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "unknown reading profile id '{id}'"
+            )));
+        }
+        get_reading_profile(conn, id)?.ok_or_else(|| {
+            rusqlite::Error::InvalidParameterName(format!("failed to fetch reading profile '{id}'"))
+        })
+    })();
+
+    match result {
+        Ok(profile) => {
+            conn.execute("RELEASE set_default_reading_profile", [])?;
+            Ok(profile)
+        }
+        Err(e) => {
+            conn.execute("ROLLBACK TO set_default_reading_profile", []).ok();
+            conn.execute("RELEASE set_default_reading_profile", []).ok();
+            Err(e)
+        }
+    }
 }
 
 pub fn delete_reading_profile(conn: &Connection, id: &str) -> rusqlite::Result<bool> {
-    // Cannot delete the default profile
-    let is_default: bool = conn
-        .query_row(
-            "SELECT is_default FROM reading_profiles WHERE id = ?1",
-            [id],
-            |row| Ok(row.get::<_, i32>(0)? != 0),
-        )
-        .optional()?
-        .unwrap_or(false);
+    // Check if profile exists and if it is default
+    let profile = get_reading_profile(conn, id)?;
+    let profile = match profile {
+        Some(p) => p,
+        None => return Ok(false),
+    };
 
-    if is_default {
+    if profile.is_default {
         return Ok(false);
     }
 
-    // Find default profile id
-    let default_id: String = conn
-        .query_row(
-            "SELECT id FROM reading_profiles WHERE is_default = 1 LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or_else(|_| "profile-default".to_string());
+    // Find current default profile (must exist and NOT be the profile being deleted)
+    let default_profile = get_default_reading_profile(conn)?;
+    let default_id = match default_profile {
+        Some(p) if p.id != id => p.id,
+        _ => {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "no valid default reading profile found to reassign member books".to_string(),
+            ));
+        }
+    };
 
-    // Reassign books referencing this profile to default profile
-    conn.execute(
-        "UPDATE book SET profile_id = ?1 WHERE profile_id = ?2",
-        params![&default_id, id],
-    )?;
+    conn.execute("SAVEPOINT delete_reading_profile", [])?;
 
-    let affected = conn.execute("DELETE FROM reading_profiles WHERE id = ?1", [id])?;
-    Ok(affected > 0)
+    let result: rusqlite::Result<bool> = (|| {
+        // Reassign books referencing this profile to default profile
+        conn.execute(
+            "UPDATE book SET profile_id = ?1 WHERE profile_id = ?2",
+            params![&default_id, id],
+        )?;
+
+        let affected = conn.execute("DELETE FROM reading_profiles WHERE id = ?1", [id])?;
+        Ok(affected > 0)
+    })();
+
+    match result {
+        Ok(res) => {
+            conn.execute("RELEASE delete_reading_profile", [])?;
+            Ok(res)
+        }
+        Err(e) => {
+            conn.execute("ROLLBACK TO delete_reading_profile", []).ok();
+            conn.execute("RELEASE delete_reading_profile", []).ok();
+            Err(e)
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1985,6 +2020,110 @@ mod tests {
 
         let p2 = get_reading_profile(&conn, "p-2").unwrap().unwrap();
         assert_eq!(p2.difficulty_multiplier, 2.2);
+    }
+
+    #[test]
+    fn set_default_reading_profile_atomicity_and_rollback() {
+        let conn = test_conn();
+        // test_conn() seeds 'profile-default'
+        create_reading_profile(&conn, "p-target", "Target Profile", 1.2, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // 1. Unknown profile rejection
+        assert!(set_default_reading_profile(&conn, "p-nonexistent").is_err());
+        let current_default = get_default_reading_profile(&conn).unwrap().unwrap();
+        assert_eq!(current_default.id, "profile-default");
+
+        // 2. Mid-operation failure rollback:
+        // Trigger that aborts when updating p-target to default
+        conn.execute(
+            "CREATE TRIGGER test_fail_set_default
+             BEFORE UPDATE OF is_default ON reading_profiles
+             WHEN NEW.id = 'p-target' AND NEW.is_default = 1
+             BEGIN
+                 SELECT RAISE(ABORT, 'forced mid-set-default failure');
+             END;",
+            [],
+        )
+        .unwrap();
+
+        let err = set_default_reading_profile(&conn, "p-target");
+        assert!(err.is_err(), "Must fail when setting p-target to default");
+
+        // Verify rollback: profile-default must still be the default, never left with 0 defaults!
+        let def_after = get_default_reading_profile(&conn).unwrap().expect("Default profile must still exist");
+        assert_eq!(def_after.id, "profile-default");
+
+        // Remove trigger and successfully switch default
+        conn.execute("DROP TRIGGER test_fail_set_default", []).unwrap();
+        let switched = set_default_reading_profile(&conn, "p-target").unwrap();
+        assert!(switched.is_default);
+        assert_eq!(switched.id, "p-target");
+        let old_def = get_reading_profile(&conn, "profile-default").unwrap().unwrap();
+        assert!(!old_def.is_default);
+    }
+
+    #[test]
+    fn delete_reading_profile_atomicity_and_reassignment() {
+        let conn = test_conn();
+        create_reading_profile(&conn, "p-custom", "Custom Profile", 1.5, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // Add a book referencing p-custom
+        conn.execute(
+            "INSERT INTO book (id, title, library_status, profile_id)
+             VALUES ('b-1', 'Test Book', 'active', 'p-custom')",
+            [],
+        )
+        .unwrap();
+
+        // Deleting default profile should be rejected (returns Ok(false))
+        let del_def = delete_reading_profile(&conn, "profile-default").unwrap();
+        assert!(!del_def, "Cannot delete default reading profile");
+
+        // Mid-delete failure: trigger on DELETE FROM reading_profiles
+        conn.execute(
+            "CREATE TRIGGER test_fail_delete_profile
+             BEFORE DELETE ON reading_profiles
+             WHEN OLD.id = 'p-custom'
+             BEGIN
+                 SELECT RAISE(ABORT, 'forced mid-delete failure');
+             END;",
+            [],
+        )
+        .unwrap();
+
+        let del_err = delete_reading_profile(&conn, "p-custom");
+        assert!(del_err.is_err(), "Must fail when deleting p-custom");
+
+        // Verify rollback: member book b-1 must still point to p-custom, and p-custom must still exist
+        let book_prof: Option<String> = conn
+            .query_row("SELECT profile_id FROM book WHERE id = 'b-1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(book_prof.as_deref(), Some("p-custom"));
+        assert!(get_reading_profile(&conn, "p-custom").unwrap().is_some());
+
+        // Remove trigger and successfully delete
+        conn.execute("DROP TRIGGER test_fail_delete_profile", []).unwrap();
+        let deleted = delete_reading_profile(&conn, "p-custom").unwrap();
+        assert!(deleted);
+
+        // Book b-1 must now be reassigned to profile-default
+        let book_prof_after: Option<String> = conn
+            .query_row("SELECT profile_id FROM book WHERE id = 'b-1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(book_prof_after.as_deref(), Some("profile-default"));
+        assert!(get_reading_profile(&conn, "p-custom").unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_reading_profile_rejects_when_no_default_exists() {
+        let conn = test_conn();
+        // Clear is_default from all profiles so no default exists
+        conn.execute("UPDATE reading_profiles SET is_default = 0", []).unwrap();
+        create_reading_profile(&conn, "p-only", "Only Profile", 1.0, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // No default profile in the table
+        let result = delete_reading_profile(&conn, "p-only");
+        assert!(result.is_err(), "Must explicitly reject delete when no valid default profile exists to receive books");
     }
 }
 
