@@ -767,6 +767,54 @@ pub fn get_alignment_package_command(
     alignment::find_package_for_book(&conn, &book_id).map_err(|e| format!("could not load Alignment Package: {e}"))
 }
 
+/// The Alignment Package with specific `package_id`.
+#[tauri::command]
+pub fn get_alignment_package_by_id_command(
+    state: State<DbState>,
+    package_id: String,
+) -> Result<Option<AlignmentPackage>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::get_package(&conn, &package_id).map_err(|e| format!("could not load Alignment Package: {e}"))
+}
+
+/// Lists all Alignment Packages involving `book_id`.
+#[tauri::command]
+pub fn list_alignment_packages_for_book_command(
+    state: State<DbState>,
+    book_id: String,
+) -> Result<Vec<AlignmentPackage>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::list_packages_for_book(&conn, &book_id).map_err(|e| format!("could not list Alignment Packages for book: {e}"))
+}
+
+/// Lists all Alignment Packages with resolved book titles and mapping statistics.
+#[tauri::command]
+pub fn list_all_alignment_packages_command(
+    state: State<DbState>,
+) -> Result<Vec<alignment::AlignmentPackageSummary>, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::list_all_alignment_packages(&conn).map_err(|e| format!("could not list Alignment Packages: {e}"))
+}
+
+/// Returns library-wide alignment statistics.
+#[tauri::command]
+pub fn get_alignment_statistics_command(
+    state: State<DbState>,
+) -> Result<alignment::AlignmentStatistics, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::get_alignment_statistics(&conn).map_err(|e| format!("could not get Alignment Statistics: {e}"))
+}
+
+/// Deletes an Alignment Package by id (unpairs the books without deleting the books themselves).
+#[tauri::command]
+pub fn delete_alignment_package_command(
+    state: State<DbState>,
+    package_id: String,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    alignment::delete_alignment_package(&conn, &package_id).map_err(|e| format!("could not delete Alignment Package: {e}"))
+}
+
 /// Create an App Data Backup (`PRODUCT_SPEC.md` SS16.2) at `dest_path`:
 /// the canonical database file plus a manifest, never Managed-Copy
 /// files or Reference source bytes.
@@ -971,6 +1019,24 @@ pub fn list_all_reading_assets_command(state: State<DbState>, kind: Option<Strin
 pub fn mark_reading_asset_orphaned_command(state: State<DbState>, asset_id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     assets::mark_orphaned(&conn, &asset_id).map_err(|e| format!("could not mark asset orphaned: {e}"))
+}
+
+/// Permanently delete a reading asset (e.g. removing a highlight).
+#[tauri::command]
+pub fn delete_reading_asset_command(state: State<DbState>, asset_id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    assets::delete_asset(&conn, &asset_id).map_err(|e| format!("could not delete reading asset: {e}"))
+}
+
+/// Update a reading asset's anchor location / context selector (e.g. changing highlight color).
+#[tauri::command]
+pub fn update_reading_asset_anchor_command(
+    state: State<DbState>,
+    asset_id: String,
+    anchor: Option<DocumentLocation>,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    assets::update_asset_anchor(&conn, &asset_id, anchor.as_ref()).map_err(|e| format!("could not update reading asset anchor: {e}"))
 }
 
 /// Create an OCR job for a Book (`PRODUCT_SPEC.md` SS13.1: "user chooses

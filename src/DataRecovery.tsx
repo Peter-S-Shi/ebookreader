@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open, confirm } from "@tauri-apps/plugin-dialog";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
@@ -32,14 +32,33 @@ interface SnapshotRecord {
   reason: string;
 }
 
+export interface AlignmentPackageSummaryDTO {
+  id: string;
+  book_id_a: string;
+  book_title_a: string;
+  lang_a: string;
+  book_id_b: string;
+  book_title_b: string;
+  lang_b: string;
+  total_mappings: number;
+  clean_mappings: number;
+  review_mappings: number;
+}
+
+export interface AlignmentStatisticsDTO {
+  total_packages: number;
+  total_paired_books: number;
+}
+
 interface DataRecoveryProps {
   onOpenBookHours?: () => void;
+  onOpenBilingual?: (packageId: string, bookIdA: string, bookIdB: string) => void;
 }
 
 /// `DESIGN.md` §14 "Data / Recovery" (canonical `ER-DATA-001`): a safety center.
 /// Restore always Previews before replacement, and an incomplete archive is refused
 /// rather than partially applied.
-export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
+export function DataRecovery({ onOpenBookHours, onOpenBilingual }: DataRecoveryProps = {}) {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ path: string; data: BackupPreviewDTO } | null>(null);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
@@ -48,6 +67,12 @@ export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
   const [completedReadInputs, setCompletedReadInputs] = useState<Record<string, string>>({});
   const [referenceBooks, setReferenceBooks] = useState<BookSummaryDTO[] | null>(null);
   const [selectedReferenceFiles, setSelectedReferenceFiles] = useState<Set<string>>(new Set());
+
+  // Bilingual Alignments management
+  const [alignments, setAlignments] = useState<AlignmentPackageSummaryDTO[] | null>(null);
+  const [alignmentStats, setAlignmentStats] = useState<AlignmentStatisticsDTO | null>(null);
+  const [alignmentDeleteConfirm, setAlignmentDeleteConfirm] = useState<AlignmentPackageSummaryDTO | null>(null);
+  const [alignmentStatusMsg, setAlignmentStatusMsg] = useState<string | null>(null);
 
   // Real session-level recovery status tracking
   const [lastAppDataBackup, setLastAppDataBackup] = useState<{ timestamp: string; bookCount: number } | null>(null);
@@ -163,11 +188,55 @@ export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
     setCompletedReadInputs(Object.fromEntries(books.map((book) => [book.book_id, "0"])));
   }
 
+  const loadAlignments = async () => {
+    try {
+      const [list, stats] = await Promise.all([
+        invoke<AlignmentPackageSummaryDTO[]>("list_all_alignment_packages_command"),
+        invoke<AlignmentStatisticsDTO>("get_alignment_statistics_command"),
+      ]);
+      setAlignments(Array.isArray(list) ? list : []);
+      setAlignmentStats(stats && typeof stats === "object" && "total_packages" in stats ? stats : null);
+    } catch (err) {
+      setAlignmentStatusMsg(`Failed to load alignments: ${String(err)}`);
+    }
+  };
+
+  async function importAlignmentInRecovery() {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Alignment Package", extensions: ["json"] }],
+    });
+    if (!path || Array.isArray(path)) return;
+    try {
+      await invoke("import_alignment_package_command", { path });
+      setAlignmentStatusMsg("Alignment package imported successfully.");
+      await loadAlignments();
+    } catch (err) {
+      setAlignmentStatusMsg(`Import failed: ${String(err)}`);
+    }
+  }
+
+  async function confirmDeleteAlignment(pkg: AlignmentPackageSummaryDTO) {
+    try {
+      await invoke("delete_alignment_package_command", { packageId: pkg.id });
+      setAlignmentDeleteConfirm(null);
+      setAlignmentStatusMsg("Alignment package removed. Books and reading data were preserved.");
+      await loadAlignments();
+    } catch (err) {
+      setAlignmentStatusMsg(`Delete failed: ${String(err)}`);
+    }
+  }
+
+  useEffect(() => {
+    loadAlignments();
+  }, []);
+
   async function overrideCompletedReads(book: BookSummaryDTO) {
-    const completedReadCount = Number.parseInt(completedReadInputs[book.book_id] ?? "0", 10);
-    const safeCount = Number.isFinite(completedReadCount) && completedReadCount >= 0 ? completedReadCount : 0;
+    const raw = completedReadInputs[book.book_id] ?? "0";
+    const parsed = Number.parseInt(raw, 10);
+    const safeCount = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     const proceed = await confirm(
-      "Manual completed-read override clears active progress. Actual Reading Time stays unchanged. ReadingSession history stays unchanged. Continue?",
+      `Set completed reads for "${book.title}" to ${safeCount}? Actual Reading Time stays unchanged.`,
       { title: "Confirm Completed-Read Override", kind: "warning" },
     );
     if (!proceed) return;
@@ -181,7 +250,7 @@ export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
       { timestamp: snapshotTime, reason: `Before completed-read override for ${book.title}` },
       ...prev,
     ]);
-    setStatusMessage(`${book.title} completed reads set to ${progress.completed_read_count}.`);
+    setStatusMessage(`${book.title} completed reads set to ${progress?.completed_read_count ?? safeCount}.`);
   }
 
   return (
@@ -354,6 +423,83 @@ export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
           )}
         </section>
 
+        <div className="dataCard data-recovery-group" aria-label="Bilingual Alignments">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Bilingual Alignments</h3>
+              <p className="hint" style={{ margin: "4px 0 0" }}>
+                {alignmentStats
+                  ? `${alignmentStats.total_packages} Alignment Package(s) · ${alignmentStats.total_paired_books} Paired Book(s)`
+                  : "Library-wide paired book alignments and paragraph mappings."}
+              </p>
+            </div>
+            <button type="button" className="btn" onClick={importAlignmentInRecovery}>
+              Import Alignment Package
+            </button>
+          </div>
+
+          {alignmentStatusMsg && (
+            <p role="status" className="notice" style={{ marginTop: "10px" }}>
+              {alignmentStatusMsg}
+            </p>
+          )}
+
+          {alignments === null ? (
+            <p className="hint" style={{ marginTop: "10px" }}>Loading alignments…</p>
+          ) : !Array.isArray(alignments) || alignments.length === 0 ? (
+            <p className="hint" style={{ marginTop: "10px" }}>No Bilingual Alignment Packages imported yet.</p>
+          ) : (
+            <div className="alignment-package-list" style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {alignments.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="alignment-card-item"
+                  style={{
+                    background: "var(--surface2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ minWidth: "200px", flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: "13px" }}>
+                      {pkg.book_title_a} <span className="pill" style={{ fontSize: "11px" }}>{pkg.lang_a.toUpperCase()}</span>
+                      {" ⇄ "}
+                      {pkg.book_title_b} <span className="pill" style={{ fontSize: "11px" }}>{pkg.lang_b.toUpperCase()}</span>
+                    </div>
+                    <div className="meta" style={{ fontSize: "11px", marginTop: "4px" }}>
+                      {pkg.total_mappings} mappings ({pkg.clean_mappings} clean 1:1, {pkg.review_mappings} review)
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {onOpenBilingual && (
+                      <button
+                        type="button"
+                        className="btn-sm primary"
+                        onClick={() => onOpenBilingual(pkg.id, pkg.book_id_a, pkg.book_id_b)}
+                      >
+                        Read Bilingual
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-sm danger"
+                      onClick={() => setAlignmentDeleteConfirm(pkg)}
+                    >
+                      Unpair / Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="dataCard data-recovery-group">
           <h3>Update Awareness</h3>
           <p>Current version: {CURRENT_VERSION}</p>
@@ -378,6 +524,38 @@ export function DataRecovery({ onOpenBookHours }: DataRecoveryProps = {}) {
           )}
         </div>
       </div>
+
+      {alignmentDeleteConfirm && (
+        <div className="overlay open" role="dialog" aria-label="Unpair Alignment Package Confirmation">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Unpair Alignment Package</h2>
+            </div>
+            <p>
+              Remove the pairing between <strong>{alignmentDeleteConfirm.book_title_a}</strong> and <strong>{alignmentDeleteConfirm.book_title_b}</strong>?
+            </p>
+            <p className="hint" style={{ fontSize: "12px" }}>
+              Both Books, source files, and their reading data/progress are completely preserved. Only the alignment package record is removed.
+            </p>
+            <div className="modalActions">
+              <button
+                type="button"
+                className="btn danger"
+                onClick={() => confirmDeleteAlignment(alignmentDeleteConfirm)}
+              >
+                Confirm Unpair
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setAlignmentDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <aside className="dataAside" aria-label="Recovery status">
         <div className="backupStatus">

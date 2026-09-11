@@ -601,10 +601,12 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     render(<App />);
     await screen.findByText(/library is empty/i);
 
+    await user.click(screen.getByRole("button", { name: "Manage Collections" }));
     await user.type(screen.getByLabelText("New Collection"), "Favorites");
     await user.click(screen.getByRole("button", { name: "Create Collection" }));
 
     expect(collectionsMock).toHaveBeenCalledWith("create_collection_command", { name: "Favorites" });
+    await user.click(screen.getByRole("button", { name: "Done" }));
     expect(await screen.findByRole("button", { name: "Favorites" })).toBeInTheDocument();
   });
 
@@ -633,7 +635,6 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
 
   it("deleting a Collection removes it as a filter option without touching its Books", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
@@ -646,6 +647,8 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     await screen.findByText("A Book");
     await screen.findByRole("button", { name: "Temporary" });
 
+    await user.click(screen.getByRole("button", { name: "Manage Collections" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(screen.getByRole("button", { name: "Delete Collection" }));
 
     expect(collectionsMock).toHaveBeenCalledWith("delete_collection_command", { collectionId: "col-1" });
@@ -694,6 +697,85 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     // Legacy generic tags must not be rendered
     expect(within(orgSection).queryByLabelText("New Tag")).not.toBeInTheDocument();
     expect(within(orgSection).queryByRole("button", { name: "Add Tag" })).not.toBeInTheDocument();
+  });
+
+  describe("Library Multi-Select and Bulk Actions", () => {
+    it("toggles select mode, selects books, and performs bulk soft removal", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") {
+          return [
+            { book_id: "b1", title: "Book One", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+            { book_id: "b2", title: "Book Two", path: "C:/books/b2.epub", format: "epub", ownership_mode: "reference", available: true },
+          ];
+        }
+        if (cmd === "remove_from_library_command") {
+          return undefined;
+        }
+        return undefined;
+      });
+
+      render(<App />);
+      await screen.findByText("Book One");
+
+      // Enter select mode
+      await user.click(screen.getByRole("button", { name: "Select Books" }));
+      expect(screen.getAllByRole("button", { name: "Exit Selection" }).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole("toolbar", { name: "Bulk actions" })).toBeInTheDocument();
+
+      // Select Book One
+      await user.click(screen.getByLabelText("Select Book One"));
+      expect(screen.getByText("1 selected")).toBeInTheDocument();
+
+      // Select All
+      await user.click(screen.getByRole("button", { name: "Select All" }));
+      expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+      // Click Remove from Library in bulk bar
+      const bulkBar = screen.getByRole("toolbar", { name: "Bulk actions" });
+      await user.click(within(bulkBar).getByRole("button", { name: "Remove from Library" }));
+      const removeDialog = screen.getByRole("dialog", { name: "Remove Selected Books from Library" });
+      expect(removeDialog).toBeInTheDocument();
+      expect(within(removeDialog).getByText(/selected Book\(s\) from the Library/)).toBeInTheDocument();
+      expect(within(removeDialog).getByText(/Reading data and notes are preserved/)).toBeInTheDocument();
+
+      // Confirm soft removal
+      await user.click(within(removeDialog).getByRole("button", { name: "Remove from Library" }));
+      expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "b1" });
+      expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "b2" });
+    });
+
+    it("bulk adds selected books to a Collection", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") {
+          return [
+            { book_id: "b1", title: "Book One", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+          ];
+        }
+        return undefined;
+      });
+      collectionsMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+        if (cmd === "add_book_to_collection_command") return undefined;
+        return [];
+      });
+
+      render(<App />);
+      await screen.findByText("Book One");
+
+      await user.click(screen.getByRole("button", { name: "Select Books" }));
+      await user.click(screen.getByLabelText("Select Book One"));
+
+      const bulkBar = screen.getByRole("toolbar", { name: "Bulk actions" });
+      await user.click(within(bulkBar).getByRole("button", { name: "Add to Collection" }));
+      const addDialog = screen.getByRole("dialog", { name: "Add Selected Books to Collection" });
+      expect(addDialog).toBeInTheDocument();
+
+      await user.selectOptions(within(addDialog).getByRole("combobox"), "col-1");
+      await user.click(within(addDialog).getByRole("button", { name: "Add to Collection" }));
+      expect(collectionsMock).toHaveBeenCalledWith("add_book_to_collection_command", { bookId: "b1", collectionId: "col-1" });
+    });
   });
 });
 

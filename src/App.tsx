@@ -127,6 +127,19 @@ function App() {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
   const [collectionFilterBookIds, setCollectionFilterBookIds] = useState<Set<string> | null>(null);
+  const [manageCollectionsOpen, setManageCollectionsOpen] = useState(false);
+  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(null);
+  const [renameCollectionDraft, setRenameCollectionDraft] = useState("");
+  const [collectionToDelete, setCollectionToDelete] = useState<CollectionDTO | null>(null);
+
+  // Library Multi-Select Mode
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedBookIds, setSelectedBookIds] = useState<Set<string>>(new Set());
+  const [bulkAddToCollectionOpen, setBulkAddToCollectionOpen] = useState(false);
+  const [bulkTargetCollectionId, setBulkTargetCollectionId] = useState("");
+  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
   const [renamingBookId, setRenamingBookId] = useState<string | null>(null);
@@ -219,6 +232,25 @@ function App() {
     await refreshCollections();
   }
 
+  function startRenamingCollection(col: CollectionDTO) {
+    setRenamingCollectionId(col.id);
+    setRenameCollectionDraft(col.name);
+  }
+
+  function cancelRenamingCollection() {
+    setRenamingCollectionId(null);
+    setRenameCollectionDraft("");
+  }
+
+  async function saveRenamedCollection(collectionId: string) {
+    const name = renameCollectionDraft.trim();
+    if (!name) return;
+    await invoke("rename_collection_command", { collectionId, name });
+    setRenamingCollectionId(null);
+    setRenameCollectionDraft("");
+    await refreshCollections();
+  }
+
   async function applyCollectionFilter(collectionId: string | null) {
     setCollectionFilter(collectionId);
     if (collectionId === null) {
@@ -229,15 +261,77 @@ function App() {
     setCollectionFilterBookIds(new Set(bookIds));
   }
 
-  async function deleteCollection(collectionId: string) {
-    const confirmed = window.confirm("Delete this Collection? Its Books are not affected -- only the grouping is removed.");
-    if (!confirmed) return;
+  async function confirmDeleteCollection(collectionId: string) {
     await invoke("delete_collection_command", { collectionId });
     if (collectionFilter === collectionId) {
       setCollectionFilter(null);
       setCollectionFilterBookIds(null);
     }
+    setCollectionToDelete(null);
     await refreshCollections();
+  }
+
+  // Multi-Select Helpers
+  function toggleSelectMode() {
+    setSelectMode((prev) => {
+      if (prev) {
+        setSelectedBookIds(new Set());
+      }
+      return !prev;
+    });
+  }
+
+  function toggleBookSelection(bookId: string) {
+    setSelectedBookIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(bookId)) next.delete(bookId);
+      else next.add(bookId);
+      return next;
+    });
+  }
+
+  function selectAllBooks(visibleList: BookSummary[]) {
+    setSelectedBookIds(new Set(visibleList.map((b) => b.book_id)));
+  }
+
+  function clearBookSelection() {
+    setSelectedBookIds(new Set());
+  }
+
+  async function handleBulkAddToCollection() {
+    if (!bulkTargetCollectionId || selectedBookIds.size === 0) return;
+    setBulkError(null);
+    try {
+      for (const bookId of selectedBookIds) {
+        await invoke("add_book_to_collection_command", {
+          bookId,
+          collectionId: bulkTargetCollectionId,
+        });
+      }
+      setBulkAddToCollectionOpen(false);
+      setBulkTargetCollectionId("");
+      setSelectedBookIds(new Set());
+      setSelectMode(false);
+      await refreshLibrary();
+    } catch (e) {
+      setBulkError(String(e));
+    }
+  }
+
+  async function handleBulkRemoveFromLibrary() {
+    if (selectedBookIds.size === 0) return;
+    setBulkError(null);
+    try {
+      for (const bookId of selectedBookIds) {
+        await invoke("remove_book_command", { bookId });
+      }
+      setBulkRemoveConfirmOpen(false);
+      setSelectedBookIds(new Set());
+      setSelectMode(false);
+      await refreshLibrary();
+    } catch (e) {
+      setBulkError(String(e));
+    }
   }
 
   async function importBook() {
@@ -341,20 +435,51 @@ function App() {
 
   async function openBilingualForBook(book: BookSummary) {
     setBilingualError(null);
-    const pkg = await invoke<AlignmentPackageDTO | null>("get_alignment_package_command", {
-      bookId: book.book_id,
-    }).catch(() => null);
-    if (!pkg) {
-      setBilingualError("This Book has no imported Alignment Package pairing it with another Book yet.");
-      return;
+    try {
+      const pkgs = await invoke<AlignmentPackageDTO[]>("list_alignment_packages_for_book_command", {
+        bookId: book.book_id,
+      });
+      if (!pkgs || pkgs.length === 0) {
+        setBilingualError("This Book has no imported Alignment Package pairing it with another Book yet.");
+        return;
+      }
+      if (pkgs.length > 1) {
+        setBilingualError(
+          `This Book is associated with ${pkgs.length} different Alignment Packages. Please select the specific pairing in Data → Bilingual Alignments.`,
+        );
+        return;
+      }
+      const pkg = pkgs[0];
+      const otherId = pkg.book_id_a === book.book_id ? pkg.book_id_b : pkg.book_id_a;
+      const other = books?.find((b) => b.book_id === otherId);
+      if (!other) {
+        setBilingualError("The paired Book from this Alignment Package is no longer in the Library.");
+        return;
+      }
+      setOpenBilingual({ package: pkg, bookA: book, bookB: other });
+    } catch (e) {
+      setBilingualError(String(e));
     }
-    const otherId = pkg.book_id_a === book.book_id ? pkg.book_id_b : pkg.book_id_a;
-    const other = books?.find((b) => b.book_id === otherId);
-    if (!other) {
-      setBilingualError("The paired Book from this Alignment Package is no longer in the Library.");
-      return;
+  }
+
+  async function openBilingualPackageDirectly(packageId: string, bookIdA: string, bookIdB: string) {
+    setBilingualError(null);
+    try {
+      const bookA = books?.find((b) => b.book_id === bookIdA);
+      const bookB = books?.find((b) => b.book_id === bookIdB);
+      if (!bookA || !bookB) {
+        setBilingualError("One or both paired Books from this Alignment Package are no longer in the Library.");
+        return;
+      }
+      const pkg = await invoke<AlignmentPackageDTO | null>("get_alignment_package_by_id_command", { packageId });
+      if (!pkg) {
+        setBilingualError("Alignment Package could not be found.");
+        return;
+      }
+      setOpenBilingual({ package: pkg, bookA, bookB });
+    } catch (e) {
+      setBilingualError(String(e));
     }
-    setOpenBilingual({ package: pkg, bookA: book, bookB: other });
   }
 
   // Library-wide Search (PRODUCT_SPEC.md SS12: "Library-wide Search").
@@ -663,6 +788,9 @@ function App() {
               setBookHoursInitialBookId(undefined);
               setDestination("bookHours");
             }}
+            onOpenBilingual={(packageId, bookIdA, bookIdB) => {
+              openBilingualPackageDirectly(packageId, bookIdA, bookIdB);
+            }}
           />
         </section>
       )}
@@ -681,6 +809,13 @@ function App() {
             </button>
             <button type="button" className="btn" onClick={importAlignmentPackage}>
               Import Alignment Package
+            </button>
+            <button
+              type="button"
+              className={`btn ${selectMode ? "active" : ""}`}
+              onClick={toggleSelectMode}
+            >
+              {selectMode ? "Exit Selection" : "Select Books"}
             </button>
           </div>
 
@@ -751,8 +886,16 @@ function App() {
           )}
 
           <section aria-label="Collections" className="collections-section">
-            <div className="section">
-              <h2>Collections</h2>
+            <div className="section" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h2 style={{ margin: 0 }}>Collections</h2>
+              <div className="grow" />
+              <button
+                type="button"
+                className="btn-sm"
+                onClick={() => setManageCollectionsOpen(true)}
+              >
+                Manage Collections
+              </button>
             </div>
             <div className="tools">
               <button
@@ -764,37 +907,16 @@ function App() {
                 All
               </button>
               {collections.map((collection) => (
-                <span key={collection.id} className="collection-chip-wrap">
-                  <button
-                    type="button"
-                    className={`chip ${collectionFilter === collection.id ? "active" : ""}`}
-                    aria-current={collectionFilter === collection.id ? "true" : undefined}
-                    onClick={() => applyCollectionFilter(collection.id)}
-                  >
-                    {collection.name}
-                  </button>
-                  <button
-                    type="button"
-                    className="chip-delete-btn"
-                    onClick={() => deleteCollection(collection.id)}
-                  >
-                    Delete Collection
-                  </button>
-                </span>
+                <button
+                  key={collection.id}
+                  type="button"
+                  className={`chip ${collectionFilter === collection.id ? "active" : ""}`}
+                  aria-current={collectionFilter === collection.id ? "true" : undefined}
+                  onClick={() => applyCollectionFilter(collection.id)}
+                >
+                  {collection.name}
+                </button>
               ))}
-            </div>
-            <div className="new-collection-form">
-              <label>
-                New Collection
-                <input
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                />
-              </label>
-              <button type="button" className="btn" onClick={createCollection}>
-                Create Collection
-              </button>
             </div>
           </section>
 
@@ -808,98 +930,354 @@ function App() {
             return visibleBooks.length === 0 ? (
               <p className="empty-state">No Books in this Collection.</p>
             ) : (
-              <ul className="grid library-book-list">
-                {visibleBooks.map((book) => {
-                  const canOpen = book.available && READABLE_FORMATS.has(book.format);
-                  return (
-                    <li key={book.book_id} className="book">
-                      <div className="cover" aria-hidden="true" onClick={() => canOpen && setOpenBook(book)}>
-                        <span className="cover-format">{book.format.toUpperCase()}</span>
-                      </div>
-                      <div className="book-card-body">
-                        {renamingBookId === book.book_id ? (
-                          <span className="rename-book-form">
-                            <label>
-                              Title
-                              <input
-                                type="text"
-                                value={renameDraft}
-                                onChange={(e) => setRenameDraft(e.target.value)}
-                              />
-                            </label>
-                            <button type="button" className="btn-sm primary" onClick={() => saveRenamedBook(book.book_id)}>
-                              Save Title
-                            </button>
-                            <button type="button" className="btn-sm" onClick={cancelRenamingBook}>
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <>
-                            <h4 className="book-title">
-                              {canOpen ? (
-                                <button type="button" className="book-open-link" onClick={() => setOpenBook(book)}>
-                                  {book.title}
-                                </button>
-                              ) : (
-                                book.title
-                              )}
-                            </h4>
-                            <div className="small">
-                              {book.format.toUpperCase()} · {book.ownership_mode}
-                              {!book.available && <span className="needs-relink"> — Needs Relink</span>}
-                            </div>
-                            <div className="book-actions">
-                              {canOpen && (
-                                <button type="button" className="btn-sm" onClick={() => openBilingualForBook(book)}>
-                                  Bilingual
-                                </button>
-                              )}
-                              <button type="button" className="btn-sm" onClick={() => startRenamingBook(book)}>
-                                Edit Title
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-sm"
-                                onClick={() => {
-                                  setDetailsFocusSection("details");
-                                  setDetailsBook(book);
-                                }}
-                              >
-                                Details
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-sm"
-                                onClick={() => {
-                                  setDetailsFocusSection("organization");
-                                  setDetailsBook(book);
-                                }}
-                              >
-                                Organize
-                              </button>
-                              <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
-                                Remove from Library
-                              </button>
-                              <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
-                                Delete Reading Data
-                              </button>
-                              {book.ownership_mode === "managed_copy" && (
-                                <button type="button" className="btn-sm danger" onClick={() => deleteManagedCopyFile(book.book_id)}>
-                                  Delete Managed-Copy File
-                                </button>
-                              )}
-                            </div>
-                          </>
+              <>
+                <ul className="grid library-book-list">
+                  {visibleBooks.map((book) => {
+                    const canOpen = book.available && READABLE_FORMATS.has(book.format);
+                    const isSelected = selectedBookIds.has(book.book_id);
+                    return (
+                      <li
+                        key={book.book_id}
+                        className={`book ${selectMode ? "in-select-mode" : ""} ${isSelected ? "selected" : ""}`}
+                        onClick={() => {
+                          if (selectMode) {
+                            toggleBookSelection(book.book_id);
+                          }
+                        }}
+                      >
+                        {selectMode && (
+                          <input
+                            type="checkbox"
+                            className="book-card-checkbox"
+                            checked={isSelected}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={() => toggleBookSelection(book.book_id)}
+                            aria-label={`Select ${book.title}`}
+                          />
                         )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                        <div
+                          className="cover"
+                          aria-hidden="true"
+                          onClick={() => {
+                            if (!selectMode && canOpen) {
+                              setOpenBook(book);
+                            }
+                          }}
+                        >
+                          <span className="cover-format">{book.format.toUpperCase()}</span>
+                        </div>
+                        <div className="book-card-body">
+                          {renamingBookId === book.book_id ? (
+                            <span className="rename-book-form" onClick={(e) => e.stopPropagation()}>
+                              <label>
+                                Title
+                                <input
+                                  type="text"
+                                  value={renameDraft}
+                                  onChange={(e) => setRenameDraft(e.target.value)}
+                                />
+                              </label>
+                              <button type="button" className="btn-sm primary" onClick={() => saveRenamedBook(book.book_id)}>
+                                Save Title
+                              </button>
+                              <button type="button" className="btn-sm" onClick={cancelRenamingBook}>
+                                Cancel
+                              </button>
+                            </span>
+                          ) : (
+                            <>
+                              <h4 className="book-title">
+                                {!selectMode && canOpen ? (
+                                  <button type="button" className="book-open-link" onClick={() => setOpenBook(book)}>
+                                    {book.title}
+                                  </button>
+                                ) : (
+                                  book.title
+                                )}
+                              </h4>
+                              <div className="small">
+                                {book.format.toUpperCase()} · {book.ownership_mode}
+                                {!book.available && <span className="needs-relink"> — Needs Relink</span>}
+                              </div>
+                              {!selectMode && (
+                                <div className="book-actions">
+                                  {canOpen && (
+                                    <button type="button" className="btn-sm" onClick={() => openBilingualForBook(book)}>
+                                      Bilingual
+                                    </button>
+                                  )}
+                                  <button type="button" className="btn-sm" onClick={() => startRenamingBook(book)}>
+                                    Edit Title
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-sm"
+                                    onClick={() => {
+                                      setDetailsFocusSection("details");
+                                      setDetailsBook(book);
+                                    }}
+                                  >
+                                    Details
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-sm"
+                                    onClick={() => {
+                                      setDetailsFocusSection("organization");
+                                      setDetailsBook(book);
+                                    }}
+                                  >
+                                    Organize
+                                  </button>
+                                  <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
+                                    Remove from Library
+                                  </button>
+                                  <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
+                                    Delete Reading Data
+                                  </button>
+                                  {book.ownership_mode === "managed_copy" && (
+                                    <button type="button" className="btn-sm danger" onClick={() => deleteManagedCopyFile(book.book_id)}>
+                                      Delete Managed-Copy File
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {selectMode && (
+                  <div className="bulk-action-bar" role="toolbar" aria-label="Bulk actions">
+                    <span className="bulk-count">{selectedBookIds.size} selected</span>
+                    <button type="button" className="btn-sm" onClick={() => selectAllBooks(visibleBooks)}>
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm"
+                      onClick={clearBookSelection}
+                      disabled={selectedBookIds.size === 0}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm primary"
+                      onClick={() => setBulkAddToCollectionOpen(true)}
+                      disabled={selectedBookIds.size === 0}
+                    >
+                      Add to Collection
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm danger"
+                      onClick={() => setBulkRemoveConfirmOpen(true)}
+                      disabled={selectedBookIds.size === 0}
+                    >
+                      Remove from Library
+                    </button>
+                    <button type="button" className="btn-sm" onClick={toggleSelectMode}>
+                      Exit Selection
+                    </button>
+                  </div>
+                )}
+              </>
             );
           })()}
         </section>
+      )}
+
+      {manageCollectionsOpen && (
+        <div className="overlay open" role="dialog" aria-label="Manage Collections">
+          <div className="modal" style={{ maxWidth: "540px" }}>
+            <div className="modalHead">
+              <h2>Manage Collections</h2>
+              <button
+                type="button"
+                className="icon"
+                onClick={() => {
+                  setManageCollectionsOpen(false);
+                  setRenamingCollectionId(null);
+                }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="hint" style={{ fontSize: "12px", margin: "0 0 14px" }}>
+              Collections organize your books. Deleting a Collection only removes the grouping; Books, files, reading progress, and Book Hours are unaffected.
+            </p>
+            <div className="new-collection-form" style={{ marginBottom: "16px", display: "flex", gap: "8px" }}>
+              <input
+                type="text"
+                placeholder="New collection name…"
+                aria-label="New Collection"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn primary" aria-label="Create Collection" onClick={createCollection}>
+                Create
+              </button>
+            </div>
+
+            <div className="collections-manage-list" style={{ maxHeight: "300px", overflowY: "auto" }}>
+              {collections.length === 0 ? (
+                <p className="empty-state" style={{ padding: "12px" }}>No Collections created yet.</p>
+              ) : (
+                collections.map((col) => (
+                  <div key={col.id} className="collections-manage-item">
+                    {renamingCollectionId === col.id ? (
+                      <div style={{ display: "flex", gap: "6px", flex: 1, alignItems: "center" }}>
+                        <input
+                          type="text"
+                          value={renameCollectionDraft}
+                          onChange={(e) => setRenameCollectionDraft(e.target.value)}
+                          style={{ flex: 1 }}
+                          autoFocus
+                        />
+                        <button type="button" className="btn-sm primary" onClick={() => saveRenamedCollection(col.id)}>
+                          Save
+                        </button>
+                        <button type="button" className="btn-sm" onClick={cancelRenamingCollection}>
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ flex: 1, fontWeight: 550, fontSize: "13px" }}>{col.name}</span>
+                        <button type="button" className="btn-sm" onClick={() => startRenamingCollection(col)}>
+                          Rename
+                        </button>
+                        <button type="button" className="btn-sm danger" onClick={() => setCollectionToDelete(col)}>
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="modalActions" style={{ marginTop: "16px" }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setManageCollectionsOpen(false);
+                  setRenamingCollectionId(null);
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {collectionToDelete && (
+        <div className="overlay open" role="dialog" aria-label="Delete Collection Confirmation">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Delete Collection</h2>
+            </div>
+            <p>
+              Are you sure you want to delete the collection <strong>{collectionToDelete.name}</strong>?
+            </p>
+            <p className="hint" style={{ fontSize: "12px" }}>
+              Books in this collection are not deleted. Their files, reading data, Book Hours, notes, and alignment packages remain completely untouched.
+            </p>
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={() => confirmDeleteCollection(collectionToDelete.id)}>
+                Delete Collection
+              </button>
+              <button type="button" className="btn" onClick={() => setCollectionToDelete(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkAddToCollectionOpen && (
+        <div className="overlay open" role="dialog" aria-label="Add Selected Books to Collection">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Add to Collection</h2>
+            </div>
+            <p>Add <strong>{selectedBookIds.size}</strong> selected Book(s) to:</p>
+            <select
+              value={bulkTargetCollectionId}
+              onChange={(e) => setBulkTargetCollectionId(e.target.value)}
+              style={{ width: "100%", padding: "8px", margin: "12px 0" }}
+            >
+              <option value="">Select a Collection…</option>
+              {collections.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {bulkError && <p role="alert" className="notice warn">{bulkError}</p>}
+            <div className="modalActions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={!bulkTargetCollectionId}
+                onClick={handleBulkAddToCollection}
+              >
+                Add to Collection
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setBulkAddToCollectionOpen(false);
+                  setBulkTargetCollectionId("");
+                  setBulkError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkRemoveConfirmOpen && (
+        <div className="overlay open" role="dialog" aria-label="Remove Selected Books from Library">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Remove from Library</h2>
+            </div>
+            <p>
+              Remove <strong>{selectedBookIds.size}</strong> selected Book(s) from the Library?
+            </p>
+            <p className="hint" style={{ fontSize: "12px" }}>
+              Reading data and notes are preserved, and no source files will be deleted from your disk.
+            </p>
+            {bulkError && <p role="alert" className="notice warn">{bulkError}</p>}
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={handleBulkRemoveFromLibrary}>
+                Remove from Library
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setBulkRemoveConfirmOpen(false);
+                  setBulkError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {bilingualError && (
         <div className="bilingual-error-overlay" role="dialog" aria-labelledby="bilingual-error-title">

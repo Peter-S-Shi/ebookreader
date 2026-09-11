@@ -77,7 +77,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
-  const [selection, setSelection] = useState<{ text: string; page: number } | null>(null);
+  const [selection, setSelection] = useState<{ text: string; page: number; assetId?: string } | null>(null);
   // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
   // any page) must display a truthful degraded state rather than pretend
   // search/selection/excerpt work -- `null` until the whole-document text
@@ -257,13 +257,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
         // Rehydrate persistent highlights for this page in textLayer
         try {
-          const assets = await invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>(
+          const assets = await invoke<Array<{ id: string; kind: string; text: string; orphaned: boolean; anchor?: DocumentLocationDTO }>>(
             "list_reading_assets_command",
             { bookId },
           );
           if (!cancelled && textLayerDiv) {
             const pageAnnotations = assets.filter(
-              (a) => a.kind === "annotation" && a.anchor?.primary_anchor === String(pageNumber),
+              (a) => a.kind === "annotation" && !a.orphaned && a.anchor?.primary_anchor === String(pageNumber),
             );
             for (const ann of pageAnnotations) {
               if (!ann.text?.trim()) continue;
@@ -274,6 +274,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                 if (span.textContent && span.textContent.toLowerCase().includes(query)) {
                   span.classList.add("reader-highlight");
                   span.dataset.color = color;
+                  span.dataset.assetId = ann.id;
+                  span.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    setSelection({ text: span.textContent || "", page: pageNumber, assetId: ann.id });
+                  });
                 }
               }
             }
@@ -338,7 +343,53 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       fallback_anchors: [],
       context_selector: formatContextSelector(selection.text, color),
     };
-    await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+
+    let targetAssetId = selection.assetId;
+    if (kind === "annotation") {
+      if (targetAssetId) {
+        // Recolor existing highlight by stable assetId
+        await invoke("update_reading_asset_anchor_command", {
+          assetId: targetAssetId,
+          anchor,
+        }).catch(() => {});
+        if (textLayerRef.current) {
+          const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
+          if (span) {
+            span.dataset.color = color;
+          }
+        }
+      } else {
+        // Create new highlight
+        try {
+          const created = await invoke<{ id: string }>("create_reading_asset_command", {
+            bookId,
+            kind,
+            text: selection.text,
+            anchor,
+          });
+          if (textLayerRef.current) {
+            const query = selection.text.trim().toLowerCase();
+            const spans = Array.from(textLayerRef.current.querySelectorAll("span"));
+            for (const span of spans) {
+              if (span.textContent && span.textContent.toLowerCase().includes(query)) {
+                span.classList.add("reader-highlight");
+                span.dataset.color = color;
+                span.dataset.assetId = created.id;
+                span.addEventListener("click", (e) => {
+                  e.stopPropagation();
+                  setSelection({ text: span.textContent || "", page: selection.page, assetId: created.id });
+                });
+              }
+            }
+          }
+        } catch {
+          // creation fallback
+        }
+      }
+    } else {
+      await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+    }
+
     document.getSelection()?.removeAllRanges();
     setSelection(null);
     setNotebookRefreshKey((k) => k + 1);
@@ -347,25 +398,15 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   async function handleRemoveHighlight() {
     if (!selection) return;
 
-    try {
-      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
-      const targetText = selection.text.trim().toLowerCase();
-      const match = assets.find(
-        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
-      );
-      if (match) {
-        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
-      }
-    } catch {
-      // ignore orphan error
-    }
-
-    if (textLayerRef.current) {
-      const spans = Array.from(textLayerRef.current.querySelectorAll("span.reader-highlight"));
-      for (const span of spans) {
-        if (span.textContent?.toLowerCase().includes(selection.text.trim().toLowerCase())) {
+    let targetAssetId = selection.assetId;
+    if (targetAssetId) {
+      await invoke("delete_reading_asset_command", { assetId: targetAssetId }).catch(() => {});
+      if (textLayerRef.current) {
+        const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
+        if (span) {
           span.classList.remove("reader-highlight");
-          delete (span as HTMLElement).dataset.color;
+          delete span.dataset.color;
+          delete span.dataset.assetId;
         }
       }
     }

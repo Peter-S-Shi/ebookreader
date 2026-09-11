@@ -93,6 +93,7 @@ interface ActiveSelection {
   range: Range;
   text: string;
   index: number;
+  assetId?: string;
 }
 
 // Minimal EPUB reading surface: opens the Book via foliate-js and keeps
@@ -194,9 +195,9 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         attachReadingInput(doc);
 
         // Rehydrate persistent highlights into section document
-        invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
+        invoke<Array<{ id: string; kind: string; text: string; orphaned: boolean; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
           .then((assets) => {
-            const annotations = assets.filter((a) => a.kind === "annotation" && a.text?.trim());
+            const annotations = assets.filter((a) => a.kind === "annotation" && !a.orphaned && a.text?.trim());
             for (const ann of annotations) {
               const query = ann.text.trim();
               if (!query || !doc.body) continue;
@@ -215,6 +216,13 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
                     const mark = doc.createElement("mark");
                     mark.className = "reader-highlight";
                     mark.dataset.color = color;
+                    mark.dataset.assetId = ann.id;
+                    mark.addEventListener("click", (e) => {
+                      e.stopPropagation();
+                      const markRange = doc.createRange();
+                      markRange.selectNodeContents(mark);
+                      setSelection({ doc, range: markRange, text: mark.textContent || "", index: 0, assetId: ann.id });
+                    });
                     range.surroundContents(mark);
                   } catch {
                     // range boundary fallback
@@ -423,23 +431,6 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     if (!active || !view) return;
 
     const color = selectedColor ?? highlightColor;
-    if (kind === "annotation") {
-      try {
-        const mark = active.doc.createElement("mark");
-        mark.className = "reader-highlight";
-        mark.dataset.color = color;
-        active.range.surroundContents(mark);
-      } catch {
-        const containerNode = active.range.startContainer.nodeType === 1
-          ? (active.range.startContainer as HTMLElement)
-          : active.range.startContainer.parentElement;
-        const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
-        if (existingMark) {
-          existingMark.dataset.color = color;
-        }
-      }
-    }
-
     const cfi = view.getCFI(active.index, active.range);
     const anchor: DocumentLocationDTO = {
       book_id: bookId,
@@ -450,7 +441,58 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       context_selector: formatContextSelector(active.text, color),
     };
 
-    await invoke("create_reading_asset_command", { bookId, kind, text: active.text, anchor }).catch(() => {});
+    let targetAssetId = active.assetId;
+    const containerNode = active.range.startContainer.nodeType === 1
+      ? (active.range.startContainer as HTMLElement)
+      : active.range.startContainer.parentElement;
+    const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+    if (!targetAssetId && existingMark?.dataset?.assetId) {
+      targetAssetId = existingMark.dataset.assetId;
+    }
+
+    if (kind === "annotation") {
+      if (targetAssetId) {
+        // Recolor existing asset by ID
+        await invoke("update_reading_asset_anchor_command", {
+          assetId: targetAssetId,
+          anchor,
+        }).catch(() => {});
+        if (existingMark) {
+          existingMark.dataset.color = color;
+        }
+      } else {
+        // Create new asset
+        try {
+          const created = await invoke<{ id: string }>("create_reading_asset_command", {
+            bookId,
+            kind,
+            text: active.text,
+            anchor,
+          });
+          const mark = active.doc.createElement("mark");
+          mark.className = "reader-highlight";
+          mark.dataset.color = color;
+          mark.dataset.assetId = created.id;
+          mark.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const markRange = active.doc.createRange();
+            markRange.selectNodeContents(mark);
+            setSelection({ doc: active.doc, range: markRange, text: mark.textContent || "", index: 0, assetId: created.id });
+          });
+          active.range.surroundContents(mark);
+        } catch {
+          // surround contents fallback if cross-node
+        }
+      }
+    } else {
+      await invoke("create_reading_asset_command", {
+        bookId,
+        kind,
+        text: active.text,
+        anchor,
+      }).catch(() => {});
+    }
+
     active.doc.getSelection?.()?.removeAllRanges();
     setSelection(null);
     setNotebookRefreshKey((k) => k + 1);
@@ -460,10 +502,14 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     const active = selection;
     if (!active) return;
 
+    let targetAssetId = active.assetId;
     const containerNode = active.range.startContainer.nodeType === 1
       ? (active.range.startContainer as HTMLElement)
       : active.range.startContainer.parentElement;
     const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+    if (!targetAssetId && existingMark?.dataset?.assetId) {
+      targetAssetId = existingMark.dataset.assetId;
+    }
 
     if (existingMark) {
       const parent = existingMark.parentNode;
@@ -473,17 +519,8 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       existingMark.remove();
     }
 
-    try {
-      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
-      const targetText = active.text.trim().toLowerCase();
-      const match = assets.find(
-        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
-      );
-      if (match) {
-        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
-      }
-    } catch {
-      // ignore orphan error
+    if (targetAssetId) {
+      await invoke("delete_reading_asset_command", { assetId: targetAssetId }).catch(() => {});
     }
 
     active.doc.getSelection?.()?.removeAllRanges();

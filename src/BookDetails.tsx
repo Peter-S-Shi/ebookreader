@@ -102,6 +102,8 @@ export function BookDetails({
     }
   };
 
+  const [alignmentPackages, setAlignmentPackages] = useState<any[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     setProgress(null);
@@ -111,6 +113,7 @@ export function BookDetails({
     setBookHoursItem(null);
     setLegacyBookHours(null);
     setBookHoursError(null);
+    setAlignmentPackages([]);
 
     invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id })
       .then((p) => {
@@ -142,6 +145,14 @@ export function BookDetails({
       })
       .catch(() => {
         // legacy compatibility lookup failure ignored
+      });
+
+    invoke<any[]>("list_alignment_packages_for_book_command", { bookId: book.book_id })
+      .then((pkgs) => {
+        if (!cancelled) setAlignmentPackages(pkgs || []);
+      })
+      .catch(() => {
+        // no alignment package or lookup failure ignored
       });
 
     loadCollections();
@@ -359,6 +370,22 @@ export function BookDetails({
                     ) : (
                       <span className="bhBadge profile">
                         {bookHoursItem?.profile_name ?? "Default"}
+                      </span>
+                    )}
+                  </div>
+                  <div>Bilingual Alignment</div>
+                  <div>
+                    {alignmentPackages.length === 0 ? (
+                      <span className="hint" style={{ fontSize: "11px" }}>
+                        Not paired
+                      </span>
+                    ) : alignmentPackages.length === 1 ? (
+                      <span className="bhBadge profile" style={{ background: "var(--accent-light, #e8f4fd)", color: "var(--accent)" }}>
+                        Paired ({alignmentPackages[0].lang_a.toUpperCase()} ⇄ {alignmentPackages[0].lang_b.toUpperCase()})
+                      </span>
+                    ) : (
+                      <span className="bhBadge profile" style={{ background: "var(--accent-light, #e8f4fd)", color: "var(--accent)" }}>
+                        Multiple Pairings ({alignmentPackages.length})
                       </span>
                     )}
                   </div>

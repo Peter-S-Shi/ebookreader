@@ -77,8 +77,9 @@ pub struct AlignmentPackageFile {
 }
 
 /// A persisted, Library-validated Alignment Package: both fingerprints
+/// A persisted, Library-validated Alignment Package: both fingerprints
 /// have been resolved to real `book_id`s already in the Library.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AlignmentPackage {
     pub id: String,
     pub book_id_a: String,
@@ -86,6 +87,26 @@ pub struct AlignmentPackage {
     pub lang_a: String,
     pub lang_b: String,
     pub mappings: Vec<AlignmentMapping>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AlignmentPackageSummary {
+    pub id: String,
+    pub book_id_a: String,
+    pub book_title_a: String,
+    pub lang_a: String,
+    pub book_id_b: String,
+    pub book_title_b: String,
+    pub lang_b: String,
+    pub total_mappings: usize,
+    pub clean_mappings: usize,
+    pub review_mappings: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AlignmentStatistics {
+    pub total_packages: usize,
+    pub total_paired_books: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,25 +186,156 @@ fn save_package(conn: &Connection, package: &AlignmentPackage) -> rusqlite::Resu
     Ok(())
 }
 
-/// The Alignment Package pairing `book_id` with another Book, if one has
-/// been imported for it (on either side -- a Book may be side A of one
-/// pairing and never side B of another, so both columns are checked).
-pub fn find_package_for_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<AlignmentPackage>> {
-    use rusqlite::OptionalExtension;
-    let row: Option<(String, String, String, String, String, String)> = conn
-        .query_row(
-            "SELECT id, book_id_a, book_id_b, lang_a, lang_b, mappings_json FROM alignment_package
-             WHERE book_id_a = ?1 OR book_id_b = ?1 LIMIT 1",
-            [book_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
-        )
-        .optional()?;
+/// Lists all Alignment Packages involving `book_id` on either side A or side B.
+pub fn list_packages_for_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Vec<AlignmentPackage>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, book_id_a, book_id_b, lang_a, lang_b, mappings_json FROM alignment_package
+         WHERE book_id_a = ?1 OR book_id_b = ?1
+         ORDER BY rowid ASC",
+    )?;
+    let rows = stmt.query_map([book_id], |row| {
+        let id: String = row.get(0)?;
+        let book_id_a: String = row.get(1)?;
+        let book_id_b: String = row.get(2)?;
+        let lang_a: String = row.get(3)?;
+        let lang_b: String = row.get(4)?;
+        let mappings_json: String = row.get(5)?;
+        let mappings: Vec<AlignmentMapping> = serde_json::from_str(&mappings_json).unwrap_or_default();
+        Ok(AlignmentPackage {
+            id,
+            book_id_a,
+            book_id_b,
+            lang_a,
+            lang_b,
+            mappings,
+        })
+    })?;
 
-    let Some((id, book_id_a, book_id_b, lang_a, lang_b, mappings_json)) = row else {
-        return Ok(None);
-    };
-    let mappings: Vec<AlignmentMapping> = serde_json::from_str(&mappings_json).unwrap_or_default();
-    Ok(Some(AlignmentPackage { id, book_id_a, book_id_b, lang_a, lang_b, mappings }))
+    let mut pkgs = Vec::new();
+    for r in rows {
+        pkgs.push(r?);
+    }
+    Ok(pkgs)
+}
+
+/// The Alignment Package with specific `package_id`.
+pub fn get_package(conn: &Connection, package_id: &str) -> rusqlite::Result<Option<AlignmentPackage>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, book_id_a, book_id_b, lang_a, lang_b, mappings_json
+         FROM alignment_package
+         WHERE id = ?1",
+    )?;
+
+    let mut rows = stmt.query_map([package_id], |row| {
+        let id: String = row.get(0)?;
+        let book_id_a: String = row.get(1)?;
+        let book_id_b: String = row.get(2)?;
+        let lang_a: String = row.get(3)?;
+        let lang_b: String = row.get(4)?;
+        let mappings_json: String = row.get(5)?;
+        let mappings: Vec<AlignmentMapping> = serde_json::from_str(&mappings_json).unwrap_or_default();
+        Ok(AlignmentPackage {
+            id,
+            book_id_a,
+            book_id_b,
+            lang_a,
+            lang_b,
+            mappings,
+        })
+    })?;
+
+    if let Some(r) = rows.next() {
+        Ok(Some(r?))
+    } else {
+        Ok(None)
+    }
+}
+
+/// The Alignment Package pairing `book_id` with another Book if exactly one
+/// exists. If multiple packages exist, returns an error requiring explicit selection.
+pub fn find_package_for_book(conn: &Connection, book_id: &str) -> rusqlite::Result<Option<AlignmentPackage>> {
+    let mut pkgs = list_packages_for_book(conn, book_id)?;
+    if pkgs.is_empty() {
+        Ok(None)
+    } else if pkgs.len() == 1 {
+        Ok(Some(pkgs.remove(0)))
+    } else {
+        Err(rusqlite::Error::FromSqlConversionFailure(
+            pkgs.len(),
+            rusqlite::types::Type::Text,
+            Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("multiple alignment packages ({}) found for book {book_id}", pkgs.len()),
+            )),
+        ))
+    }
+}
+
+/// Lists all Alignment Packages with resolved book titles and structural mapping counts.
+pub fn list_all_alignment_packages(conn: &Connection) -> rusqlite::Result<Vec<AlignmentPackageSummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT ap.id, ap.book_id_a, b1.title, ap.lang_a, ap.book_id_b, b2.title, ap.lang_b, ap.mappings_json
+         FROM alignment_package ap
+         LEFT JOIN book b1 ON b1.id = ap.book_id_a
+         LEFT JOIN book b2 ON b2.id = ap.book_id_b
+         ORDER BY ap.rowid DESC",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        let id: String = row.get(0)?;
+        let book_id_a: String = row.get(1)?;
+        let book_title_a: String = row.get::<_, Option<String>>(2)?.unwrap_or_else(|| book_id_a.clone());
+        let lang_a: String = row.get(3)?;
+        let book_id_b: String = row.get(4)?;
+        let book_title_b: String = row.get::<_, Option<String>>(5)?.unwrap_or_else(|| book_id_b.clone());
+        let lang_b: String = row.get(6)?;
+        let mappings_json: String = row.get(7)?;
+
+        let mappings: Vec<AlignmentMapping> = serde_json::from_str(&mappings_json).unwrap_or_default();
+        let total_mappings = mappings.len();
+        let clean_mappings = mappings.iter().filter(|m| m.status() == "ok").count();
+        let review_mappings = total_mappings.saturating_sub(clean_mappings);
+
+        Ok(AlignmentPackageSummary {
+            id,
+            book_id_a,
+            book_title_a,
+            lang_a,
+            book_id_b,
+            book_title_b,
+            lang_b,
+            total_mappings,
+            clean_mappings,
+            review_mappings,
+        })
+    })?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        result.push(r?);
+    }
+    Ok(result)
+}
+
+/// Returns library-wide alignment statistics (total packages, unique paired books count).
+pub fn get_alignment_statistics(conn: &Connection) -> rusqlite::Result<AlignmentStatistics> {
+    let packages = list_all_alignment_packages(conn)?;
+    let total_packages = packages.len();
+    let mut unique_books = std::collections::HashSet::new();
+    for p in &packages {
+        unique_books.insert(p.book_id_a.clone());
+        unique_books.insert(p.book_id_b.clone());
+    }
+    Ok(AlignmentStatistics {
+        total_packages,
+        total_paired_books: unique_books.len(),
+    })
+}
+
+/// Deletes an alignment package by id. Removes only the package pairing, never the Books or reading data.
+pub fn delete_alignment_package(conn: &Connection, package_id: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM alignment_package WHERE id = ?1", [package_id])?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -296,4 +448,67 @@ mod tests {
         assert_eq!(find_package_for_book(&conn, "book-a").unwrap(), Some(imported.clone()));
         assert_eq!(find_package_for_book(&conn, "book-b").unwrap(), Some(imported));
     }
+
+    #[test]
+    fn list_all_alignment_packages_and_statistics_round_trip() {
+        let conn = conn_with_two_books();
+        import_package(&conn, "pkg-1", &sample_file()).unwrap();
+
+        let list = list_all_alignment_packages(&conn).unwrap();
+        assert_eq!(list.len(), 1);
+        let pkg = &list[0];
+        assert_eq!(pkg.id, "pkg-1");
+        assert_eq!(pkg.book_title_a, "English Edition");
+        assert_eq!(pkg.book_title_b, "Chinese Edition");
+        assert_eq!(pkg.total_mappings, 2);
+        assert_eq!(pkg.clean_mappings, 1);
+        assert_eq!(pkg.review_mappings, 1);
+
+        let stats = get_alignment_statistics(&conn).unwrap();
+        assert_eq!(stats.total_packages, 1);
+        assert_eq!(stats.total_paired_books, 2);
+
+        delete_alignment_package(&conn, "pkg-1").unwrap();
+        assert_eq!(list_all_alignment_packages(&conn).unwrap().len(), 0);
+        assert_eq!(get_alignment_statistics(&conn).unwrap().total_packages, 0);
+
+        // Verify book records were never deleted
+        assert!(find_package_for_book(&conn, "book-a").unwrap().is_none());
+    }
+
+    #[test]
+    fn list_packages_for_book_returns_all_pairings_and_find_package_rejects_ambiguous_plural() {
+        let conn = conn_with_two_books();
+        // Add a third book
+        conn.execute("INSERT INTO book (id, title) VALUES ('book-c', 'French Edition')", []).unwrap();
+        conn.execute(
+            "INSERT INTO book_file (book_id, path, fingerprint, format, ownership_mode)
+             VALUES ('book-c', 'c.txt', 'fp-c', 'txt', 'reference')",
+            [],
+        )
+        .unwrap();
+
+        import_package(&conn, "pkg-1", &sample_file()).unwrap();
+
+        let file_2 = AlignmentPackageFile {
+            book_a_fingerprint: "fp-a".into(),
+            book_b_fingerprint: "fp-c".into(),
+            lang_a: "en".into(),
+            lang_b: "fr".into(),
+            mappings: vec![],
+        };
+        import_package(&conn, "pkg-2", &file_2).unwrap();
+
+        let book_a_pkgs = list_packages_for_book(&conn, "book-a").unwrap();
+        assert_eq!(book_a_pkgs.len(), 2);
+
+        // find_package_for_book truthfully rejects when multiple packages exist rather than guessing with LIMIT 1
+        assert!(find_package_for_book(&conn, "book-a").is_err());
+
+        // But single-pairing book-c resolves cleanly
+        let book_c_pkg = find_package_for_book(&conn, "book-c").unwrap();
+        assert!(book_c_pkg.is_some());
+        assert_eq!(book_c_pkg.unwrap().id, "pkg-2");
+    }
 }
+

@@ -47,7 +47,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   const [typographyOpen, setTypographyOpen] = useState(false);
   const [notebookOpen, setNotebookOpen] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
-  const [selection, setSelection] = useState<{ text: string; startOffset: number } | null>(null);
+  const [selection, setSelection] = useState<{ text: string; startOffset: number; assetId?: string } | null>(null);
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("yellow");
   const { progress, showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
@@ -87,7 +87,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
           progression_hint: decoded.length > 0 ? paragraphStart / decoded.length : 0,
           primary_anchor: String(paragraphStart),
           fallback_anchors: [],
-          context_selector: paragraph.slice(0, 80),
+          context_selector: null,
         };
         invoke("index_search_text_command", {
           bookId,
@@ -169,9 +169,9 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     const container = containerRef.current;
     if (!container) return;
 
-    invoke<Array<{ kind: string; text: string; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
+    invoke<Array<{ id: string; kind: string; text: string; orphaned: boolean; anchor?: DocumentLocationDTO }>>("list_reading_assets_command", { bookId })
       .then((assets) => {
-        const annotations = assets.filter((a) => a.kind === "annotation" && a.text?.trim());
+        const annotations = assets.filter((a) => a.kind === "annotation" && !a.orphaned && a.text?.trim());
         for (const ann of annotations) {
           const query = ann.text.trim();
           if (!query || !container) continue;
@@ -190,6 +190,16 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
                 const mark = document.createElement("mark");
                 mark.className = "reader-highlight";
                 mark.dataset.color = color;
+                mark.dataset.assetId = ann.id;
+                mark.addEventListener("click", (e) => {
+                  e.stopPropagation();
+                  const markRange = document.createRange();
+                  markRange.selectNodeContents(mark);
+                  const sel = document.getSelection();
+                  sel?.removeAllRanges();
+                  sel?.addRange(markRange);
+                  setSelection({ text: mark.textContent || "", startOffset: idx, assetId: ann.id });
+                });
                 range.surroundContents(mark);
               } catch {
                 // fallback
@@ -205,27 +215,6 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection || text === null) return;
     const color = selectedColor ?? highlightColor;
-    if (kind === "annotation") {
-      try {
-        const sel = document.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          const mark = document.createElement("mark");
-          mark.className = "reader-highlight";
-          mark.dataset.color = color;
-          range.surroundContents(mark);
-        }
-      } catch {
-        const sel = document.getSelection();
-        const containerNode = sel?.anchorNode?.nodeType === 1
-          ? (sel.anchorNode as HTMLElement)
-          : sel?.anchorNode?.parentElement;
-        const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
-        if (existingMark) {
-          existingMark.dataset.color = color;
-        }
-      }
-    }
     const anchor: DocumentLocationDTO = {
       book_id: bookId,
       format: "txt",
@@ -234,7 +223,58 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       fallback_anchors: [],
       context_selector: formatContextSelector(selection.text, color),
     };
-    await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+
+    const sel = document.getSelection();
+    const containerNode = sel?.anchorNode?.nodeType === 1
+      ? (sel.anchorNode as HTMLElement)
+      : sel?.anchorNode?.parentElement;
+    const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+    let targetAssetId = selection.assetId || existingMark?.dataset?.assetId;
+
+    if (kind === "annotation") {
+      if (targetAssetId) {
+        // Recolor existing highlight by ID
+        await invoke("update_reading_asset_anchor_command", {
+          assetId: targetAssetId,
+          anchor,
+        }).catch(() => {});
+        if (existingMark) {
+          existingMark.dataset.color = color;
+        }
+      } else {
+        // Create new highlight
+        try {
+          const created = await invoke<{ id: string }>("create_reading_asset_command", {
+            bookId,
+            kind,
+            text: selection.text,
+            anchor,
+          });
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const mark = document.createElement("mark");
+            mark.className = "reader-highlight";
+            mark.dataset.color = color;
+            mark.dataset.assetId = created.id;
+            mark.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const markRange = document.createRange();
+              markRange.selectNodeContents(mark);
+              const currentSel = document.getSelection();
+              currentSel?.removeAllRanges();
+              currentSel?.addRange(markRange);
+              setSelection({ text: mark.textContent || "", startOffset: selection.startOffset, assetId: created.id });
+            });
+            range.surroundContents(mark);
+          }
+        } catch {
+          // surround contents fallback
+        }
+      }
+    } else {
+      await invoke("create_reading_asset_command", { bookId, kind, text: selection.text, anchor }).catch(() => {});
+    }
+
     document.getSelection()?.removeAllRanges();
     setSelection(null);
     setNotebookRefreshKey((k) => k + 1);
@@ -248,6 +288,7 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       ? (sel.anchorNode as HTMLElement)
       : sel?.anchorNode?.parentElement;
     const existingMark = containerNode?.closest?.(".reader-highlight") as HTMLElement | null;
+    let targetAssetId = selection.assetId || existingMark?.dataset?.assetId;
 
     if (existingMark) {
       const parent = existingMark.parentNode;
@@ -257,17 +298,8 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       existingMark.remove();
     }
 
-    try {
-      const assets = await invoke<Array<{ id: string; kind: string; text: string }>>("list_reading_assets_command", { bookId });
-      const targetText = selection.text.trim().toLowerCase();
-      const match = assets.find(
-        (a) => a.kind === "annotation" && (a.text.trim().toLowerCase().includes(targetText) || targetText.includes(a.text.trim().toLowerCase())),
-      );
-      if (match) {
-        await invoke("mark_reading_asset_orphaned_command", { assetId: match.id });
-      }
-    } catch {
-      // ignore orphan error
+    if (targetAssetId) {
+      await invoke("delete_reading_asset_command", { assetId: targetAssetId }).catch(() => {});
     }
 
     document.getSelection()?.removeAllRanges();

@@ -4175,6 +4175,132 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
+/* --------------------------------------------------------------------------
+   Systemic Layout, Multi-Select, Collections Manage, and Modal Containment
+   -------------------------------------------------------------------------- */
+.book-details-screen {
+  overflow-y: auto !important;
+  position: relative !important;
+  height: 100vh;
+}
+
+.book-details-screen > .top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px;
+  max-width: 560px;
+  width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.modalHead h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  flex-shrink: 0;
+}
+
+.book.in-select-mode {
+  cursor: pointer;
+  user-select: none;
+}
+
+.book.selected {
+  border-color: var(--accent);
+  background: var(--accentSoft);
+}
+
+.book-card-checkbox {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.bulk-action-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+  z-index: 150;
+  animation: fadeIn 0.2s ease-out;
+  flex-wrap: wrap;
+}
+
+.bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.collections-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.collections-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+
 
 
 

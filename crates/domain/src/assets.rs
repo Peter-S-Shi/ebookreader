@@ -152,6 +152,28 @@ pub fn mark_orphaned(conn: &Connection, asset_id: &str) -> rusqlite::Result<()> 
     Ok(())
 }
 
+/// Permanently delete a reading asset (e.g. when unhighlighting/removing an annotation).
+/// Also cleans up any derived search_index entry.
+pub fn delete_asset(conn: &Connection, asset_id: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM reading_asset WHERE id = ?1", [asset_id])?;
+    let _ = conn.execute("DELETE FROM search_index WHERE id = ?1", [asset_id]);
+    Ok(())
+}
+
+/// Updates a reading asset's anchor location / context selector (e.g. when recoloring a highlight).
+pub fn update_asset_anchor(
+    conn: &Connection,
+    asset_id: &str,
+    anchor: Option<&DocumentLocation>,
+) -> rusqlite::Result<()> {
+    let anchor_json = anchor.map(|a| serde_json::to_string(a).expect("DocumentLocation serialization cannot fail"));
+    conn.execute(
+        "UPDATE reading_asset SET anchor_json = ?1 WHERE id = ?2",
+        (&anchor_json, asset_id),
+    )?;
+    Ok(())
+}
+
 /// Renders a Book's Notebook (`assets`, already filtered to that Book) as
 /// reader-friendly Markdown (`PRODUCT_SPEC.md` SS11: "Notebook export
 /// should support reader-friendly Markdown at minimum ... source
@@ -390,4 +412,47 @@ mod tests {
             "a free-standing Note has no source location to report"
         );
     }
+
+    #[test]
+    fn delete_asset_permanently_removes_asset_and_cleans_search_index() {
+        let conn = conn_with_book("book-1");
+        let asset = ReadingAsset {
+            id: "a1".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Annotation,
+            text: "highlighted snippet".into(),
+            anchor: Some(sample_anchor("book-1")),
+            orphaned: false,
+        };
+        create_asset(&conn, &asset).unwrap();
+        assert!(get_asset(&conn, "a1").unwrap().is_some());
+
+        delete_asset(&conn, "a1").unwrap();
+        assert!(get_asset(&conn, "a1").unwrap().is_none());
+    }
+
+    #[test]
+    fn update_asset_anchor_modifies_anchor_json_in_place() {
+        let conn = conn_with_book("book-1");
+        let asset = ReadingAsset {
+            id: "a1".into(),
+            book_id: "book-1".into(),
+            kind: AssetKind::Annotation,
+            text: "highlighted snippet".into(),
+            anchor: Some(sample_anchor("book-1")),
+            orphaned: false,
+        };
+        create_asset(&conn, &asset).unwrap();
+
+        let mut updated_anchor = sample_anchor("book-1");
+        updated_anchor.context_selector = Some("color:green|highlighted".into());
+
+        update_asset_anchor(&conn, "a1", Some(&updated_anchor)).unwrap();
+        let loaded = get_asset(&conn, "a1").unwrap().unwrap();
+        assert_eq!(
+            loaded.anchor.unwrap().context_selector,
+            Some("color:green|highlighted".into())
+        );
+    }
 }
+

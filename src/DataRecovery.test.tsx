@@ -18,6 +18,16 @@ beforeEach(() => {
   saveMock.mockReset();
   openMock.mockReset();
   confirmMock.mockReset();
+
+  invokeMock.mockImplementation((cmd: string) => {
+    if (cmd === "list_all_alignment_packages_command") {
+      return Promise.resolve([]);
+    }
+    if (cmd === "get_alignment_statistics_command") {
+      return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+    }
+    return Promise.resolve(undefined);
+  });
 });
 
 describe("DataRecovery", () => {
@@ -36,6 +46,8 @@ describe("DataRecovery", () => {
           active_pass_progress: 0,
         });
       }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
       return Promise.resolve(undefined);
     });
     confirmMock.mockResolvedValue(true);
@@ -69,6 +81,8 @@ describe("DataRecovery", () => {
           { book_id: "book-1", title: "Book One", path: "C:/books/one.epub", format: "epub", ownership_mode: "reference", available: true },
         ]);
       }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
       return Promise.resolve(undefined);
     });
     confirmMock.mockResolvedValue(false);
@@ -86,7 +100,14 @@ describe("DataRecovery", () => {
   it("creating an App Data Backup calls the command with the chosen path and reports the book count", async () => {
     const user = userEvent.setup();
     saveMock.mockResolvedValue("C:/backups/app-data.zip");
-    invokeMock.mockResolvedValue({ kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 3, files: [] });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "create_app_data_backup_command") {
+        return Promise.resolve({ kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 3, files: [] });
+      }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+      return Promise.resolve(undefined);
+    });
 
     render(<DataRecovery />);
     await user.click(screen.getByRole("button", { name: "Create App Data Backup" }));
@@ -107,16 +128,23 @@ describe("DataRecovery", () => {
     render(<DataRecovery />);
     await user.click(screen.getByRole("button", { name: "Create App Data Backup" }));
 
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalledWith("create_app_data_backup_command", expect.anything());
   });
 
   it("previewing a complete archive enables Restore", async () => {
     const user = userEvent.setup();
     openMock.mockResolvedValue("C:/backups/app-data.zip");
-    invokeMock.mockResolvedValue({
-      manifest: { kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 2, files: [] },
-      schema_ok: true,
-      missing: [],
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "preview_backup_command") {
+        return Promise.resolve({
+          manifest: { kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 2, files: [] },
+          schema_ok: true,
+          missing: [],
+        });
+      }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+      return Promise.resolve(undefined);
     });
 
     render(<DataRecovery />);
@@ -129,10 +157,17 @@ describe("DataRecovery", () => {
   it("previewing an incomplete archive disables Restore and shows what's missing", async () => {
     const user = userEvent.setup();
     openMock.mockResolvedValue("C:/backups/broken.zip");
-    invokeMock.mockResolvedValue({
-      manifest: { kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 1, files: ["managed/x.epub"] },
-      schema_ok: true,
-      missing: ["managed/x.epub"],
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "preview_backup_command") {
+        return Promise.resolve({
+          manifest: { kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 1, files: ["managed/x.epub"] },
+          schema_ok: true,
+          missing: ["managed/x.epub"],
+        });
+      }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+      return Promise.resolve(undefined);
     });
 
     render(<DataRecovery />);
@@ -157,6 +192,8 @@ describe("DataRecovery", () => {
       if (cmd === "restore_backup_command") {
         return Promise.resolve({ kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 2, files: [] });
       }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
       return Promise.resolve(undefined);
     });
     confirmMock.mockResolvedValue(true);
@@ -179,10 +216,17 @@ describe("DataRecovery", () => {
   it("declining the confirmation dialog does not call restore_backup_command", async () => {
     const user = userEvent.setup();
     openMock.mockResolvedValue("C:/backups/app-data.zip");
-    invokeMock.mockResolvedValue({
-      manifest: { kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 2, files: [] },
-      schema_ok: true,
-      missing: [],
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "preview_backup_command") {
+        return Promise.resolve({
+          manifest: { kind: "AppData", created_at: "2026-09-09T00:00:00Z", book_count: 2, files: [] },
+          schema_ok: true,
+          missing: [],
+        });
+      }
+      if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+      if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+      return Promise.resolve(undefined);
     });
     confirmMock.mockResolvedValue(false);
 
@@ -200,7 +244,14 @@ describe("DataRecovery", () => {
     it("excludes Reference files by default", async () => {
       const user = userEvent.setup();
       saveMock.mockResolvedValue("C:/backups/full.zip");
-      invokeMock.mockResolvedValue({ kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 1, files: [] });
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === "create_full_library_backup_command") {
+          return Promise.resolve({ kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 1, files: [] });
+        }
+        if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+        if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
+        return Promise.resolve(undefined);
+      });
 
       render(<DataRecovery />);
       await user.click(screen.getByRole("button", { name: "Create Full Library Backup" }));
@@ -224,6 +275,8 @@ describe("DataRecovery", () => {
         if (cmd === "create_full_library_backup_command") {
           return Promise.resolve({ kind: "FullLibrary", created_at: "2026-09-09T00:00:00Z", book_count: 3, files: [] });
         }
+        if (cmd === "list_all_alignment_packages_command") return Promise.resolve([]);
+        if (cmd === "get_alignment_statistics_command") return Promise.resolve({ total_packages: 0, total_paired_books: 0 });
         return Promise.resolve(undefined);
       });
       saveMock.mockResolvedValue("C:/backups/full.zip");
@@ -242,6 +295,85 @@ describe("DataRecovery", () => {
         "create_full_library_backup_command",
         expect.objectContaining({ extraReferenceFiles: ["C:/books/ref1.epub"] }),
       );
+    });
+  });
+
+  describe("Bilingual Alignments Management", () => {
+    it("renders alignment stats and package list on mount", async () => {
+      const mockPackages = [
+        {
+          id: "pkg-1",
+          book_id_a: "book-en",
+          book_title_a: "English Book",
+          lang_a: "en",
+          book_id_b: "book-zh",
+          book_title_b: "Chinese Book",
+          lang_b: "zh",
+          total_mappings: 120,
+          clean_mappings: 110,
+          review_mappings: 10,
+        },
+      ];
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === "list_all_alignment_packages_command") {
+          return Promise.resolve(mockPackages);
+        }
+        if (cmd === "get_alignment_statistics_command") {
+          return Promise.resolve({ total_packages: 1, total_paired_books: 2 });
+        }
+        return Promise.resolve(undefined);
+      });
+
+      render(<DataRecovery />);
+
+      expect(await screen.findByText(/1 Alignment Package\(s\) · 2 Paired Book\(s\)/)).toBeInTheDocument();
+      expect(screen.getByText(/English Book/)).toBeInTheDocument();
+      expect(screen.getByText(/Chinese Book/)).toBeInTheDocument();
+      expect(screen.getByText(/120 mappings/)).toBeInTheDocument();
+    });
+
+    it("unpairs/deletes an alignment package after confirmation dialog", async () => {
+      const user = userEvent.setup();
+      const mockPackages = [
+        {
+          id: "pkg-1",
+          book_id_a: "book-en",
+          book_title_a: "English Book",
+          lang_a: "en",
+          book_id_b: "book-zh",
+          book_title_b: "Chinese Book",
+          lang_b: "zh",
+          total_mappings: 120,
+          clean_mappings: 110,
+          review_mappings: 10,
+        },
+      ];
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === "list_all_alignment_packages_command") {
+          return Promise.resolve(mockPackages);
+        }
+        if (cmd === "get_alignment_statistics_command") {
+          return Promise.resolve({ total_packages: 1, total_paired_books: 2 });
+        }
+        if (cmd === "delete_alignment_package_command") {
+          return Promise.resolve();
+        }
+        return Promise.resolve(undefined);
+      });
+
+      render(<DataRecovery />);
+      await screen.findByText(/English Book/);
+
+      await user.click(screen.getByRole("button", { name: "Unpair / Delete" }));
+      expect(screen.getByRole("heading", { name: "Unpair Alignment Package" })).toBeInTheDocument();
+      expect(screen.getByText(/Remove the pairing between/)).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Confirm Unpair" }));
+
+      await waitFor(() => {
+        expect(invokeMock).toHaveBeenCalledWith("delete_alignment_package_command", { packageId: "pkg-1" });
+      });
+      expect(await screen.findByText(/Alignment package removed. Books and reading data were preserved./)).toBeInTheDocument();
     });
   });
 });
