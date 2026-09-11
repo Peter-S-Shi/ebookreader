@@ -205,6 +205,7 @@ export function BookHoursPlanning({
   const [profileToDelete, setProfileToDelete] = useState<ReadingProfileDTO | null>(null);
   const [profileDeleting, setProfileDeleting] = useState(false);
   const [profileDeleteError, setProfileDeleteError] = useState<string | null>(null);
+  const [openProfileActionMenuId, setOpenProfileActionMenuId] = useState<string | null>(null);
 
   // Global defaults inputs (truthful, no invented fallbacks)
   const [globalSpeedPages, setGlobalSpeedPages] = useState<string>("");
@@ -536,6 +537,7 @@ export function BookHoursPlanning({
   };
 
   const handleSetDefaultProfile = async (id: string) => {
+    setOpenProfileActionMenuId(null);
     try {
       await invoke("set_default_reading_profile_command", { id });
       await fetchOverview();
@@ -545,6 +547,7 @@ export function BookHoursPlanning({
   };
 
   const handleDeleteProfileClick = (p: ReadingProfileDTO) => {
+    setOpenProfileActionMenuId(null);
     if (p.is_default) {
       setError("Cannot delete the default reading profile.");
       return;
@@ -1463,46 +1466,13 @@ export function BookHoursPlanning({
 
                 return (
                   <div key={p.id} className="bhProfileCard">
-                    <div className="topline">
-                      <div className="bhProfileIdentity">
-                        <span className="bhBadge profile">Profile</span>
-                        <b>{p.name}</b>
-                        {p.is_default && <span className="bhBadge default">[Default]</span>}
-                      </div>
-                      <div className="bhProfileActions">
-                        <button
-                          type="button"
-                          className="btn"
-                          data-open-profile-editor
-                          style={{ height: "30px" }}
-                          onClick={() => openEditProfileDrawer(p)}
-                        >
-                          Edit
-                        </button>
-                        {!p.is_default && (
-                          <>
-                            <button
-                              type="button"
-                              className="btn"
-                              style={{ height: "30px", fontSize: "10px" }}
-                              onClick={() => handleSetDefaultProfile(p.id)}
-                            >
-                              Set Default
-                            </button>
-                            <button
-                              type="button"
-                              className="btn"
-                              style={{ height: "30px", color: "var(--danger, #a34c45)" }}
-                              onClick={() => handleDeleteProfileClick(p)}
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
+                    <div className="bhProfileBadges">
+                      <span className="bhBadge profile">Profile</span>
+                      {p.is_default && <span className="bhBadge default">[Default]</span>}
                     </div>
-                    <div className="bhLead" style={{ marginTop: "8px" }}>
-                      {p.description || "No description provided."}
+                    <div className="bhProfileTitleBlock">
+                      <h4 className="bhProfileName">{p.name}</h4>
+                      <div className="bhLead">{p.description || "No description provided."}</div>
                     </div>
                     <div className="profileStats">
                       <div>
@@ -1525,6 +1495,54 @@ export function BookHoursPlanning({
                     <div className="bhNote">
                       Difficulty coefficient {p.difficulty_multiplier.toFixed(1)} · Uses unit-based
                       baseline speed
+                    </div>
+                    <div className="bhProfileFooter">
+                      <button
+                        type="button"
+                        className="btn"
+                        data-open-profile-editor
+                        onClick={() => openEditProfileDrawer(p)}
+                      >
+                        Edit Profile
+                      </button>
+                      <div className="bhProfileMenu">
+                        <button
+                          type="button"
+                          className="btn bhProfileMoreButton"
+                          aria-label="More profile actions"
+                          aria-expanded={openProfileActionMenuId === p.id}
+                          onClick={() =>
+                            setOpenProfileActionMenuId((current) => (current === p.id ? null : p.id))
+                          }
+                        >
+                          ⋯
+                        </button>
+                        {openProfileActionMenuId === p.id && (
+                          <div className="bhProfileMenuPanel">
+                            {!p.is_default ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetDefaultProfile(p.id)}
+                                >
+                                  Set as Default
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger"
+                                  onClick={() => handleDeleteProfileClick(p)}
+                                >
+                                  Delete Profile…
+                                </button>
+                              </>
+                            ) : (
+                              <button type="button" disabled>
+                                Default Profile
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

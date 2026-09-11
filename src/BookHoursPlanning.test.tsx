@@ -635,9 +635,14 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     expect(within(profilesPane).getByText("Light Reading")).toBeInTheDocument();
 
     const profileCard = within(profilesPane).getByText("Textbook").closest(".bhProfileCard")!;
-    expect(profileCard.querySelector(".bhProfileIdentity")).toContainElement(within(profileCard as HTMLElement).getByText("Textbook"));
-    expect(profileCard.querySelector(".bhProfileActions")).toContainElement(
-      within(profileCard as HTMLElement).getByRole("button", { name: "Edit" }),
+    expect(profileCard.querySelector(".bhProfileBadges")).toContainElement(
+      within(profileCard as HTMLElement).getByText("Profile"),
+    );
+    expect(profileCard.querySelector(".bhProfileTitleBlock")).toContainElement(
+      within(profileCard as HTMLElement).getByText("Textbook"),
+    );
+    expect(profileCard.querySelector(".bhProfileFooter")).toContainElement(
+      within(profileCard as HTMLElement).getByRole("button", { name: "Edit Profile" }),
     );
 
     // 1. Create Profile
@@ -665,7 +670,7 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     );
 
     // 2. Edit Profile
-    const editBtns = within(profilesPane).getAllByRole("button", { name: "Edit" });
+    const editBtns = within(profilesPane).getAllByRole("button", { name: "Edit Profile" });
     await user.click(editBtns[0]); // Edit Textbook
 
     const editDrawer = screen.getByRole("dialog", { name: "Edit Reading Profile" });
@@ -686,8 +691,8 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     );
 
     // 3. Set Default Profile
-    const setDefaultBtns = within(profilesPane).getAllByRole("button", { name: "Set Default" });
-    await user.click(setDefaultBtns[0]); // Set Textbook as default
+    await user.click(within(profileCard as HTMLElement).getByRole("button", { name: "More profile actions" }));
+    await user.click(within(profileCard as HTMLElement).getByRole("button", { name: "Set as Default" }));
 
     expect(invokeMock).toHaveBeenCalledWith("set_default_reading_profile_command", {
       id: "p-textbook",
@@ -695,7 +700,8 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
 
     // 4. Delete Profile with Confirmation
     const lightCard = within(profilesPane).getByText("Light Reading").closest(".bhProfileCard")!;
-    const deleteBtn = within(lightCard as HTMLElement).getByRole("button", { name: "Delete" });
+    await user.click(within(lightCard as HTMLElement).getByRole("button", { name: "More profile actions" }));
+    const deleteBtn = within(lightCard as HTMLElement).getByRole("button", { name: "Delete Profile…" });
     await user.click(deleteBtn);
 
     const confirmModal = screen.getByRole("dialog", { name: "Confirm Delete Profile" });
@@ -708,6 +714,58 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     expect(invokeMock).toHaveBeenCalledWith("delete_reading_profile_command", {
       id: "p-light",
     });
+  });
+
+  it("keeps long profile names independent from bounded footer actions", async () => {
+    const longProfiles: ReadingProfileDTO[] = [
+      {
+        id: "p-long-en",
+        name: "Long academic research profile for densely annotated Victorian social history monographs",
+        difficulty_multiplier: 1.8,
+        description: "Long English name with ordinary spaces should wrap as full text.",
+        is_default: false,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "p-long-zh",
+        name: "中文阅读研究资料深度分析档案",
+        difficulty_multiplier: 1.4,
+        description: "Chinese profile names should remain in the title block.",
+        is_default: true,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "p-mixed",
+        name: "Mixed 中英 Reading Profile for poetry and drama",
+        difficulty_multiplier: 0.8,
+        description: "Mixed-language profile names should not be squeezed by actions.",
+        is_default: false,
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_overview_command") return mockPopulatedOverview;
+      if (cmd === "get_global_book_hours_defaults_command") return mockGlobalDefaults;
+      if (cmd === "list_reading_profiles_command") return longProfiles;
+      return undefined;
+    });
+
+    render(<BookHoursPlanning onBack={vi.fn()} initialTab="profiles" />);
+
+    const profilesPane = await screen.findByRole("tabpanel", { name: "Profiles" });
+    for (const profile of longProfiles) {
+      const card = within(profilesPane).getByText(profile.name).closest(".bhProfileCard")!;
+      expect(card.querySelector(".bhProfileTitleBlock")).toContainElement(
+        within(card as HTMLElement).getByRole("heading", { level: 4, name: profile.name }),
+      );
+      expect(card.querySelector(".profileStats")?.children).toHaveLength(4);
+      expect(within(card as HTMLElement).getByRole("button", { name: "Edit Profile" })).toBeInTheDocument();
+      expect(within(card as HTMLElement).getByRole("button", { name: "More profile actions" })).toBeInTheDocument();
+    }
   });
 
   it("fully supports Formula & Defaults Tab (Tab 6): formula rules, speed inputs, impact preview, and apply", async () => {

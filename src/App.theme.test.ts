@@ -209,10 +209,15 @@ describe("App.css M9 viewport and overflow hardening", () => {
     expect(responsiveBlocks![0]).toContain("grid-template-columns: 1fr");
   });
 
-  it("profile-card identity and actions wrap within the card independently", () => {
-    expect(ruleFor(".bhProfileCard .topline")).toContain("grid-template-columns: minmax(0, 1fr)");
-    expect(ruleFor(".bhProfileIdentity")).toContain("min-width: 0");
-    expect(ruleFor(".bhProfileActions")).toContain("flex-wrap: wrap");
-    expect(ruleFor(".bhProfileActions")).toContain("max-width: 100%");
+  it("profile cards use independent semantic regions instead of squeezing names beside actions", () => {
+    expect(ruleFor(".bhProfileCards")).toContain("minmax(min(100%, 320px), 1fr)");
+    expect(ruleFor(".bhProfileCard")).toContain("grid-template-rows");
+    expect(ruleFor(".bhProfileTitleBlock")).toContain("min-width: 0");
+    expect(ruleFor(".bhProfileName")).toContain("overflow-wrap: break-word");
+    expect(ruleFor(".bhProfileName")).toContain("word-break: normal");
+    expect(ruleFor(".bhProfileFooter")).toContain("justify-content: space-between");
+    expect(ruleFor(".bhProfileMoreButton")).toContain("min-width: 34px");
+    expect(ruleFor(".bhProfileMenuPanel")).toContain("position: absolute");
+    expect(ruleFor(".bhProfileMenuPanel")).toContain("background: var(--surface)");
   });
 });

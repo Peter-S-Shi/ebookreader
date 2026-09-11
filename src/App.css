@@ -3991,55 +3991,48 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* BH-3C Profiles, Formula & Defaults, Recalculation Impact */
 .bhProfileCards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 14px;
 }
 
 .bhProfileCard {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 17px;
   padding: 15px;
-}
-
-.bhProfileCard .topline {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 8px;
-}
-
-.bhProfileIdentity {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   min-width: 0;
-  flex-wrap: wrap;
 }
 
-.bhProfileActions {
+.bhProfileBadges {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.bhProfileTitleBlock {
+  min-width: 0;
+}
+
+.bhProfileName {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1.35;
+  min-width: 0;
   max-width: 100%;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
 }
 
-.bhProfileCard .topline b {
-  font-size: 14px;
+.bhProfileTitleBlock .bhLead {
   min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 720px) {
-  .bhProfileCard .topline {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .bhProfileActions {
-    justify-content: flex-start;
-  }
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .bhProfileCard .profileStats {
@@ -4064,6 +4057,68 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 .bhProfileCard .profileStats b {
   font-size: 14px;
+}
+
+.bhProfileFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.bhProfileMenu {
+  position: relative;
+}
+
+.bhProfileMoreButton {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.bhProfileMenuPanel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 10;
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+}
+
+.bhProfileMenuPanel button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+}
+
+.bhProfileMenuPanel button:hover,
+.bhProfileMenuPanel button:focus-visible {
+  background: var(--surface2);
+}
+
+.bhProfileMenuPanel .danger {
+  color: var(--danger, #a34c45);
+}
+
+.bhProfileMenuPanel button:disabled {
+  color: var(--muted);
+  cursor: default;
 }
 
 .bhFormulaFlow {
