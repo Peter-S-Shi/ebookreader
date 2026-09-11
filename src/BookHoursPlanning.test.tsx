@@ -163,8 +163,10 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A)", () =>
     expect(screen.getByText("Across 11 calculated Books.")).toBeInTheDocument();
     expect(screen.getByText("79.4h")).toBeInTheDocument();
     expect(screen.getByText("Completed-equivalent Book Hours from unchanged reading progress.")).toBeInTheDocument();
-    // Library progress = average reading progress across library books = (36 + 18) / 2 = 27%
-    expect(screen.getByText("27%")).toBeInTheDocument();
+    // Book Hours Completion = Total Current Book Hours (79.4) / Total Planned Book Hours (164.2) * 100% = 48%
+    expect(screen.getByText("Book Hours Completion")).toBeInTheDocument();
+    expect(screen.getByText("48%")).toBeInTheDocument();
+    expect(screen.getByText("Total Current Book Hours ÷ Total Planned Book Hours.")).toBeInTheDocument();
     expect(screen.getByText("11 / 13")).toBeInTheDocument();
     expect(screen.getByText("2 Books are excluded from Book Hours totals until configured.")).toBeInTheDocument();
 
@@ -188,7 +190,7 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A)", () =>
 
     // Verify semantic rules and notes
     expect(
-      screen.getByText(/Changing Book Hours rules can recalculate hours across the system, but it never changes how much of a Book the user has actually read/i),
+      screen.getByText(/Reading Progress is an independent per-Book reading fact and is never changed by Book Hours recalculation/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Collection totals can overlap because the same Book may belong to more than one Collection/i),
@@ -227,7 +229,8 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A)", () =>
 
     await screen.findByText("What are Book Hours?");
     expect(screen.getAllByText("0.0h")).toHaveLength(2); // Total Planned & Current
-    expect(screen.getByText("0%")).toBeInTheDocument(); // Library progress
+    expect(screen.getByText("—")).toBeInTheDocument(); // Book Hours Completion empty indicator
+    expect(screen.getByText("No planned book hours available yet.")).toBeInTheDocument();
     expect(screen.getByText("0 / 0")).toBeInTheDocument(); // Coverage
     expect(screen.getByText("No Reading Profiles created yet.")).toBeInTheDocument();
     expect(screen.getByText("No Collections created yet.")).toBeInTheDocument();

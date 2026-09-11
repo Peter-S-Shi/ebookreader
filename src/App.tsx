@@ -69,14 +69,6 @@ interface BookHoursDTO {
   cumulative_reading_percent: number;
 }
 
-// Mirrors `ebookreader_domain::book_hours::WorkloadConfigRevision`.
-interface WorkloadConfigRevisionDTO {
-  quantity: number;
-  baseline_speed: number;
-  difficulty_coefficient: number;
-  recorded_at: string;
-}
-
 // Mirrors `commands::ImportBookResult`.
 type ImportBookResult =
   | { kind: "imported"; book_id: string }
@@ -129,10 +121,10 @@ function App() {
   const [duplicateImport, setDuplicateImport] = useState<{ bookId: string; title: string; path: string } | null>(
     null,
   );
-  // FC-A01 (`PRODUCT_SPEC.md` SS4.3/4.4): Collections are a user-controlled
+  // FC-A01 (`PRODUCT_SPEC.md` §4.3/4.4): Collections are a user-controlled
   // grouping of Books; a Book may belong to several. `collectionFilter` is
   // the Library's optional "show only this Collection" view; `null` means
-  // "All". `organizeBookId` is which Book's inline Collections/Tags editor
+  // "All". `organizeBookId` is which Book's inline Collections editor
   // is expanded, loaded lazily since most Books are never opened.
   const [collections, setCollections] = useState<CollectionDTO[]>([]);
   const [newCollectionName, setNewCollectionName] = useState("");
@@ -140,18 +132,8 @@ function App() {
   const [collectionFilterBookIds, setCollectionFilterBookIds] = useState<Set<string> | null>(null);
   const [organizeBookId, setOrganizeBookId] = useState<string | null>(null);
   const [organizeBookCollections, setOrganizeBookCollections] = useState<CollectionDTO[]>([]);
-  const [organizeBookTags, setOrganizeBookTags] = useState<string[]>([]);
-  // FC-A05 (`PRODUCT_SPEC.md` SS9): Book Hours estimate + its editable
-  // inputs, plus the durable revision history (SS9.3
-  // "versioned/explainable"), loaded lazily alongside Collections/Tags
-  // when the Organize panel opens.
   const [organizeBookHours, setOrganizeBookHours] = useState<BookHoursDTO | null>(null);
-  const [organizeWorkloadRevisions, setOrganizeWorkloadRevisions] = useState<WorkloadConfigRevisionDTO[]>([]);
-  const [workloadQuantity, setWorkloadQuantity] = useState("");
-  const [workloadBaselineSpeed, setWorkloadBaselineSpeed] = useState("");
-  const [workloadDifficultyCoefficient, setWorkloadDifficultyCoefficient] = useState("1");
   const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
-  const [newTagName, setNewTagName] = useState("");
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
   const [renamingBookId, setRenamingBookId] = useState<string | null>(null);
@@ -272,42 +254,12 @@ function App() {
     }
     setOrganizeBookId(bookId);
     setAddToCollectionChoice("");
-    setNewTagName("");
-    const [bookCollections, bookTags, bookHours, revisions] = await Promise.all([
+    const [bookCollections, bookHours] = await Promise.all([
       invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }),
-      invoke<string[]>("list_tags_for_book_command", { bookId }),
       invoke<BookHoursDTO | null>("get_book_hours_command", { bookId }),
-      invoke<WorkloadConfigRevisionDTO[]>("list_workload_config_revisions_command", { bookId }),
     ]);
     setOrganizeBookCollections(bookCollections);
-    setOrganizeBookTags(bookTags);
     setOrganizeBookHours(bookHours);
-    setOrganizeWorkloadRevisions(revisions);
-    const latest = revisions[0];
-    setWorkloadQuantity(latest ? String(latest.quantity) : "");
-    setWorkloadBaselineSpeed(latest ? String(latest.baseline_speed) : "");
-    setWorkloadDifficultyCoefficient(latest ? String(latest.difficulty_coefficient) : "1");
-  }
-
-  async function saveWorkloadConfig(bookId: string) {
-    const quantity = Number.parseFloat(workloadQuantity);
-    const baselineSpeed = Number.parseFloat(workloadBaselineSpeed);
-    const difficultyCoefficient = Number.parseFloat(workloadDifficultyCoefficient);
-    if (!Number.isFinite(quantity) || !Number.isFinite(baselineSpeed) || !Number.isFinite(difficultyCoefficient)) return;
-
-    await invoke("save_workload_config_command", {
-      bookId,
-      quantity,
-      baselineSpeed,
-      difficultyCoefficient,
-      recordedAt: new Date().toISOString(),
-    });
-    const [bookHours, revisions] = await Promise.all([
-      invoke<BookHoursDTO | null>("get_book_hours_command", { bookId }),
-      invoke<WorkloadConfigRevisionDTO[]>("list_workload_config_revisions_command", { bookId }),
-    ]);
-    setOrganizeBookHours(bookHours);
-    setOrganizeWorkloadRevisions(revisions);
   }
 
   async function addBookToCollection(bookId: string, collectionId: string) {
@@ -322,19 +274,6 @@ function App() {
     await invoke("remove_book_from_collection_command", { bookId, collectionId });
     setOrganizeBookCollections(await invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }));
     if (collectionFilter) await applyCollectionFilter(collectionFilter);
-  }
-
-  async function addTagToBook(bookId: string) {
-    const tagName = newTagName.trim();
-    if (!tagName) return;
-    await invoke("add_tag_to_book_command", { bookId, tagName });
-    setNewTagName("");
-    setOrganizeBookTags(await invoke<string[]>("list_tags_for_book_command", { bookId }));
-  }
-
-  async function removeTagFromBook(bookId: string, tagName: string) {
-    await invoke("remove_tag_from_book_command", { bookId, tagName });
-    setOrganizeBookTags(await invoke<string[]>("list_tags_for_book_command", { bookId }));
   }
 
   async function importBook() {
@@ -992,32 +931,6 @@ function App() {
                               </select>
                             </label>
                           </div>
-                          <div className="organize-section">
-                            <span className="organize-label">Tags: </span>
-                            {organizeBookTags.length === 0 ? (
-                              <span className="organize-none">None</span>
-                            ) : (
-                              organizeBookTags.map((tag) => (
-                                <span key={tag} className="tag-chip">
-                                  {tag}
-                                  <button type="button" onClick={() => removeTagFromBook(book.book_id, tag)}>
-                                    Remove
-                                  </button>
-                                </span>
-                              ))
-                            )}
-                            <label className="organize-input-wrap">
-                              New Tag
-                              <input
-                                type="text"
-                                value={newTagName}
-                                onChange={(e) => setNewTagName(e.target.value)}
-                              />
-                            </label>
-                            <button type="button" className="btn-sm" onClick={() => addTagToBook(book.book_id)}>
-                              Add Tag
-                            </button>
-                          </div>
                           <div role="region" aria-label={`Book Hours for ${book.title}`} className="organize-section workload-section">
                             <span className="organize-label">Book Hours: </span>
                             {organizeBookHours ? (
@@ -1029,45 +942,14 @@ function App() {
                             ) : (
                               <span className="organize-none">Not configured yet.</span>
                             )}
-                            <div className="workload-inputs">
-                              <label>
-                                Quantity
-                                <input
-                                  type="number"
-                                  value={workloadQuantity}
-                                  onChange={(e) => setWorkloadQuantity(e.target.value)}
-                                />
-                              </label>
-                              <label>
-                                Baseline Speed
-                                <input
-                                  type="number"
-                                  value={workloadBaselineSpeed}
-                                  onChange={(e) => setWorkloadBaselineSpeed(e.target.value)}
-                                />
-                              </label>
-                              <label>
-                                Difficulty Coefficient
-                                <input
-                                  type="number"
-                                  value={workloadDifficultyCoefficient}
-                                  onChange={(e) => setWorkloadDifficultyCoefficient(e.target.value)}
-                                />
-                              </label>
-                              <button type="button" className="btn-sm" onClick={() => saveWorkloadConfig(book.book_id)}>
-                                Save Book Hours Config
-                              </button>
-                            </div>
-                            {organizeWorkloadRevisions.length > 0 && (
-                              <ul className="workload-revision-history">
-                                {organizeWorkloadRevisions.map((revision, index) => (
-                                  <li key={index}>
-                                    {revision.recorded_at}: Quantity {revision.quantity}, Speed{" "}
-                                    {revision.baseline_speed}, Difficulty {revision.difficulty_coefficient}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
+                            <button
+                              type="button"
+                              className="btn-sm"
+                              style={{ marginLeft: "8px" }}
+                              onClick={() => setDestination("bookHours")}
+                            >
+                              Manage in Book Hours Planning
+                            </button>
                           </div>
                         </div>
                       )}

@@ -103,11 +103,12 @@ export function BookHoursPlanning({ onBack, initialTab = "overview" }: BookHours
   }, []);
 
   const uncalculatedCount = overview?.global_coverage.uncalculated_books ?? 0;
-  // Reading Progress is an independent reading fact derived directly from actual reading progress (not recalculated from hours)
-  const libraryProgressPercent =
-    overview && overview.books.length > 0
-      ? Math.round(overview.books.reduce((acc, b) => acc + b.cumulative_percent, 0) / overview.books.length)
-      : 0;
+  // Book Hours Completion = Total Current Book Hours / Total Planned Book Hours * 100%
+  // Truthful unavailable state when total planned hours is zero.
+  const bookHoursCompletionPercent =
+    overview && overview.total_planned_hours > 0
+      ? Math.round((overview.total_current_hours / overview.total_planned_hours) * 100)
+      : null;
 
   const handleTabKeyDown = (e: React.KeyboardEvent, currentIndex: number) => {
     if (e.key === "ArrowRight") {
@@ -212,9 +213,8 @@ export function BookHoursPlanning({ onBack, initialTab = "overview" }: BookHours
                       Hours result directly.
                     </div>
                     <div className="bhRule">
-                      <b>Reading Progress is independent.</b> Changing Book Hours rules can
-                      recalculate hours across the system, but it never changes how much of a Book
-                      the user has actually read.
+                      <b>Reading Progress is independent.</b> Reading Progress is an independent
+                      per-Book reading fact and is never changed by Book Hours recalculation.
                     </div>
                   </div>
                   <div className="bhCard">
@@ -246,9 +246,17 @@ export function BookHoursPlanning({ onBack, initialTab = "overview" }: BookHours
                     <small>Completed-equivalent Book Hours from unchanged reading progress.</small>
                   </div>
                   <div className="bhMetric">
-                    <span>Library progress</span>
-                    <b>{libraryProgressPercent}%</b>
-                    <small>Reading fact; not recalculated when Book Hours rules change.</small>
+                    <span>Book Hours Completion</span>
+                    <b>
+                      {bookHoursCompletionPercent !== null
+                        ? `${bookHoursCompletionPercent}%`
+                        : "—"}
+                    </b>
+                    <small>
+                      {bookHoursCompletionPercent !== null
+                        ? "Total Current Book Hours ÷ Total Planned Book Hours."
+                        : "No planned book hours available yet."}
+                    </small>
                   </div>
                   <div className={`bhMetric ${uncalculatedCount > 0 ? "attn" : ""}`}>
                     <span>Calculation coverage</span>
