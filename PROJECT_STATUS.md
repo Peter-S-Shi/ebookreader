@@ -18,28 +18,32 @@ Current Phase: **Milestone 10 Active (M10-A — RC Build & Clean Install)**. Ful
 - Reviewed correctness/data integrity, migrations/partial writes, relink/orphan handling, ReadingSession shutdown, Highlight/Alignment durability, OCR correction durability, Backup/Restore, empty/loading/error/degraded states, keyboard/focus, Light/Dark contrast, performance/memory, privacy, dependency/license hygiene, and font redistribution boundaries. No release blockers remain.
 
 **M10-A RC Build & Packaging Verification:**
-- Production Tauri bundle build executed (`npm run tauri build`), generating candidate production installers:
-  - NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (Candidate)
-  - MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi`
-- Packaged application boundary verified: local SQLite storage initializes at `%APPDATA%\com.peter-shi.ebookreader`, embedded frontend bundle requires no development workspace dependencies, and OCR engine safely degrades when optional OCR assets are not present.
+- Initial clean-environment installation exposed a packaged-runtime dependency defect: `libstdc++-6.dll was not found` on a clean Windows 11 environment due to `clipper-sys` MinGW dynamic linkage.
+- Root Cause / Earliest Wrong Layer: Packaging & Bundling Configuration (`src-tauri/tauri.conf.json`). Under the MinGW GNU toolchain, the C++ runtime (`libstdc++-6.dll`) and its prerequisites (`libgcc_s_seh-1.dll`, `libwinpthread-1.dll`) were linked dynamically but not provisioned in the installer payload.
+- Production Fix: Configured `src-tauri/tauri.conf.json` `bundle.resources` mapping (`"redist/*": "./"`) to package the full MinGW redistributable DLL closure into `$INSTDIR` alongside `ebookreader.exe` and `WebView2Loader.dll`.
+- Regression Coverage: Added `src/packagingRuntime.test.ts` (4 deterministic tests verifying resource configuration, non-empty redist DLLs, and NSIS/WiX installer script emission).
+- Dependency Closure: Verified with `objdump -p` that all runtime dependencies (`ebookreader.exe`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`, `WebView2Loader.dll`) are either co-located in `$INSTDIR` or resolve to standard Windows OS libraries in `System32`. Zero external runtime DLL dependencies remain unresolved.
+- Rebuilt Production Installers:
+  - NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (SHA256: `B62B7828F4746FC977F5257190F29F99A70515B3FB64540BCA9285D87FC58F07`)
+  - MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi` (SHA256: `D260CD581EDECEEA690455DC7FCCF2487D4C8E293B61C3F1A2A7F41196BBBF94`)
 
 **Full Automated Regression Verification:**
-- Frontend unit tests `npm test`: 37 test files, 298 passed; 0 failed.
+- Frontend unit tests `npm test`: 38 test files, 302 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
 - Rust workspace tests `cargo test --workspace`: 216 passed, 2 ignored; 0 failed.
 - Production frontend build `npm run build`: passed.
 - Production Tauri release build `npm run tauri build`: passed.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A in progress).
-Current Checkpoint / Promotion Unit: **M10-A (RC Candidate Built → Awaiting Clean Install Acceptance)**.
-Current Branch / PR: `milestone/10a-rc-clean-install`
+Current Checkpoint / Promotion Unit: **M10-A (Packaged Runtime Blocker Resolved → Awaiting Clean Retest)**.
+Current Branch / PR: `milestone/10a-rc-clean-install` / PR #1
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening & Book Hours V1 Redesign)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
-RC / Release State: M10-A candidate built; awaiting clean-environment installation and GUI acceptance evidence.
-Next Action: Provide candidate installer artifact and clean-environment acceptance checklist for human gate validation.
+RC / Release State: M10-A candidate rebuilt with bundled runtime DLLs; awaiting clean-environment retest.
+Next Action: Provide rebuilt candidate installer artifact for targeted human clean-environment retest.
 
 
 
