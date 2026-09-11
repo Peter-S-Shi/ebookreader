@@ -1045,7 +1045,7 @@ install
 → restored state verified
 ```
 
-**Satisfied.** All criteria verified through M10-A, M10-B, and M10-C human acceptance testing. EbookReader v1.0.0 is officially released.
+**Satisfied.** Package acceptance criteria were verified through M10-A and M10-B human clean-environment testing; M10-C completed release governance and publication verification. EbookReader v1.0.0 is officially released.
 
 ---
 
