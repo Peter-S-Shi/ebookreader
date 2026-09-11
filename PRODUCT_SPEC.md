@@ -549,7 +549,17 @@ CJK search quality is an M0 feasibility question.
 
 ## 13. OCR
 
-### 13.1 Product behavior
+### 13.1 Product Architecture & Capability Model
+
+OCR is an **Optional Local Capability** of EbookReader:
+
+- **Lightweight Core**: EbookReader Core installer does not bundle heavy OCR neural network models or ONNX runtime binaries (~100MB), keeping the Core download and installation lightweight (~13MB).
+- **Normal Visual Reading**: Scanned and image-based PDFs remain 100% visually readable without OCR.
+- **Official Optional OCR Pack**: An official, version-compatible standalone installer (`EbookReader_OCR_Pack_<version>_x64-setup.exe`) provides the required local OCR models (PaddleOCR DBNet detection, SVTR-LCNet recognition, orientation classifier) and ONNX runtime binaries (`onnxruntime.dll`).
+- **Zero-Configuration Discovery**: Core automatically discovers installed OCR assets in standard app-owned locations (`%APPDATA%\com.peter-shi.ebookreader\ocr-assets\` or `$INSTDIR\ocr-assets\`) without requiring manual path configuration or external third-party tools.
+- **Truthful Degraded State**: When OCR Pack is not installed, the application enters a neutral, non-error informational state (`OCR Pack Not Installed`). The user is cleanly informed of how to enable local OCR by running the official installer.
+
+### 13.2 Product Behavior
 
 For scanned PDF:
 
@@ -564,32 +574,27 @@ For scanned PDF:
 - corrections are user data;
 - raw OCR/cache is rebuildable.
 
-### 13.2 Pre-OCR degraded state
+### 13.3 Pre-OCR & Uninstalled Degraded State
 
-Before OCR, do not pretend that:
+When OCR Pack is uninstalled or before OCR is run on a document, the system does not pretend that:
 
 - search text exists;
 - word count exists;
 - text selection/highlight works;
 - text-bound excerpt/annotation is available.
 
-### 13.3 Backend status
+Absence of the OCR Pack is handled gracefully as an optional feature not installed rather than an application failure or runtime crash.
 
-OCR backend: **Open until M0 evidence**.
+### 13.4 Asset Governance & Provenance
 
-M0 should prioritize a document-OCR workload:
+The official Optional OCR Pack bundles:
+- `onnxruntime.dll` / `onnxruntime_providers_shared.dll`: Microsoft ONNX Runtime (MIT License)
+- `PP-OCRv6_det_medium.onnx`: PaddleOCR DBNet (Apache-2.0 License)
+- `PP-OCRv6_rec_small.onnx`: PaddleOCR SVTR-LCNet (Apache-2.0 License)
+- `ch_ppocr_mobile_v2.0_cls_mobile.onnx`: PaddleOCR Orientation Classifier (Apache-2.0 License)
+- Character dictionary / asset metadata (Apache-2.0 License)
 
-- recognition accuracy;
-- reading order;
-- bounding boxes;
-- searchable/selectable layer quality;
-- excerpt extraction;
-- annotation jump-back;
-- processing time/page;
-- memory;
-- cancel/resume behavior.
-
-Development may reuse existing local model/runtime assets to avoid unnecessary re-downloads. The released application must not depend on another product being installed.
+All bundled components possess verified redistribution rights and install directly into application data paths without system-wide modifications.
 
 ---
 

@@ -1,7 +1,7 @@
 [package]
 name = "ebookreader"
-version = "0.1.0"
-description = "EbookReader — a Windows-first, local-first personal reading workspace"
+version = "1.0.0"
+description = "A Windows-first personal reading workspace for PDF, EPUB, and TXT"
 authors = ["Peter Shi"]
 edition = "2021"
 

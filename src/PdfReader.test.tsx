@@ -134,7 +134,7 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     expect(await screen.findByText("Page 13 of 50")).toBeInTheDocument();
 
     const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 0 });
+    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 12 * 16 });
     fireEvent.scroll(continuousSurface);
     expect(screen.getByText("Page 13 of 50")).toBeInTheDocument();
   });

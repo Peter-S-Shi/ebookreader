@@ -1,6 +1,6 @@
 [package]
 name = "ebookreader-domain"
-version = "0.1.0"
+version = "1.0.0"
 description = "EbookReader domain/application logic — no Tauri or GUI dependency, so tests never need to link the desktop-shell dependency graph."
 edition = "2021"
 

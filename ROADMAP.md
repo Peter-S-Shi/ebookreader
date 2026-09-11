@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Native Human Acceptance Corrective Pass Implemented — Awaiting Targeted Native Human Retest**
-Human Feature Freeze remains approved and V1 scope remains locked. Full automated regression passed before native testing exposed three frozen-V1 implementation defects; those corrections are now implemented and verified, and M10 / RC has not started.
+Status: **Milestone 10 Active (M10-B — Packaged RC Acceptance)**
+M10-A Clean Install passed human clean-environment verification on Windows 11 VM; M10-B Packaged RC Acceptance is the active stage. Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is explicitly authorized and ACTIVE.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -956,8 +956,8 @@ Feature Complete Candidate
 
 # Milestone 9 — Product Hardening
 
-**Status:** Complete — Native Human Acceptance Corrective Pass Implemented; Awaiting Targeted Native Human Retest
-Human Feature Freeze approved entry on 2026-09-11. M9 closed the known native layout/form overlap and card/button overflow release-readiness defect and full automated regression passed. Subsequent native acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; the bounded corrections are implemented and verified. M10 / RC / Windows Release has not started.
+**Status:** Complete — Full Automated Regression & Native Human Acceptance PASS (`5ccc240`)
+Human Feature Freeze approved entry on 2026-09-11. M9 closed the known native layout/form overlap and card/button overflow release-readiness defect and full automated regression passed. Subsequent native acceptance exposed three frozen-V1 implementation defects in EPUB line height, PDF controls/navigation, and Book Hours shell geometry; bounded corrections and Profile Card stabilization were implemented, verified, and closed with human PASS at `5ccc240`.
 
 Hardening is system-wide quality convergence, not feature growth.
 
@@ -993,23 +993,41 @@ Hardening is system-wide quality convergence, not feature growth.
 
 # Milestone 10 — Release Candidate, Packaging & Windows Release
 
-**Status:** Planned  
-**Human authorization required**
+**Status:** Active (M10-A Complete [HUMAN PASS]; M10-B Complete [HUMAN PASS]; M10-C Release Governance & Publication Active)
+
+### M10-A — RC Build & Clean Install (Complete — HUMAN PASS)
+- Built production NSIS and MSI candidate installers.
+- Resolved two packaged-runtime dependency blockers discovered in clean VM testing (`libstdc++-6.dll` and `WebView2Loader.dll`) by co-locating the full redistributable DLL closure in `src-tauri/redist/` and mapping to `$INSTDIR` in `tauri.conf.json`.
+- Established deterministic automated regression coverage and recursive PE dependency closure audit (`tooling/audit_runtime_closure.mjs`, `src/packagingRuntime.test.ts`).
+- Human Clean-Environment Acceptance Evidence:
+  - Clean install on isolated Windows 11 VM succeeded.
+  - First and second independent launches succeeded without runtime/DLL errors.
+  - Initialized AppData storage and `library.sqlite3` database.
+  - Explicit user HUMAN PASS recorded.
+
+### M10-B — Packaged RC Acceptance (Complete — HUMAN PASS)
+- Core Installer: Lightweight (~13MB setup executable), zero external dependencies, bundles complete runtime DLL closure (`WebView2Loader.dll`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). Normal visual reading for scanned PDF works without OCR.
+- Optional OCR Pack: Official standalone installer (`EbookReader_OCR_Pack_1.0.0_x64-setup.exe`, ~56.5MB setup executable) packaging verified ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0). Auto-discovered at `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\`. When uninstalled, UI displays a neutral informational degraded state (`OCR Pack Not Installed`).
+- Human Clean-Environment Retest Acceptance Evidence:
+  - Clean Core install on Windows 11 VM passed.
+  - Neutral degraded state when no pack is installed verified.
+  - Scanned PDF visual reading works normally.
+  - Optional OCR Pack standalone installation and zero-config auto-discovery passed.
+  - Real local OCR inference executed and verified.
+  - OCR corrections persistence across sessions passed.
+  - Restart rediscovery and data integrity verified.
+  - Explicit user HUMAN PASS recorded.
+- CI Test-Contract Resolution: Decoupled tracked packaging contract validation from gitignored binary preflight; full CI promotion gate green on PR #1 (`f718cf4`).
+
+### M10-C — Release Governance & Publication (Active)
 
 ## Scope
 
-- production build;
-- installer;
-- clean/disposable Windows environment;
-- install / launch;
-- import / read;
-- create user data;
-- OCR smoke;
-- close / reopen;
-- backup / Restore;
-- update-awareness smoke;
-- privacy/license checks;
-- GitHub Release.
+- release governance & publication preflight;
+- license & notice attribution review (ONNX Runtime MIT, PaddleOCR Apache-2.0);
+- PR promotion verification;
+- release readiness declaration;
+- GitHub Release & tag creation (upon human approval).
 
 ## RC Exit Gate
 
@@ -1018,17 +1036,19 @@ A real packaged build must pass:
 ```text
 install
 → launch
-→ import/open
+→ import/open (EPUB, PDF, TXT)
 → core reading workflow
-→ create user data
+→ create user data (notes, highlights)
+→ Book Hours & Alignment smoke
 → close
 → reopen
 → persistence
 → backup
 → restore
+→ restored state verified
 ```
 
-Source-tree tests alone are insufficient.
+Source-tree tests alone are insufficient. Acceptance must execute on the real installed package.
 
 ---
 

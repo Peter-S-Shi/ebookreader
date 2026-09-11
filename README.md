@@ -4,19 +4,19 @@
 
 ## Current Status
 
-- **Phase:** **Native Human Acceptance Corrective Pass Implemented — Awaiting Targeted Native Human Retest** — Human Feature Freeze approved, V1 scope locked, M9 complete, M10 / RC not started
-- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M8 and M9 complete; full automated regression passed; three subsequent native-acceptance defects are corrected and awaiting targeted retest** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
+- **Phase:** **Milestone 10 Active (M10-C — Release Governance & Publication)** — Human Feature Freeze approved, V1 scope locked, M1-M9 complete, Full Automated Regression & Native Human Acceptance PASS, M10-A Clean Install PASS, M10-B Packaged RC Acceptance PASS (authoritative human clean-environment verified, CI green)
+- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M9 complete; full automated regression & native human acceptance passed (`5ccc240`); M10-A Clean Install PASS; M10-B Packaged RC Acceptance PASS; M10-C Release Governance & Publication active** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
 - **V1 product/domain scope:** Frozen
 - **V1 UI baseline:** Frozen
 - **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)
 - **Feature Freeze:** Human-approved
-- **Release:** Not started
+- **Release:** Release Governance & Publication active (M10-A Clean Install PASS, M10-B Packaged Acceptance PASS on Windows 11 VM; M10-C release preflight ready)
 
-The Feature-Frozen V1 application is implemented through M9 Product Hardening. Full automated regression passed; three defects subsequently found in native Human Acceptance are implemented and awaiting targeted native retest. M10 RC / Windows Release remains pending.
+The Feature-Frozen V1 application is complete through M9 Product Hardening. M10-A Clean Install and M10-B Packaged Acceptance have passed on clean Windows 11 environments with full CI promotion gate green; M10-C Release Governance & Publication is active.
 
 ## Product Identity
 
-EbookReader combines reliable local reading, personal library and reading-asset management, transparent Book Hours, factual Actual Reading Time, local OCR for scanned PDFs, bilingual aligned reading, backup/restore, and update awareness.
+EbookReader combines reliable local reading, personal library and reading-asset management, transparent Book Hours, factual Actual Reading Time, optional local OCR for scanned PDFs, bilingual aligned reading, backup/restore, and update awareness.
 
 > **Quiet Surface, Living Motion**
 
