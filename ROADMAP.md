@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Milestone 10 Active (M10-A — RC Build & Clean Install)**
-Full automated regression and native human acceptance passed; three post-regression native implementation defects and profile card stabilization were corrected, verified, and closed at `5ccc240`. Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is explicitly authorized and ACTIVE.
+Status: **Milestone 10 Active (M10-B — Packaged RC Acceptance)**
+M10-A Clean Install passed human clean-environment verification on Windows 11 VM; M10-B Packaged RC Acceptance is the active stage. Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is explicitly authorized and ACTIVE.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -993,7 +993,19 @@ Hardening is system-wide quality convergence, not feature growth.
 
 # Milestone 10 — Release Candidate, Packaging & Windows Release
 
-**Status:** Active (M10-A RC Build & Clean Install in progress; explicitly authorized by user)
+**Status:** Active (M10-A Complete [Human PASS]; M10-B Packaged RC Acceptance in progress)
+
+### M10-A — RC Build & Clean Install (Complete — HUMAN PASS)
+- Built production NSIS and MSI candidate installers.
+- Resolved two packaged-runtime dependency blockers discovered in clean VM testing (`libstdc++-6.dll` and `WebView2Loader.dll`) by co-locating the full redistributable DLL closure in `src-tauri/redist/` and mapping to `$INSTDIR` in `tauri.conf.json`.
+- Established deterministic automated regression coverage and recursive PE dependency closure audit (`tooling/audit_runtime_closure.mjs`, `src/packagingRuntime.test.ts`).
+- Human Clean-Environment Acceptance Evidence:
+  - Clean install on isolated Windows 11 VM succeeded.
+  - First and second independent launches succeeded without runtime/DLL errors.
+  - Initialized AppData storage and `library.sqlite3` database.
+  - Explicit user HUMAN PASS recorded.
+
+### M10-B — Packaged RC Acceptance (Active)
 
 ## Scope
 
@@ -1001,14 +1013,17 @@ Hardening is system-wide quality convergence, not feature growth.
 - installer;
 - clean/disposable Windows environment;
 - install / launch;
-- import / read;
-- create user data;
+- import / read (EPUB, PDF, TXT);
+- create user data (notes, highlights);
+- Book Hours create/change smoke;
+- Bilingual / Alignment smoke;
 - OCR smoke;
 - close / reopen;
-- backup / Restore;
+- persistence verification;
+- backup / Restore round-trip & restored-state check;
 - update-awareness smoke;
 - privacy/license checks;
-- GitHub Release.
+- GitHub Release (M10-C).
 
 ## RC Exit Gate
 
@@ -1017,17 +1032,19 @@ A real packaged build must pass:
 ```text
 install
 → launch
-→ import/open
+→ import/open (EPUB, PDF, TXT)
 → core reading workflow
-→ create user data
+→ create user data (notes, highlights)
+→ Book Hours & Alignment smoke
 → close
 → reopen
 → persistence
 → backup
 → restore
+→ restored state verified
 ```
 
-Source-tree tests alone are insufficient.
+Source-tree tests alone are insufficient. Acceptance must execute on the real installed package.
 
 ---
 
