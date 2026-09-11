@@ -6,7 +6,7 @@ import { TocPanel, type TocItem } from "./TocPanel";
 import { NotebookPanel } from "./NotebookPanel";
 import { DEFAULT_TYPOGRAPHY, toEpubCss, type TypographySettings } from "./typography";
 import { loadPerBookTypography, savePerBookTypography } from "./appSettings";
-import { applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
+import { applyPageWidth, applyViewMode, VIEW_MODE_LABELS, type ViewMode } from "./viewMode";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
@@ -179,7 +179,10 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
       setToc(view.book?.toc ?? []);
       if (!view.isFixedLayout) {
         view.renderer?.setStyles(toEpubCss(initialTypography, isDarkModeActive()));
-        if (view.renderer) applyViewMode(view.renderer, viewMode);
+        if (view.renderer) {
+          applyPageWidth(view.renderer, initialTypography.pageWidthCh);
+          applyViewMode(view.renderer, viewMode);
+        }
       }
 
       // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11:
@@ -417,6 +420,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   function handleTypographyChange(next: TypographySettings) {
     setTypography(next);
     viewRef.current?.renderer?.setStyles(toEpubCss(next, isDarkModeActive()));
+    if (viewRef.current?.renderer) applyPageWidth(viewRef.current.renderer, next.pageWidthCh);
     savePerBookTypography(bookId, next).catch(() => {});
   }
 

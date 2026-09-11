@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyViewMode } from "./viewMode";
+import { applyPageWidth, applyViewMode } from "./viewMode";
 
 function fakeRenderer() {
   return { setAttribute: vi.fn(), removeAttribute: vi.fn() };
@@ -24,5 +24,25 @@ describe("applyViewMode", () => {
     applyViewMode(renderer, "paginated-double");
     expect(renderer.removeAttribute).toHaveBeenCalledWith("flow");
     expect(renderer.setAttribute).toHaveBeenCalledWith("max-column-count", "2");
+  });
+});
+
+describe("applyPageWidth", () => {
+  it("uses foliate's max-inline-size contract instead of publication body CSS", () => {
+    const renderer = fakeRenderer();
+
+    applyPageWidth(renderer, 70);
+
+    expect(renderer.setAttribute).toHaveBeenCalledWith("max-inline-size", "720px");
+  });
+
+  it("makes narrower and wider preferences produce distinct renderer widths", () => {
+    const renderer = fakeRenderer();
+
+    applyPageWidth(renderer, 40);
+    applyPageWidth(renderer, 100);
+
+    expect(renderer.setAttribute).toHaveBeenNthCalledWith(1, "max-inline-size", "411px");
+    expect(renderer.setAttribute).toHaveBeenNthCalledWith(2, "max-inline-size", "1029px");
   });
 });

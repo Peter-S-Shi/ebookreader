@@ -4003,13 +4003,43 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .bhProfileCard .topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.bhProfileIdentity {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.bhProfileActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .bhProfileCard .topline b {
   font-size: 14px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .bhProfileCard .topline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bhProfileActions {
+    justify-content: flex-start;
+  }
 }
 
 .bhProfileCard .profileStats {

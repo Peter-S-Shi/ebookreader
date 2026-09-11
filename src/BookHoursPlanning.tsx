@@ -1464,41 +1464,42 @@ export function BookHoursPlanning({
                 return (
                   <div key={p.id} className="bhProfileCard">
                     <div className="topline">
-                      <span className="bhBadge profile">Profile</span>
-                      <b>{p.name}</b>
-                      {p.is_default && (
-                        <span className="bhBadge default">[Default]</span>
-                      )}
-                      <div className="grow" />
-                      <button
-                        type="button"
-                        className="btn"
-                        data-open-profile-editor
-                        style={{ height: "30px" }}
-                        onClick={() => openEditProfileDrawer(p)}
-                      >
-                        Edit
-                      </button>
-                      {!p.is_default && (
-                        <>
-                          <button
-                            type="button"
-                            className="btn"
-                            style={{ height: "30px", fontSize: "10px" }}
-                            onClick={() => handleSetDefaultProfile(p.id)}
-                          >
-                            Set Default
-                          </button>
-                          <button
-                            type="button"
-                            className="btn"
-                            style={{ height: "30px", color: "var(--danger, #a34c45)" }}
-                            onClick={() => handleDeleteProfileClick(p)}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
+                      <div className="bhProfileIdentity">
+                        <span className="bhBadge profile">Profile</span>
+                        <b>{p.name}</b>
+                        {p.is_default && <span className="bhBadge default">[Default]</span>}
+                      </div>
+                      <div className="bhProfileActions">
+                        <button
+                          type="button"
+                          className="btn"
+                          data-open-profile-editor
+                          style={{ height: "30px" }}
+                          onClick={() => openEditProfileDrawer(p)}
+                        >
+                          Edit
+                        </button>
+                        {!p.is_default && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ height: "30px", fontSize: "10px" }}
+                              onClick={() => handleSetDefaultProfile(p.id)}
+                            >
+                              Set Default
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ height: "30px", color: "var(--danger, #a34c45)" }}
+                              onClick={() => handleDeleteProfileClick(p)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div className="bhLead" style={{ marginTop: "8px" }}>
                       {p.description || "No description provided."}

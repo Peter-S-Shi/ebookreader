@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Reader } from "./Reader";
 
@@ -171,6 +171,20 @@ describe("Reader — Dark theme propagation into the rendered EPUB (HA-007)", ()
     await waitFor(() => expect(fakeView.renderer.setStyles).toHaveBeenCalled());
     const css = fakeView.renderer.setStyles.mock.calls[0][0] as string;
     expect(css).not.toContain("color: #f6f6f6 !important");
+  });
+});
+
+describe("Reader — reflowable page width", () => {
+  it("updates foliate's paginator width when the Page Width control changes", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="Width Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-inline-size", "720px"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Aa" }));
+    const pageWidthLabel = screen.getByText("Page Width").closest("label")!;
+    fireEvent.change(pageWidthLabel.querySelector("input")!, { target: { value: "40" } });
+
+    expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-inline-size", "411px");
   });
 });
 

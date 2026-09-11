@@ -634,6 +634,12 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     expect(within(profilesPane).getByText("Novel")).toBeInTheDocument();
     expect(within(profilesPane).getByText("Light Reading")).toBeInTheDocument();
 
+    const profileCard = within(profilesPane).getByText("Textbook").closest(".bhProfileCard")!;
+    expect(profileCard.querySelector(".bhProfileIdentity")).toContainElement(within(profileCard as HTMLElement).getByText("Textbook"));
+    expect(profileCard.querySelector(".bhProfileActions")).toContainElement(
+      within(profileCard as HTMLElement).getByRole("button", { name: "Edit" }),
+    );
+
     // 1. Create Profile
     const newBtn = within(profilesPane).getByRole("button", { name: /New Profile/ });
     await user.click(newBtn);

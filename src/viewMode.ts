@@ -21,6 +21,15 @@ export function applyViewMode(renderer: RendererLike, mode: ViewMode): void {
   renderer.setAttribute("max-column-count", mode === "paginated-double" ? "2" : "1");
 }
 
+// foliate's paginator owns the actual reflow column geometry and resets the
+// publication body's max-width while paginating. Its default 720px column
+// corresponds to the product's default 70ch preference; keep that baseline
+// while mapping the user-facing scale onto the renderer's pixel contract.
+export function applyPageWidth(renderer: RendererLike, pageWidthCh: number): void {
+  const widthPx = Math.round((pageWidthCh * 720) / 70);
+  renderer.setAttribute("max-inline-size", `${widthPx}px`);
+}
+
 export const VIEW_MODE_LABELS: Record<ViewMode, string> = {
   "paginated-single": "Single page",
   "paginated-double": "Double page",

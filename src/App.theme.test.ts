@@ -208,4 +208,11 @@ describe("App.css M9 viewport and overflow hardening", () => {
     expect(responsiveBlocks, "expected shared narrow-viewport form-row media rule").not.toBeNull();
     expect(responsiveBlocks![0]).toContain("grid-template-columns: 1fr");
   });
+
+  it("profile-card identity and actions wrap within the card independently", () => {
+    expect(ruleFor(".bhProfileCard .topline")).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(ruleFor(".bhProfileIdentity")).toContain("min-width: 0");
+    expect(ruleFor(".bhProfileActions")).toContain("flex-wrap: wrap");
+    expect(ruleFor(".bhProfileActions")).toContain("max-width: 100%");
+  });
 });
