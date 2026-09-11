@@ -265,6 +265,85 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    if current < 15 {
+        conn.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS reading_profiles (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                difficulty_multiplier REAL NOT NULL DEFAULT 1.0,
+                description TEXT NOT NULL DEFAULT '',
+                is_default INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
+            VALUES ('profile-default', 'Default', 1.0, 'Neutral default reading profile', 1, datetime('now'), datetime('now'));
+
+            ALTER TABLE book ADD COLUMN profile_id TEXT REFERENCES reading_profiles(id);
+            ALTER TABLE book ADD COLUMN workload_quantity REAL;
+            ALTER TABLE book ADD COLUMN workload_unit TEXT;
+            ALTER TABLE book ADD COLUMN workload_speed_override REAL;
+            CREATE INDEX IF NOT EXISTS idx_book_profile ON book(profile_id);
+            ",
+        )?;
+
+        let has_workload_config: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='workload_config'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map(|c| c > 0)
+            .unwrap_or(false);
+
+        if has_workload_config {
+            let mut stmt = conn.prepare(
+                "SELECT book_id, quantity, baseline_speed, difficulty_coefficient FROM workload_config",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, f64>(1)?,
+                    row.get::<_, f64>(2)?,
+                    row.get::<_, f64>(3)?,
+                ))
+            })?;
+
+            let mut custom_profiles: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+
+            for item in rows {
+                let (book_id, quantity, baseline_speed, difficulty) = item?;
+                let profile_id = if (difficulty - 1.0).abs() < 1e-6 {
+                    "profile-default".to_string()
+                } else {
+                    let diff_key = format!("{:.2}", difficulty);
+                    if let Some(pid) = custom_profiles.get(&diff_key) {
+                        pid.clone()
+                    } else {
+                        let pid = format!("profile-custom-{}", diff_key.replace('.', "_"));
+                        let pname = format!("Custom ({:.1}x)", difficulty);
+                        conn.execute(
+                            "INSERT OR IGNORE INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
+                             VALUES (?1, ?2, ?3, 'Migrated custom difficulty profile', 0, datetime('now'), datetime('now'))",
+                            (&pid, &pname, difficulty),
+                        )?;
+                        custom_profiles.insert(diff_key, pid.clone());
+                        pid
+                    }
+                };
+
+                conn.execute(
+                    "UPDATE book SET profile_id = ?1, workload_quantity = ?2, workload_unit = 'legacy_untyped', workload_speed_override = ?3 WHERE id = ?4",
+                    (&profile_id, quantity, baseline_speed, &book_id),
+                )?;
+            }
+        }
+
+        conn.execute_batch("PRAGMA user_version = 15;")?;
+    }
+
     Ok(())
 }
 
@@ -580,6 +659,10 @@ pub fn delete_reading_data(conn: &Connection, book_id: &str) -> rusqlite::Result
         "DELETE FROM alignment_package WHERE book_id_a = ?1 OR book_id_b = ?1",
         [book_id],
     )?;
+    conn.execute(
+        "UPDATE book SET profile_id = NULL, workload_quantity = NULL, workload_unit = NULL, workload_speed_override = NULL WHERE id = ?1",
+        [book_id],
+    )?;
     Ok(())
 }
 
@@ -673,7 +756,7 @@ mod tests {
         run_migrations(&conn).unwrap(); // must not error on a second run
 
         let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(version, 14);
+        assert_eq!(version, 15);
     }
 
     #[test]
@@ -1076,5 +1159,108 @@ mod tests {
 
         let title: String = conn.query_row("SELECT title FROM book WHERE id = ?1", [&book_id], |r| r.get(0)).unwrap();
         assert_eq!(title, "Second Detected Title");
+    }
+
+    #[test]
+    fn migration_15_migrates_legacy_workload_config_and_creates_profiles() {
+        let conn = Connection::open_in_memory().unwrap();
+        // Setup schema up to migration 14
+        conn.execute_batch(
+            "
+            CREATE TABLE book (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                library_status TEXT NOT NULL DEFAULT 'active',
+                title_user_edited INTEGER NOT NULL DEFAULT 0,
+                last_opened_at TEXT
+            );
+            CREATE TABLE workload_config (
+                book_id TEXT PRIMARY KEY REFERENCES book(id),
+                quantity REAL NOT NULL,
+                baseline_speed REAL NOT NULL,
+                difficulty_coefficient REAL NOT NULL
+            );
+            CREATE TABLE workload_config_revision (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id TEXT NOT NULL REFERENCES book(id),
+                quantity REAL NOT NULL,
+                baseline_speed REAL NOT NULL,
+                difficulty_coefficient REAL NOT NULL,
+                recorded_at TEXT NOT NULL
+            );
+            PRAGMA user_version = 14;
+            ",
+        ).unwrap();
+
+        // Insert legacy books & workload_configs
+        conn.execute("INSERT INTO book (id, title) VALUES ('b1', 'Book 1')", []).unwrap();
+        conn.execute("INSERT INTO book (id, title) VALUES ('b2', 'Book 2')", []).unwrap();
+        conn.execute(
+            "INSERT INTO workload_config (book_id, quantity, baseline_speed, difficulty_coefficient) VALUES ('b1', 1000.0, 250.0, 1.0)",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO workload_config (book_id, quantity, baseline_speed, difficulty_coefficient) VALUES ('b2', 2000.0, 300.0, 1.25)",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO workload_config_revision (book_id, quantity, baseline_speed, difficulty_coefficient, recorded_at) VALUES ('b1', 1000.0, 250.0, 1.0, '2026-09-01T00:00:00Z')",
+            [],
+        ).unwrap();
+
+        // Run migration to v15
+        run_migrations(&conn).unwrap();
+
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 15);
+
+        // Verify book 1 (difficulty 1.0 -> profile-default)
+        let (p1, q1, u1, s1): (String, f64, String, f64) = conn.query_row(
+            "SELECT profile_id, workload_quantity, workload_unit, workload_speed_override FROM book WHERE id = 'b1'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        ).unwrap();
+        assert_eq!(p1, "profile-default");
+        assert_eq!(q1, 1000.0);
+        assert_eq!(u1, "legacy_untyped");
+        assert_eq!(s1, 250.0);
+
+        // Verify book 2 (difficulty 1.25 -> custom profile created)
+        let (p2, q2, u2, s2): (String, f64, String, f64) = conn.query_row(
+            "SELECT profile_id, workload_quantity, workload_unit, workload_speed_override FROM book WHERE id = 'b2'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        ).unwrap();
+        assert!(p2.starts_with("profile-custom-"));
+        assert_eq!(q2, 2000.0);
+        assert_eq!(u2, "legacy_untyped");
+        assert_eq!(s2, 300.0);
+
+        // Verify custom profile metadata
+        let (p2_name, p2_diff, p2_default): (String, f64, i32) = conn.query_row(
+            "SELECT name, difficulty_multiplier, is_default FROM reading_profiles WHERE id = ?1",
+            [&p2],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        ).unwrap();
+        assert_eq!(p2_name, "Custom (1.2x)");
+        assert_eq!(p2_diff, 1.25);
+        assert_eq!(p2_default, 0);
+
+        // Verify revisions preserved
+        let rev_count: i64 = conn.query_row("SELECT COUNT(*) FROM workload_config_revision", [], |r| r.get(0)).unwrap();
+        assert_eq!(rev_count, 1);
+
+        // Verify delete_reading_data clears book workload columns on full schema
+        let full_conn = Connection::open_in_memory().unwrap();
+        run_migrations(&full_conn).unwrap();
+        full_conn.execute("INSERT INTO book (id, title, profile_id, workload_quantity) VALUES ('b-del', 'Book Del', 'profile-default', 500.0)", []).unwrap();
+        delete_reading_data(&full_conn, "b-del").unwrap();
+        let (p_del, q_del): (Option<String>, Option<f64>) = full_conn.query_row(
+            "SELECT profile_id, workload_quantity FROM book WHERE id = 'b-del'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).unwrap();
+        assert_eq!(p_del, None);
+        assert_eq!(q_del, None);
     }
 }

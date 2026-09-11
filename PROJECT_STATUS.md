@@ -1,39 +1,43 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-10 (Book Hours V1 Redesign — BH-0.2 Final Model Closure Complete)
+Last Updated: 2026-09-10 (Book Hours V1 Redesign — BH-1 Domain & SQLite Migration Complete)
 
-Current Phase: **Pre-Freeze Book Hours V1 Redesign (BH-0.2 Final Model Closure Complete — Awaiting Approval for BH-1)**. The pre-Freeze V1 scope has been reopened for the Book Hours product amendment. Feature Freeze remains unapproved and M9 unstarted.
+Current Phase: **Pre-Freeze Book Hours V1 Redesign (BH-1 Domain & SQLite Migration Complete — Awaiting Approval for BH-2)**. The pre-Freeze V1 scope has been reopened for the Book Hours product amendment. Feature Freeze remains unapproved and M9 unstarted.
 
-**Book Hours V1 Redesign — BH-0.2 Final Model Closure Summary (2026-09-10):**
-- **Semantic Model & Decoupling Locked**:
-  - `ReadingProfile` owns the **Difficulty Coefficient only** (plus identity/description). Format-dependent baseline speeds and quantity units are decoupled from profiles.
-  - Baseline speed is resolved by quantity unit via configurable global defaults (`pages/hour` for PDF, `words/hour` and `characters/hour` for EPUB/TXT), with optional per-Book speed overrides (`workload_speed_override`).
-  - Format-appropriate trustworthy quantity discovery: PDF uses physical pages; reflowable EPUB/TXT uses supported words/characters when available, otherwise remaining in `Needs Setup` (`Not Calculated`), never fabricating page counts.
-  - Formula: `Planned Book Hours = (Quantity / Baseline Speed) × Difficulty Coefficient`; `Current Book Hours = Planned Book Hours × Cumulative Reading % / 100`.
-  - Stale `Tag` and `WorkloadCategory` entries purged from Architecture domain concept list.
-  - Prototype v0.6 (`docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html`) and `DESIGN.md` updated to remove preferred speed from profile cards/editor and display unit-based speed defaults in Formula & Defaults.
-  - Genuinely lossless legacy migration: Preserves legacy `baseline_speed` in `workload_speed_override`, marks unit as `legacy_untyped` to retain exact historical calculation without inventing semantics, maps custom difficulties into explicit user-visible profiles (e.g. `Custom (1.1x)`), and preserves `workload_config_revision` audit history. Difficulty is 100% Profile-owned with zero hidden secondary multipliers.
-  - Non-interference guarantee: Modifying formulas, profiles, or recalculating Book Hours never alters reading progress %, reading position, completed-read count, actual reading time, or `ReadingSession` history.
-- **Canonical Documents Updated**:
-  - `PRODUCT_SPEC.md` (§3.3, §4.3–4.4, §9.1–9.4)
-  - `ARCHITECTURE.md` (§3.3 domain concepts, §8.1–8.5 database schema, lossless migration path, IPC commands)
-  - `DESIGN.md` (§3 `ER-BH-001`, §13.2 Book Hours Planning sub-screens, side drawers, badges, and modals)
-  - `docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html` (Profile cards/editor & Formula tab unit speeds)
+**Book Hours V1 Redesign — BH-1 Domain & SQLite Migration Summary (2026-09-10):**
+- **Domain Models & Calculation Engine**:
+  - `ReadingProfile`: Profile owns identity, description, and `difficulty_multiplier` only. Decoupled from format-dependent baseline speed and quantity units. Default profile `profile-default` (1.0x difficulty, `is_default = true`) seeded by migration.
+  - `QuantityUnit`: `pages`, `words`, `characters`, `legacy_untyped`.
+  - `GlobalBookHoursDefaults`: Unit-specific baseline speeds (60 pph for pages, 15,000 wph for words, 30,000 cph for characters), with optional per-Book speed overrides (`workload_speed_override`).
+  - Pure calculation engine: `calculate_book_hours` dynamically derives Planned Book Hours `(Quantity / Baseline Speed) × Difficulty` and Current Book Hours `Planned × Cumulative Reading % / 100` (supports >100% rereads). Returns `None` (`Needs Setup` / `Not Calculated`) when quantity or baseline speed is missing.
+  - Aggregation engine: `compute_book_hours_overview` computes global deduplicated totals, calculation coverage (`calculated_books`, `uncalculated_books`, `total_books`), profile-level summaries, and collection-level summaries.
+  - Backward compatibility: Preserved legacy `WorkloadConfig`, `save_workload_config`, `load_workload_config`, `WorkloadConfigRevision`, `list_workload_config_revisions`, `base_book_hours`, and `cumulative_book_hours`.
+- **SQLite Migration v15**:
+  - Creates `reading_profiles` table and seeds default profile `profile-default`.
+  - Alters `book` table to add `profile_id`, `workload_quantity`, `workload_unit`, and `workload_speed_override` columns and `idx_book_profile` index.
+  - Losslessly migrates legacy `workload_config` rows into `book` table columns: legacy `baseline_speed` -> `workload_speed_override`, `quantity` -> `workload_quantity`, `workload_unit` -> `'legacy_untyped'`, legacy difficulty 1.0 -> `'profile-default'`, custom difficulties -> deterministic user-visible profiles (`Custom (X.Xx)`).
+  - Preserves `workload_config_revision` audit history.
+  - Updates `delete_reading_data` to clear book workload columns without mutating `reading_progress`, `document_location`, `actual_reading_time`, or `reading_session`.
+- **Test Validation**:
+  - `ebookreader-domain`: 198 passed; 0 failed.
+  - Rust workspace `cargo test`: 198 passed; 0 failed.
+  - Frontend `npm.cmd test -- --run`: 35 test files, 256 passed; 0 failed.
 - **Implementation Batch Roadmap**:
-  - `BH-1`: Rust domain models, SQLite schema migration (`reading_profiles`, `books.profile_id`, lossless legacy `workload_config` migration), dynamic formula & coverage calculations, aggregate queries, unit/integration tests.
-  - `BH-2`: Tauri command layer, IPC DTOs, settings/profile command integration, recalculation preview engine, durability & integration tests.
+  - `BH-1` (Complete): Rust domain models, SQLite schema migration (`reading_profiles`, `book.profile_id`, lossless legacy `workload_config` migration), dynamic formula & coverage calculations, aggregate queries, unit/integration tests.
+  - `BH-2` (Next): Tauri command layer, IPC DTOs, settings/profile command integration, recalculation preview engine, durability & integration tests.
   - `BH-3`: Frontend UI implementation matching Prototype v0.6 (`BookHoursPlanning.tsx`, overview metrics, profile/collection views, books table, profile management, formula/defaults drawer, recalculation preview modal, details integration).
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`. Full Exit Gate evidence for every Milestone is in `ROADMAP.md`.
-Current Checkpoint / Promotion Unit: **Book Hours V1 Redesign Implementation Gate (BH-0.2 complete → awaiting user approval for BH-1)**.
+Current Checkpoint / Promotion Unit: **Book Hours V1 Redesign Implementation Gate (BH-1 complete → awaiting user approval for BH-2)**.
 Current Branch / PR: `main`
 Current Blockers: None.
 Open Escalations: None.
-Architecture State: **Accepted Architecture Baseline (Updated for Book Hours V1 Redesign BH-0.2)**.
+Architecture State: **Accepted Architecture Baseline (Updated for Book Hours V1 Redesign BH-0.2 / BH-1)**.
 Feature Complete: Reopened for Book Hours V1 Redesign.
 Feature Freeze: Unapproved (Awaiting user decision after Book Hours implementation; M9 unstarted).
 RC / Release State: Not started.
-Next Action: Await user review and approval of BH-0.2 final model closure before starting production implementation (`BH-1`).
+Next Action: Await user review and approval of BH-1 before starting Tauri IPC command implementation (`BH-2`).
+
 
 
 
