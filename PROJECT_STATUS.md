@@ -18,14 +18,17 @@ Current Phase: **Milestone 10 Active (M10-A — RC Build & Clean Install)**. Ful
 - Reviewed correctness/data integrity, migrations/partial writes, relink/orphan handling, ReadingSession shutdown, Highlight/Alignment durability, OCR correction durability, Backup/Restore, empty/loading/error/degraded states, keyboard/focus, Light/Dark contrast, performance/memory, privacy, dependency/license hygiene, and font redistribution boundaries. No release blockers remain.
 
 **M10-A RC Build & Packaging Verification:**
-- Initial clean-environment installation exposed a packaged-runtime dependency defect: `libstdc++-6.dll was not found` on a clean Windows 11 environment due to `clipper-sys` MinGW dynamic linkage.
-- Root Cause / Earliest Wrong Layer: Packaging & Bundling Configuration (`src-tauri/tauri.conf.json`). Under the MinGW GNU toolchain, the C++ runtime (`libstdc++-6.dll`) and its prerequisites (`libgcc_s_seh-1.dll`, `libwinpthread-1.dll`) were linked dynamically but not provisioned in the installer payload.
-- Production Fix: Configured `src-tauri/tauri.conf.json` `bundle.resources` mapping (`"redist/*": "./"`) to package the full MinGW redistributable DLL closure into `$INSTDIR` alongside `ebookreader.exe` and `WebView2Loader.dll`.
-- Regression Coverage: Added `src/packagingRuntime.test.ts` (4 deterministic tests verifying resource configuration, non-empty redist DLLs, and NSIS/WiX installer script emission).
-- Dependency Closure: Verified with `objdump -p` that all runtime dependencies (`ebookreader.exe`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`, `WebView2Loader.dll`) are either co-located in `$INSTDIR` or resolve to standard Windows OS libraries in `System32`. Zero external runtime DLL dependencies remain unresolved.
+- Clean-environment acceptance testing revealed two packaging omissions: first `libstdc++-6.dll`, then `WebView2Loader.dll` on clean Windows 11.
+- Root Cause / Earliest Wrong Layer: Packaging & Bundling Configuration (`src-tauri/tauri.conf.json`). Under the MinGW GNU toolchain, the C++ runtime and WebView2 loader were generated in `target/release/`, but Tauri's NSIS packager only copies resources explicitly mapped in `bundle.resources`.
+- Production Fix: Configured `src-tauri/tauri.conf.json` `bundle.resources` mapping (`"redist/*": "./"`) with the complete four-DLL redistributable manifest (`WebView2Loader.dll`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`) in `src-tauri/redist/`.
+- Automated Audit & Regression Coverage:
+  - Created `tooling/audit_runtime_closure.mjs` performing recursive PE dependency closure analysis.
+  - Added deterministic vitest regression tests in `src/packagingRuntime.test.ts` (asserting `tauri.conf.json` mapping, physical DLL existence in redist, and complete `auditRuntimeClosure` validation).
+  - Mechanically verified silent scratch installation from the generated NSIS setup executable, proving that all 4 runtime DLLs land directly in `$INSTDIR` alongside `ebookreader.exe`.
+- Dependency Closure: Verified with `objdump -p` and `tooling/audit_runtime_closure.mjs` that all runtime dependencies are either co-located in `$INSTDIR` or resolve to standard Windows OS libraries in `System32`. Zero external runtime DLL dependencies remain unresolved.
 - Rebuilt Production Installers:
-  - NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (SHA256: `B62B7828F4746FC977F5257190F29F99A70515B3FB64540BCA9285D87FC58F07`)
-  - MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi` (SHA256: `D260CD581EDECEEA690455DC7FCCF2487D4C8E293B61C3F1A2A7F41196BBBF94`)
+  - NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (SHA256: `224B93C2AB71A2400E4531C5D0CBEE9BFD747DDECB10332A4C78A04DAF4B13BA`)
+  - MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi` (SHA256: `25DCB0A0BBAA97B6C7F18E00755106BB06B83DDB03EF563A520A2BD7CD742C19`)
 
 **Full Automated Regression Verification:**
 - Frontend unit tests `npm test`: 38 test files, 302 passed; 0 failed.

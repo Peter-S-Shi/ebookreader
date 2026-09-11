@@ -5,14 +5,17 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
+// @ts-expect-error local module import
+import { auditRuntimeClosure } from "../tooling/audit_runtime_closure.mjs";
 
 const REQUIRED_REDIST_DLLS = [
+  "WebView2Loader.dll",
   "libstdc++-6.dll",
   "libgcc_s_seh-1.dll",
   "libwinpthread-1.dll",
 ] as const;
 
-describe("Packaging runtime dependency closure (Release Blocker: libstdc++-6.dll)", () => {
+describe("Packaging runtime dependency closure (Release Blockers: WebView2Loader & MinGW DLLs)", () => {
   const rootDir = process.cwd();
   const tauriConfPath = join(rootDir, "src-tauri", "tauri.conf.json");
   const redistDir = join(rootDir, "src-tauri", "redist");
@@ -25,7 +28,7 @@ describe("Packaging runtime dependency closure (Release Blocker: libstdc++-6.dll
     expect(conf.bundle.resources["redist/*"]).toBe("./");
   });
 
-  it("src-tauri/redist contains all required non-empty MinGW runtime DLLs", () => {
+  it("src-tauri/redist contains all required non-empty redistributable DLLs", () => {
     for (const dll of REQUIRED_REDIST_DLLS) {
       const dllPath = join(redistDir, dll);
       expect(existsSync(dllPath), `Missing required runtime DLL: ${dll}`).toBe(true);
@@ -43,5 +46,18 @@ describe("Packaging runtime dependency closure (Release Blocker: libstdc++-6.dll
       expect(existsSync(directPath)).toBe(true);
     }
   });
+
+  it("auditRuntimeClosure passes with 100% complete dependency closure", () => {
+    const releaseExe = join(rootDir, "target", "release", "ebookreader.exe");
+    if (existsSync(releaseExe)) {
+      const result = auditRuntimeClosure();
+      expect(result.issues).toEqual([]);
+      expect(result.valid).toBe(true);
+      for (const dll of REQUIRED_REDIST_DLLS) {
+        expect(result.requiredRedistDlls).toContain(dll);
+      }
+    }
+  });
 });
+
 
