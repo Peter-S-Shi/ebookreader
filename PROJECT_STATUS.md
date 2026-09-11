@@ -7,7 +7,7 @@ Current Phase: **Post-UI Engineering Residual Resolution — Bilingual UX Closur
 2. Post-UI Residual 1: PDF Open Performance Optimization & Warm-Reopen Fix (CLOSED / HUMAN-PASSED, commits `114d3d0` and `37f6f19`)
 3. Post-UI Residual 1.5: Reader UX & Search Closure (CLOSED / HUMAN-PASSED, commits `a35f7b2`, `2de96ca`, `95a9a27`, and `f3b5083`)
 4. Post-UI Residual 2: OCR Engine Compatibility & Workspace UX Convergence (CLOSED / HUMAN-PASSED — commits `996b780`, `94fbf08`, and `59902a2`)
-5. Bilingual UX Closure (`ER-BI-001` Theme Tokens & Bounded Contents Navigator — commit `9ec6b37`, awaiting human visual/navigation acceptance)
+5. Bilingual UX Closure (`ER-BI-001` Theme Tokens & Real Source Structure Contents Navigator — commits `9ec6b37` and `c82e442`, awaiting human visual/navigation acceptance)
 6. Required Pre-Freeze Follow-Up: Bilingual Manual-QA Fixture Prep (Scheduled before Human Feature Freeze; must provide deterministic paired books, valid Alignment Package, and expected-result instructions)
 
 **Bilingual UX Closure Summary (`ER-BI-001` — 2026-09-10):**
@@ -16,11 +16,14 @@ Current Phase: **Post-UI Engineering Residual Resolution — Bilingual UX Closur
   - Ensured both reading panes, toolbar, scroll surfaces, alignment panel, contents drawer, buttons, text, and borders render cleanly across explicit Light, explicit Dark (`data-theme="dark"`), and Match System.
 - **Bounded Long-Book Contents Navigator (`BilingualReader.tsx`, `DESIGN.md`)**:
   - Surfaced a compact `📖 Contents` toolbar entry opening a collapsible drawer.
-  - Exposes structural contents for either Left or Right Book using real source structure (EPUB TOC/sections, PDF 1..N pages/outline, or truthful "No contents available" for TXT/unstructured sources).
+  - Exposes real structural contents for either Left or Right Book:
+    - **EPUB**: Real publication TOC labels/destinations (`view.book.toc`); clean fallback to section index labels only when no TOC exists.
+    - **PDF**: Real document outline titles/destinations (`pdf.getOutline()`); clean fallback to Page 1..N navigation only when no outline exists.
+    - **TXT / Unstructured**: Truthful "No contents available for this source."
   - Navigating a Contents item scrolls the target Book; with Sync ON, counterpart follows existing scroll-ratio sync; with Sync OFF, counterpart remains independent. Zero changes to Alignment Package schema or chapter-alignment semantics.
   - Documented in `DESIGN.md` Section 11 as an intentional V1 design amendment.
 - **Verification**:
-  - 36 test files / 255 tests passing (`cmd /c npm test -- --run`) including new interaction tests in `src/BilingualReader.test.tsx`.
+  - 36 test files / 258 tests passing (`cmd /c npm test -- --run`) including new interaction tests in `src/BilingualReader.test.tsx` (real EPUB TOC, EPUB fallback, real PDF outline, PDF page fallback, TXT).
   - Rust domain test suite: 193 unit & integration tests passing (`cmd /c cargo test --package ebookreader-domain`).
   - TypeScript typecheck: 0 errors (`cmd /c npm run typecheck`).
 
