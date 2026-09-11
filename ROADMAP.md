@@ -993,7 +993,7 @@ Hardening is system-wide quality convergence, not feature growth.
 
 # Milestone 10 — Release Candidate, Packaging & Windows Release
 
-**Status:** Active (M10-A Complete [HUMAN PASS]; M10-B Complete [HUMAN PASS]; M10-C Release Governance & Publication Active)
+**Status:** **Complete** (v1.0.0 Released) — M10-A Complete [HUMAN PASS]; M10-B Complete [HUMAN PASS]; M10-C Release Governance & Publication Complete (GitHub Release `v1.0.0`, PR #1 merged, tag `v1.0.0` pushed).
 
 ### M10-A — RC Build & Clean Install (Complete — HUMAN PASS)
 - Built production NSIS and MSI candidate installers.
@@ -1019,15 +1019,12 @@ Hardening is system-wide quality convergence, not feature growth.
   - Explicit user HUMAN PASS recorded.
 - CI Test-Contract Resolution: Decoupled tracked packaging contract validation from gitignored binary preflight; full CI promotion gate green on PR #1 (`f718cf4`).
 
-### M10-C — Release Governance & Publication (Active)
-
-## Scope
-
-- release governance & publication preflight;
-- license & notice attribution review (ONNX Runtime MIT, PaddleOCR Apache-2.0);
-- PR promotion verification;
-- release readiness declaration;
-- GitHub Release & tag creation (upon human approval).
+### M10-C — Release Governance & Publication (Complete — RELEASED)
+- Release Identity Finalization: Upgraded release identity consistently to `v1.0.0`.
+- Merged PR #1 into `main` (`dea8d82`) and tagged `v1.0.0`.
+- Published GitHub Release `v1.0.0` with verified candidate artifacts and SHA256 checksums (`EbookReader_1.0.0_x64-setup.exe`, `EbookReader_1.0.0_x64_en-US.msi`, `EbookReader_OCR_Pack_1.0.0_x64-setup.exe`).
+- Verified third-party notices and license attributions for ONNX Runtime (MIT), PaddleOCR (Apache-2.0), and WebView2.
+- Milestone 10 is complete; next lifecycle phase is Portfolio Packaging (PP).
 
 ## RC Exit Gate
 
@@ -1048,7 +1045,7 @@ install
 → restored state verified
 ```
 
-Source-tree tests alone are insufficient. Acceptance must execute on the real installed package.
+**Satisfied.** All criteria verified through M10-A, M10-B, and M10-C human acceptance testing. EbookReader v1.0.0 is officially released.
 
 ---
 
