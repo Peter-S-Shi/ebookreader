@@ -1,42 +1,40 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-10 (Bilingual UX Closure Implemented — Awaiting Native Human Acceptance)
+Last Updated: 2026-09-10 (Post-UI Residuals & Bilingual QA Fixture Prep — CLOSED / HUMAN-PASSED)
 
-Current Phase: **Post-UI Engineering Residual Resolution — Bilingual UX Closure Implemented; Awaiting Native Human Visual & Long-Book Navigation Acceptance (HARD STOP)**. C0/C1/C2 B1–B8 Canonical UI Migration is human-PASSed; Post-UI residual resolution is in progress:
+Current Phase: **Post-UI Engineering Residuals Resolution Complete — Awaiting Human Feature Freeze Decision**. All Post-UI residuals, UX closures, and QA fixture preparations are complete & human-accepted:
 1. B1–B8 Canonical UI Migration: Complete & Human-Accepted (PASS, commit `2b7724a`)
 2. Post-UI Residual 1: PDF Open Performance Optimization & Warm-Reopen Fix (CLOSED / HUMAN-PASSED, commits `114d3d0` and `37f6f19`)
 3. Post-UI Residual 1.5: Reader UX & Search Closure (CLOSED / HUMAN-PASSED, commits `a35f7b2`, `2de96ca`, `95a9a27`, and `f3b5083`)
-4. Post-UI Residual 2: OCR Engine Compatibility & Workspace UX Convergence (CLOSED / HUMAN-PASSED — commits `996b780`, `94fbf08`, and `59902a2`)
-5. Bilingual UX Closure (`ER-BI-001` Theme Tokens & Real Source Structure Contents Navigator — commits `9ec6b37` and `c82e442`, awaiting human visual/navigation acceptance)
-6. Required Pre-Freeze Follow-Up: Bilingual Manual-QA Fixture Prep (Scheduled before Human Feature Freeze; must provide deterministic paired books, valid Alignment Package, and expected-result instructions)
+4. Post-UI Residual 2: OCR Engine Compatibility & Workspace UX Convergence (CLOSED / HUMAN-PASSED, commits `996b780`, `94fbf08`, and `59902a2`)
+5. Bilingual UX Closure (`ER-BI-001` Theme Tokens & Real Source Structure Contents Navigator — CLOSED / HUMAN-PASSED, commits `9ec6b37` and `c82e442`)
+6. Bilingual Manual-QA Fixture Prep — CLOSED / HUMAN-PASSED (Validated deterministic paired books, valid Alignment Package, and expected-result instructions)
 
-**Bilingual UX Closure Summary (`ER-BI-001` — 2026-09-10):**
+**Bilingual UX Closure & QA Fixture Prep Summary (`ER-BI-001` — CLOSED / HUMAN-PASSED — 2026-09-10):**
 - **Theme Integration (`App.css`, `BilingualReader.tsx`)**:
   - Replaced hardcoded near-white fallback backgrounds (`#fff`) and inline rgba borders with canonical semantic theme variables (`var(--bg)`, `var(--surface)`, `var(--surface2)`, `var(--text)`, `var(--muted)`, `var(--border)`, `var(--accent)`).
-  - Ensured both reading panes, toolbar, scroll surfaces, alignment panel, contents drawer, buttons, text, and borders render cleanly across explicit Light, explicit Dark (`data-theme="dark"`), and Match System.
+  - Native Tauri acceptance: PASS. Verified clean rendering across explicit Light, explicit Dark (`data-theme="dark"`), and Match System.
 - **Bounded Long-Book Contents Navigator (`BilingualReader.tsx`, `DESIGN.md`)**:
-  - Surfaced a compact `📖 Contents` toolbar entry opening a collapsible drawer.
-  - Exposes real structural contents for either Left or Right Book:
-    - **EPUB**: Real publication TOC labels/destinations (`view.book.toc`); clean fallback to section index labels only when no TOC exists.
-    - **PDF**: Real document outline titles/destinations (`pdf.getOutline()`); clean fallback to Page 1..N navigation only when no outline exists.
-    - **TXT / Unstructured**: Truthful "No contents available for this source."
-  - Navigating a Contents item scrolls the target Book; with Sync ON, counterpart follows existing scroll-ratio sync; with Sync OFF, counterpart remains independent. Zero changes to Alignment Package schema or chapter-alignment semantics.
-  - Documented in `DESIGN.md` Section 11 as an intentional V1 design amendment.
+  - Surfaced a compact `📖 Contents` toolbar entry opening a collapsible drawer for Left/Right Book structure.
+  - EPUB uses real publication TOC labels/destinations (`view.book.toc`); PDF uses real document outline (`pdf.getOutline()`); TXT surfaces truthful "No contents available".
+  - Native Tauri acceptance: PASS. Verified real EPUB TOC navigation, Swap, Sync ON/OFF, and Alignment inspection.
+- **Bilingual Manual-QA Fixtures**:
+  - Native Tauri acceptance: PASS. Validated deterministic paired books, valid Alignment Package, and expected-result instructions.
 - **Verification**:
-  - 36 test files / 258 tests passing (`cmd /c npm test -- --run`) including new interaction tests in `src/BilingualReader.test.tsx` (real EPUB TOC, EPUB fallback, real PDF outline, PDF page fallback, TXT).
+  - 36 test files / 258 tests passing (`cmd /c npm test -- --run`) including interaction tests in `src/BilingualReader.test.tsx`.
   - Rust domain test suite: 193 unit & integration tests passing (`cmd /c cargo test --package ebookreader-domain`).
   - TypeScript typecheck: 0 errors (`cmd /c npm run typecheck`).
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`. Full Exit Gate evidence for every Milestone is in `ROADMAP.md`.
-Current Checkpoint / Promotion Unit: **Bilingual UX Closure Implemented (Awaiting Native-Tauri Human Visual & Long-Book Navigation Acceptance — HARD STOP)**.
+Current Checkpoint / Promotion Unit: **Human Feature Freeze Gate — Awaiting Explicit User Decision**.
 Current Branch / PR: `main`
 Current Blockers: None.
 Open Escalations: None.
 Architecture State: **Accepted Architecture Baseline**.
 Feature Complete: Second candidate produced (`ebe33f6`); Human Acceptance corrective loop closed (`HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` 11/11 closed).
-Feature Freeze: Unapproved (Awaiting native human visual & long-book navigation acceptance; M9 unstarted).
+Feature Freeze: Unapproved (Awaiting explicit user decision to trigger Feature Freeze Gate; M9 unstarted).
 RC / Release State: Not started.
-Next Action: HARD STOP — Await native human visual and long-book navigation acceptance for ER-BI-001 theme integration and Bilingual Contents navigation. Do not start Feature Freeze or M9.
+Next Action: Human Feature Freeze Gate — Await explicit user decision before approving Feature Freeze, starting M9, or beginning RC.
 
 
 
