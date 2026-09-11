@@ -4,15 +4,15 @@
 
 ## Current Status
 
-- **Phase:** **Milestone 10 Active (M10-B — Packaged RC Acceptance)** — Human Feature Freeze approved, V1 scope locked, M1-M9 complete, Full Automated Regression & Native Human Acceptance PASS, M10-A Clean Install PASS (human clean-environment verified)
-- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M9 complete; full automated regression & native human acceptance passed (`5ccc240`); M10-A Clean Install PASS; M10-B Packaged RC Acceptance active** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
+- **Phase:** **Milestone 10 Active (M10-C — Release Governance & Publication)** — Human Feature Freeze approved, V1 scope locked, M1-M9 complete, Full Automated Regression & Native Human Acceptance PASS, M10-A Clean Install PASS, M10-B Packaged RC Acceptance PASS (authoritative human clean-environment verified, CI green)
+- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M9 complete; full automated regression & native human acceptance passed (`5ccc240`); M10-A Clean Install PASS; M10-B Packaged RC Acceptance PASS; M10-C Release Governance & Publication active** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
 - **V1 product/domain scope:** Frozen
 - **V1 UI baseline:** Frozen
 - **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)
 - **Feature Freeze:** Human-approved
-- **Release:** Packaged RC acceptance active (M10-A Clean Install PASS on Windows 11 VM; M10-B end-to-end acceptance in progress)
+- **Release:** Release Governance & Publication active (M10-A Clean Install PASS, M10-B Packaged Acceptance PASS on Windows 11 VM; M10-C release preflight ready)
 
-The Feature-Frozen V1 application is complete through M9 Product Hardening. M10-A Clean Install passed on an isolated clean Windows 11 environment; M10-B Packaged RC Acceptance is currently active across core reader workflows on the installed build.
+The Feature-Frozen V1 application is complete through M9 Product Hardening. M10-A Clean Install and M10-B Packaged Acceptance have passed on clean Windows 11 environments with full CI promotion gate green; M10-C Release Governance & Publication is active.
 
 ## Product Identity
 

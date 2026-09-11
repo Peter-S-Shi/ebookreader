@@ -993,7 +993,7 @@ Hardening is system-wide quality convergence, not feature growth.
 
 # Milestone 10 — Release Candidate, Packaging & Windows Release
 
-**Status:** Active (M10-A Complete [Human PASS]; M10-B Packaged RC Acceptance in progress)
+**Status:** Active (M10-A Complete [HUMAN PASS]; M10-B Complete [HUMAN PASS]; M10-C Release Governance & Publication Active)
 
 ### M10-A — RC Build & Clean Install (Complete — HUMAN PASS)
 - Built production NSIS and MSI candidate installers.
@@ -1005,28 +1005,29 @@ Hardening is system-wide quality convergence, not feature growth.
   - Initialized AppData storage and `library.sqlite3` database.
   - Explicit user HUMAN PASS recorded.
 
-### M10-B — Packaged RC Acceptance (Active)
+### M10-B — Packaged RC Acceptance (Complete — HUMAN PASS)
 - Core Installer: Lightweight (~13MB setup executable), zero external dependencies, bundles complete runtime DLL closure (`WebView2Loader.dll`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). Normal visual reading for scanned PDF works without OCR.
 - Optional OCR Pack: Official standalone installer (`EbookReader_OCR_Pack_0.1.0_x64-setup.exe`, ~56.5MB setup executable) packaging verified ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0). Auto-discovered at `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\`. When uninstalled, UI displays a neutral informational degraded state (`OCR Pack Not Installed`).
-- Scope: End-to-end acceptance across the 14 core workflows on clean Windows environment.
+- Human Clean-Environment Retest Acceptance Evidence:
+  - Clean Core install on Windows 11 VM passed.
+  - Neutral degraded state when no pack is installed verified.
+  - Scanned PDF visual reading works normally.
+  - Optional OCR Pack standalone installation and zero-config auto-discovery passed.
+  - Real local OCR inference executed and verified.
+  - OCR corrections persistence across sessions passed.
+  - Restart rediscovery and data integrity verified.
+  - Explicit user HUMAN PASS recorded.
+- CI Test-Contract Resolution: Decoupled tracked packaging contract validation from gitignored binary preflight; full CI promotion gate green on PR #1 (`f718cf4`).
+
+### M10-C — Release Governance & Publication (Active)
 
 ## Scope
 
-- production build;
-- installer;
-- clean/disposable Windows environment;
-- install / launch;
-- import / read (EPUB, PDF, TXT);
-- create user data (notes, highlights);
-- Book Hours create/change smoke;
-- Bilingual / Alignment smoke;
-- OCR optional pack smoke & uninstalled neutral degraded state;
-- close / reopen;
-- persistence verification;
-- backup / Restore round-trip & restored-state check;
-- update-awareness smoke;
-- privacy/license checks;
-- GitHub Release (M10-C).
+- release governance & publication preflight;
+- license & notice attribution review (ONNX Runtime MIT, PaddleOCR Apache-2.0);
+- PR promotion verification;
+- release readiness declaration;
+- GitHub Release & tag creation (upon human approval).
 
 ## RC Exit Gate
 
