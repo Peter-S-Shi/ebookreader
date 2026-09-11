@@ -3694,5 +3694,263 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
+/* BH-3B Master-Detail, Tables, Filters, and Setup Drawer */
+.bhProg {
+  width: 90px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 7px;
+}
+
+.bhProg i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.bhMasterDetail {
+  display: grid;
+  grid-template-columns: 265px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.bhList {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 8px;
+  height: max-content;
+}
+
+.bhListItem {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 12px;
+  border-radius: 11px;
+  cursor: pointer;
+  margin-bottom: 3px;
+}
+
+.bhListItem:hover {
+  background: var(--surface2);
+}
+
+.bhListItem.active {
+  background: var(--accentSoft);
+  color: var(--accent);
+}
+
+.bhListItem b {
+  display: block;
+  font-size: 12px;
+}
+
+.bhListItem small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.bhDetail {
+  display: grid;
+  gap: 14px;
+}
+
+.bhDetailHead {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.bhDetailHead .stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.bhDetailHead .stat b {
+  font-size: 18px;
+}
+
+.bhFilters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.bhFilters input {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 10px;
+  min-width: 220px;
+}
+
+.bhFilters select {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  padding: 0 8px;
+}
+
+.bhCoverage {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.bhCoverage strong {
+  color: var(--text);
+}
+
+.bhDrawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 410px;
+  z-index: 95;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -26px 0 80px rgba(0, 0, 0, 0.19);
+  padding: 20px;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
+}
+
+.bhDrawer.open {
+  transform: none;
+}
+
+.bhDrawerHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.bhDrawerHead h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.bhDrawer .bhField {
+  margin: 14px 0;
+}
+
+.bhDrawer .bhField label {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+
+.bhDrawer .bhField input,
+.bhDrawer .bhField select {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  padding: 0 9px;
+}
+
+.bhDrawer .calcPreview {
+  background: var(--accentSoft);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 14px;
+  padding: 12px;
+  margin: 14px 0;
+}
+
+.bhDrawer .calcPreview span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.bhDrawer .calcPreview b {
+  display: block;
+  font-size: 22px;
+  color: var(--accent);
+  margin: 3px 0 7px;
+}
+
+.bhCollections {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.bhCollectionChip {
+  font-size: 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: var(--surface2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bhLock {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 8px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.bhDrawerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 90;
+  backdrop-filter: blur(2px);
+}
+
+@media (max-width: 1050px) {
+  .bhMasterDetail {
+    grid-template-columns: 1fr;
+  }
+  .bhList {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+  }
+  .bhListItem {
+    min-width: 210px;
+  }
+  .bhDrawer {
+    width: min(410px, 94vw);
+  }
+}
+
 
 

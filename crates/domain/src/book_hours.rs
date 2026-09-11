@@ -424,6 +424,7 @@ pub struct BookHoursItem {
     pub title: String,
     pub profile_id: Option<String>,
     pub profile_name: Option<String>,
+    pub collections: Vec<String>,
     pub quantity: Option<f64>,
     pub unit: Option<QuantityUnit>,
     pub speed_override: Option<f64>,
@@ -509,11 +510,19 @@ pub fn get_book_hours_item(
         b.cumulative_percent,
     );
 
+    let mut coll_stmt = conn.prepare(
+        "SELECT c.name FROM book_collection bc JOIN collection c ON c.id = bc.collection_id WHERE bc.book_id = ?1 ORDER BY c.name ASC",
+    )?;
+    let collections: Vec<String> = coll_stmt
+        .query_map([book_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
     Ok(Some(BookHoursItem {
         book_id: b.id,
         title: b.title,
         profile_id: b.profile_id,
         profile_name,
+        collections,
         quantity: b.quantity,
         unit: b.unit,
         speed_override: b.speed_override,
@@ -571,6 +580,17 @@ pub fn compute_book_hours_overview(
         books.push(b?);
     }
 
+    // 2b. Load collection memberships for all books
+    let mut bc_stmt = conn.prepare(
+        "SELECT bc.book_id, c.name FROM book_collection bc JOIN collection c ON c.id = bc.collection_id ORDER BY c.name ASC",
+    )?;
+    let mut book_collections_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let bc_rows = bc_stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+    for row in bc_rows {
+        let (b_id, c_name) = row?;
+        book_collections_map.entry(b_id).or_default().push(c_name);
+    }
+
     // 3. Calculate per book
     let mut book_calc_map: std::collections::HashMap<String, Option<BookHoursCalculation>> =
         std::collections::HashMap::new();
@@ -599,11 +619,13 @@ pub fn compute_book_hours_overview(
             global_uncalculated += 1;
         }
         book_calc_map.insert(b.id.clone(), calc.clone());
+        let book_colls = book_collections_map.remove(&b.id).unwrap_or_default();
         book_items.push(BookHoursItem {
             book_id: b.id.clone(),
             title: b.title.clone(),
             profile_id: b.profile_id.clone(),
             profile_name: prof.map(|p| p.name.clone()),
+            collections: book_colls,
             quantity: b.quantity,
             unit: b.unit,
             speed_override: b.speed_override,
