@@ -62,7 +62,7 @@ Current Phase: **Milestone 10 Complete (v1.0.0 Released) — Next Lifecycle Phas
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Complete** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Complete [RELEASED]).
 Current Checkpoint: **V1_0_0_RELEASED_M10_COMPLETE_PP_NEXT**.
-Current Branch: `main` (`dea8d82`, Tag: `v1.0.0`)
+Current Branch / PR: `governance/m10-post-release-reconciliation` / PR #2 (Base: `main` @ `dea8d82`, Tag: `v1.0.0`)
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.

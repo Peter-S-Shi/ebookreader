@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Milestone 10 Active (M10-B — Packaged RC Acceptance)**
-M10-A Clean Install passed human clean-environment verification on Windows 11 VM; M10-B Packaged RC Acceptance is the active stage. Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is explicitly authorized and ACTIVE.
+Status: **Milestone 10 Complete (v1.0.0 Released) — Next: Portfolio Packaging (PP)**
+M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is COMPLETE. Next lifecycle phase is Portfolio Packaging (PP).
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
