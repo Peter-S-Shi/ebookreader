@@ -956,8 +956,8 @@ Feature Complete Candidate
 
 # Milestone 9 — Product Hardening
 
-**Status:** Planned  
-**Human authorization required before entry**
+**Status:** Complete — Awaiting Full Regression & Human Acceptance
+Human Feature Freeze approved entry on 2026-09-11. This pass closed the known native layout/form overlap and card/button overflow release-readiness defect inside the frozen V1 scope and found no additional known release blocker in the bounded M9 audit. RC / Windows Release has not started.
 
 Hardening is system-wide quality convergence, not feature growth.
 

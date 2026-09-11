@@ -1,10 +1,10 @@
 # EbookReader — Feature Complete Candidate Report (Second Candidate)
 
-Status: **Feature Complete Candidate #2** (2026-09-10, commit `ebe33f6`; Human Acceptance corrective loop closed on 2026-09-10)
+Status: **Feature Complete Candidate #2** (2026-09-10, commit `ebe33f6`; Human Acceptance corrective loop closed on 2026-09-10; subsequently approved at the Human Feature Freeze Gate on 2026-09-11)
 
 **The first candidate (`f47452f`, 2026-09-09) was NOT APPROVED at the Human Feature Freeze Gate.** That gate found several frozen V1 behaviors were backend-only, prototype-only, or unwired despite Milestone-complete/CI-green status -- "Milestone Complete" had been treated as proof of user-reachable completeness without independently auditing production source. This report is produced after a corrective pass that explicitly rejected that inference: `FEATURE_COMPLETE_REQUIREMENT_COVERAGE_AUDIT.md` was built by reading actual production source against the frozen authorities (`PRODUCT_SPEC.md`, `DESIGN.md`, `FORMAT_CAPABILITY_MATRIX.md`, `MANUAL_QA.md`), not by citing Milestone status, and every gap it found was closed as its own ticket in `FEATURE_COMPLETE_CORRECTIVE_TICKETS.md` with its own fresh Failure Attribution, TDD evidence, and CI-green verification.
 
-**This report does not self-promote the project into Feature Freeze.** Per `ROADMAP.md`, only the Human Feature Freeze Gate may make that transition. The Human Acceptance corrective loop is now closed by the user's real native Tauri PASS evidence, but Feature Freeze and M9 Product Hardening remain unapproved. The next separately authorized engineering activity is the canonical UI Migration Study, not UI implementation.
+**This report did not self-promote the project into Feature Freeze.** Per `ROADMAP.md`, only the Human Feature Freeze Gate may make that transition. That transition has now occurred by explicit human approval on 2026-09-11 after the user's real native Tauri PASS evidence closed the Human Acceptance corrective loop. V1 scope is locked, M9 Product Hardening is active, and RC / Windows Release has not started.
 
 ---
 
@@ -55,7 +55,7 @@ Test suite growth continued through the corrective pass: domain tests 151 (M8 cl
 
 ### Carried forward from the first candidate, updated by post-candidate Human Acceptance
 
-- **Native GUI visual/click-through verification**: this sandbox's `SetForegroundWindow` limitation still means this agent did not script a reliable native-window screenshot/click-through pass itself. However, the user's own real native Tauri Human Acceptance loop has now exercised the second candidate and all corrective HA fixes, including the final PASS for HA-007, HA-009, HA-010, and HA-011. All 11 Human Acceptance defects recorded in `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` are now `HUMAN-ACCEPTANCE CLOSED`. This closes the current Human Acceptance corrective loop, but it is not a Human Feature Freeze approval and does not start M9.
+- **Native GUI visual/click-through verification**: this sandbox's `SetForegroundWindow` limitation still means this agent did not script a reliable native-window screenshot/click-through pass itself. However, the user's own real native Tauri Human Acceptance loop has now exercised the second candidate and all corrective HA fixes, including the final PASS for HA-007, HA-009, HA-010, and HA-011. All 11 Human Acceptance defects recorded in `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` are now `HUMAN-ACCEPTANCE CLOSED`. That evidence later supported explicit Human Feature Freeze approval on 2026-09-11.
 - **M4 CJK segmentation adapter performance at library scale**: unchanged, still unbenchmarked, still non-blocking.
 - **M5 vertical classical-Chinese OCR reading order**: unchanged, still root-caused but not fixed, still recorded in `ROADMAP.md:609-632` as its own future architecture decision.
 - **M10 packaging** (C-toolchain, elevation-free provisioning): unchanged, explicitly out of the M1→M8 envelope.
@@ -74,6 +74,10 @@ None. No Stop/Escalate condition was triggered by any of the 20 corrective-pass 
 
 ---
 
-**Per `ROADMAP.md`'s Feature Complete Candidate Gate: HARD STOP.** This session does not self-promote into Feature Freeze or Product Hardening. The next gate remains a second Human Feature Freeze review -- a human review of this report, the coverage audit, the full corrective-pass ticket evidence, the now-closed Human Acceptance register, and the remaining residual-risk list -- with explicit human approval required before any transition to Feature Freeze or M9 Product Hardening.
+**Per `ROADMAP.md`'s Feature Complete Candidate Gate, this report originally stopped before Feature Freeze.** The required second Human Feature Freeze review was later performed outside this report and explicitly approved by the user on 2026-09-11. Current execution has therefore moved into M9 Product Hardening; M10 / RC remains unstarted.
 
-**Post-candidate Human Acceptance closure (2026-09-10):** the user has now reported real native Tauri PASS for the remaining HA-007, HA-009, HA-010, and HA-011. `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` is fully closed. The project remains at Feature Complete Candidate, not Feature Freeze. The next engineering activity is the separately authorized canonical UI Migration Study; no UI implementation is authorized by this closure.
+**Post-candidate Human Acceptance closure (2026-09-10):** the user reported real native Tauri PASS for the remaining HA-007, HA-009, HA-010, and HA-011. `HUMAN_ACCEPTANCE_DEFECT_REGISTER.md` is fully closed.
+
+**Post-candidate Feature Freeze approval (2026-09-11):** the user explicitly approved Human Feature Freeze. V1 scope is locked; M9 Product Hardening was authorized; M10 / RC is not started.
+
+**Post-freeze M9 Product Hardening closure (2026-09-11):** the first M9 pass closed the known native layout/form overlap and card/button overflow release-readiness defect within the frozen UI contract and found no additional known release blocker inside the bounded M9 audit scope. The project is now awaiting Full Regression & Human Acceptance, not RC.

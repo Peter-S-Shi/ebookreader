@@ -167,3 +167,45 @@ describe("App.css contextual surface theme contract (HA-010)", () => {
     }
   });
 });
+
+describe("App.css M9 viewport and overflow hardening", () => {
+  function ruleFor(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = css.match(new RegExp(`(^|\\n)${escaped}\\s*\\{([^}]*)\\}`));
+    expect(match, `expected ${selector} rule`).not.toBeNull();
+    return match![2];
+  }
+
+  it("interactive controls and long text cannot force their containers wider than the viewport", () => {
+    const globalControls = ruleFor("button, input, select, textarea");
+    expect(globalControls).toContain("max-width: 100%");
+
+    const longText = ruleFor(".title, .reader-title, .book-title, .resume-title-btn, .bhName, .kv, .notice, .networkNote");
+    expect(longText).toContain("overflow-wrap: anywhere");
+  });
+
+  it("toolbar and action rows wrap instead of overlapping or overflowing in narrow native windows", () => {
+    expect(ruleFor(".top")).toContain("flex-wrap: wrap");
+    expect(ruleFor(".reader-toolbar")).toContain("flex-wrap: wrap");
+    expect(ruleFor(".reader-toolbar-controls")).toContain("flex-wrap: wrap");
+    expect(ruleFor(".settings-actions, .data-recovery-actions, .book-actions, .modalActions, .new-collection-form")).toContain(
+      "flex-wrap: wrap",
+    );
+  });
+
+  it("modal and floating bulk-action surfaces are bounded to the visible viewport", () => {
+    expect(ruleFor(".overlay")).toContain("overflow-y: auto");
+    expect(ruleFor(".modal")).toContain("max-width: min(560px, calc(100vw - 24px))");
+    expect(ruleFor(".modal")).toContain("overflow-y: auto");
+    expect(ruleFor(".modal > *")).toContain("min-width: 0");
+    expect(ruleFor(".modalHead")).toContain("position: sticky");
+    expect(ruleFor(".modalActions")).toContain("position: sticky");
+    expect(ruleFor(".bulk-action-bar")).toContain("max-width: calc(100vw - 24px)");
+  });
+
+  it("fixed two-column form rows collapse to a single column at constrained widths", () => {
+    const responsiveBlocks = css.match(/@media \(max-width: 720px\)\s*\{[\s\S]*?\.settingRow[\s\S]*?\.bhControl[\s\S]*?\}/);
+    expect(responsiveBlocks, "expected shared narrow-viewport form-row media rule").not.toBeNull();
+    expect(responsiveBlocks![0]).toContain("grid-template-columns: 1fr");
+  });
+});
