@@ -1,14 +1,14 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-11 (M10-C Release Governance & Publication Active)
+Last Updated: 2026-09-11 (v1.0.0 Released — Milestone 10 Complete)
 
-Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication)**. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. Full Automated Regression and PR Promotion Gate CI are **PASS (All Green)**. Human Feature Freeze remains **APPROVED**, V1 scope remains locked, and Milestone 10-C is explicitly authorized and ACTIVE.
+Current Phase: **Milestone 10 Complete (v1.0.0 Released) — Next Lifecycle Phase: Portfolio Packaging (PP)**. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. M10-C Release Governance & Publication is **Complete**; PR #1 merged into `main`, Git Tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published with approved candidate artifacts and verified SHA256 checksums. Full Automated Regression and CI Promotion Gate are **PASS (All Green)**. Human Feature Freeze remains **APPROVED** and V1 scope remains locked.
 
 **Feature Freeze Decision Summary:**
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
 - Native acceptance passed for Highlight lifecycle, Collections management, Library multi-select, Bilingual Alignment management, and Book Hours smoke coverage.
 - The known native layout/form overlap and card/button overflow behavior was audited and resolved inside M9 Product Hardening within the frozen V1 scope.
-- Feature Freeze remains in effect: no new features, workflow redesigns, Feature Freeze scope expansion, or unrelated refactors are permitted during M10.
+- Feature Freeze remains in effect: no new features, workflow redesigns, Feature Freeze scope expansion, or unrelated refactors are permitted.
 
 **M9 Product Hardening & Corrective Retest Summary:**
 - Bounded release-blocker audit followed `ROADMAP.md` M9 scope. Earliest-wrong-layer attribution for the known native layout/form overlap and card/button overflow issue: shared CSS layout contracts, not domain or feature wiring, lacked a systemic viewport containment rule for compact native windows.
@@ -43,13 +43,14 @@ Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication
 - CI Test-Contract Resolution: Decoupled tracked packaging contract validation from gitignored binary preflight; full CI promotion gate green on PR #1 (`f718cf4`, Run `34645518509`).
 - **M10-B Verdict: HUMAN PASS & CI GREEN (Closed).**
 
-**M10-C Release Governance & Publication (Active):**
+**M10-C Release Governance & Publication (Complete — RELEASED):**
 - Release Identity Finalization: Upgraded release identity consistently to **v1.0.0** across all package manifests, Tauri configuration, Update Awareness, OCR pack builder, tests, and documentation.
-- Verified release-facing candidate artifacts, exact file sizes, and SHA256 checksums:
-  - Core NSIS Installer: `target/release/bundle/nsis/EbookReader_1.0.0_x64-setup.exe` (4,818,366 bytes, SHA256: `87C6F9AD61E3D5832CCDCAC4C9B165C64C88AC51349109B0678724FFE3A0D212`)
-  - Core MSI Installer: `target/release/bundle/msi/EbookReader_1.0.0_x64_en-US.msi` (6,361,088 bytes, SHA256: `3CD29E9114225E03BAD875BEF1237685A6CC6C164F8EB95DACF164057A713BC9`)
-  - Optional OCR Pack: `target/release/bundle/ocr-pack/EbookReader_OCR_Pack_1.0.0_x64-setup.exe` (59,183,570 bytes, SHA256: `6A9D8ECD1500EE4C8DFE2DE610F2398EA72F51B222BDE4B4A4C1DFED0DA8ECA3`)
-- Verified third-party redistribution licenses & attributions: Microsoft ONNX Runtime (MIT), PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0).
+- Release Verification & Promotion: PR #1 merged into `main` (`dea8d82`), Git tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published.
+- Verified release artifacts, exact file sizes, and SHA256 checksums:
+  - Core NSIS Installer: `EbookReader_1.0.0_x64-setup.exe` (4,818,366 bytes, SHA256: `87C6F9AD61E3D5832CCDCAC4C9B165C64C88AC51349109B0678724FFE3A0D212`)
+  - Core MSI Installer: `EbookReader_1.0.0_x64_en-US.msi` (6,361,088 bytes, SHA256: `3CD29E9114225E03BAD875BEF1237685A6CC6C164F8EB95DACF164057A713BC9`)
+  - Optional OCR Pack: `EbookReader_OCR_Pack_1.0.0_x64-setup.exe` (59,183,570 bytes, SHA256: `6A9D8ECD1500EE4C8DFE2DE610F2398EA72F51B222BDE4B4A4C1DFED0DA8ECA3`)
+- Verified third-party redistribution licenses & attributions: Microsoft ONNX Runtime (MIT), PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0), Microsoft Edge WebView2.
 
 **Full Automated Regression Verification:**
 - Frontend unit tests `npm test`: 38 test files, 308 passed; 0 failed.
@@ -59,16 +60,17 @@ Current Phase: **Milestone 10 Active (M10-C — Release Governance & Publication
 - Production frontend build `npm run build`: passed.
 - Production Tauri release build `npm run tauri build`: passed.
 
-Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Active).
-Current Checkpoint / Promotion Unit: **M10-C (Release Identity Finalized — VERSION_FINALIZATION_READY_FOR_TARGETED_HUMAN_SMOKE)**.
-Current Branch / PR: `milestone/10a-rc-clean-install` / PR #1
+Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Complete** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Complete [RELEASED]).
+Current Checkpoint: **V1_0_0_RELEASED_M10_COMPLETE_PP_NEXT**.
+Current Branch / PR: `governance/m10-post-release-reconciliation` / PR #2 (Base: `main` @ `dea8d82`, Tag: `v1.0.0`)
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
-RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance PASS (HUMAN PASS); M10-C Release Identity Finalization Complete.
-Next Action: Perform targeted human smoke test (4 items) on v1.0.0 candidate artifacts, then proceed with PR #1 merge, tag v1.0.0, and GitHub release creation upon human authorization.
+RC / Release State: **v1.0.0 Released (GitHub Release & Assets Published)**.
+Next Action: Proceed to Portfolio Packaging (PP) phase when authorized.
+
 
 
 
