@@ -108,10 +108,36 @@ impl GlobalBookHoursDefaults {
     }
 }
 
+pub fn validate_global_defaults(defaults: &GlobalBookHoursDefaults) -> rusqlite::Result<()> {
+    for (field_name, val) in [
+        ("pages_per_hour", defaults.pages_per_hour),
+        ("words_per_hour", defaults.words_per_hour),
+        ("characters_per_hour", defaults.characters_per_hour),
+    ] {
+        if !val.is_finite() || val <= 0.0 {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "{field_name} must be a finite positive number (> 0.0)"
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_difficulty_multiplier(diff: f64) -> rusqlite::Result<()> {
+    if !diff.is_finite() || diff <= 0.0 {
+        return Err(rusqlite::Error::InvalidParameterName(
+            "difficulty_multiplier must be a finite positive number (> 0.0)".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn load_global_book_hours_defaults(conn: &Connection) -> rusqlite::Result<GlobalBookHoursDefaults> {
     if let Some(json_val) = crate::settings::get_setting(conn, crate::settings::keys::BOOK_HOURS_DEFAULTS)? {
         if let Ok(defaults) = serde_json::from_str::<GlobalBookHoursDefaults>(&json_val) {
-            return Ok(defaults);
+            if validate_global_defaults(&defaults).is_ok() {
+                return Ok(defaults);
+            }
         }
     }
     Ok(GlobalBookHoursDefaults::default())
@@ -121,6 +147,7 @@ pub fn save_global_book_hours_defaults(
     conn: &Connection,
     defaults: &GlobalBookHoursDefaults,
 ) -> rusqlite::Result<()> {
+    validate_global_defaults(defaults)?;
     let json_val = serde_json::to_string(defaults)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     crate::settings::set_setting(conn, crate::settings::keys::BOOK_HOURS_DEFAULTS, &json_val)
@@ -191,6 +218,7 @@ pub fn create_reading_profile(
     is_default: bool,
     created_at: &str,
 ) -> rusqlite::Result<ReadingProfile> {
+    validate_difficulty_multiplier(difficulty_multiplier)?;
     conn.execute(
         "INSERT INTO reading_profiles (id, name, difficulty_multiplier, description, is_default, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
@@ -275,6 +303,7 @@ pub fn update_reading_profile(
     description: &str,
     updated_at: &str,
 ) -> rusqlite::Result<Option<ReadingProfile>> {
+    validate_difficulty_multiplier(difficulty_multiplier)?;
     let affected = conn.execute(
         "UPDATE reading_profiles
          SET name = ?1, difficulty_multiplier = ?2, description = ?3, updated_at = ?4
@@ -282,7 +311,9 @@ pub fn update_reading_profile(
         params![name, difficulty_multiplier, description, updated_at, id],
     )?;
     if affected == 0 {
-        return Ok(None);
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "unknown reading profile id '{id}'"
+        )));
     }
     get_reading_profile(conn, id)
 }
@@ -753,10 +784,53 @@ pub struct RecalculationPreviewResult {
     pub collection_impacts: Vec<CollectionRecalculationImpact>,
 }
 
+pub fn validate_recalculation_request(
+    conn: &Connection,
+    request: &RecalculationPreviewRequest,
+) -> rusqlite::Result<()> {
+    if let Some(ref defaults) = request.proposed_defaults {
+        validate_global_defaults(defaults)?;
+    }
+
+    if let Some(ref updates) = request.proposed_profiles {
+        let mut seen_ids = std::collections::HashSet::new();
+        for update in updates {
+            validate_difficulty_multiplier(update.difficulty_multiplier)?;
+
+            if !seen_ids.insert(&update.profile_id) {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "duplicate update for reading profile id '{}'",
+                    update.profile_id
+                )));
+            }
+
+            let exists: bool = conn
+                .query_row(
+                    "SELECT 1 FROM reading_profiles WHERE id = ?1",
+                    [&update.profile_id],
+                    |_| Ok(true),
+                )
+                .optional()?
+                .unwrap_or(false);
+
+            if !exists {
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "unknown reading profile id '{}'",
+                    update.profile_id
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn preview_book_hours_recalculation(
     conn: &Connection,
     request: &RecalculationPreviewRequest,
 ) -> rusqlite::Result<RecalculationPreviewResult> {
+    validate_recalculation_request(conn, request)?;
+
     let current_defaults = load_global_book_hours_defaults(conn)?;
     let effective_defaults = request.proposed_defaults.unwrap_or(current_defaults);
 
@@ -1010,22 +1084,44 @@ pub fn apply_book_hours_recalculation(
     conn: &Connection,
     request: &RecalculationPreviewRequest,
 ) -> rusqlite::Result<RecalculationPreviewResult> {
+    // preview_book_hours_recalculation performs validate_recalculation_request as its first step
     let preview = preview_book_hours_recalculation(conn, request)?;
 
-    if let Some(ref defaults) = request.proposed_defaults {
-        save_global_book_hours_defaults(conn, defaults)?;
-    }
+    conn.execute("SAVEPOINT apply_book_hours_recalculation", [])?;
 
-    if let Some(ref profile_updates) = request.proposed_profiles {
-        for u in profile_updates {
-            conn.execute(
-                "UPDATE reading_profiles SET difficulty_multiplier = ?1, updated_at = datetime('now') WHERE id = ?2",
-                params![u.difficulty_multiplier, &u.profile_id],
-            )?;
+    let result: rusqlite::Result<()> = (|| {
+        if let Some(ref defaults) = request.proposed_defaults {
+            save_global_book_hours_defaults(conn, defaults)?;
+        }
+
+        if let Some(ref profile_updates) = request.proposed_profiles {
+            for update in profile_updates {
+                let affected = conn.execute(
+                    "UPDATE reading_profiles SET difficulty_multiplier = ?1, updated_at = datetime('now') WHERE id = ?2",
+                    params![update.difficulty_multiplier, &update.profile_id],
+                )?;
+                if affected == 0 {
+                    return Err(rusqlite::Error::InvalidParameterName(format!(
+                        "unknown reading profile id '{}'",
+                        update.profile_id
+                    )));
+                }
+            }
+        }
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            conn.execute("RELEASE apply_book_hours_recalculation", [])?;
+            Ok(preview)
+        }
+        Err(e) => {
+            conn.execute("ROLLBACK TO apply_book_hours_recalculation", []).ok();
+            conn.execute("RELEASE apply_book_hours_recalculation", []).ok();
+            Err(e)
         }
     }
-
-    Ok(preview)
 }
 
 // ---------------------------------------------------------------------------
@@ -1569,6 +1665,226 @@ mod tests {
         let prof_after_apply = get_reading_profile(&conn, "prof-deep").unwrap().unwrap();
         assert_eq!(prof_after_apply.difficulty_multiplier, 2.0);
     }
+
+    #[test]
+    fn reject_invalid_numerics_on_global_defaults() {
+        let conn = test_conn();
+        let invalid_cases = vec![
+            GlobalBookHoursDefaults { pages_per_hour: 0.0, words_per_hour: 15_000.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: -10.0, words_per_hour: 15_000.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: f64::NAN, words_per_hour: 15_000.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: f64::INFINITY, words_per_hour: 15_000.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: 0.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: -500.0, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: f64::NAN, characters_per_hour: 30_000.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: 15_000.0, characters_per_hour: 0.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: 15_000.0, characters_per_hour: -1.0 },
+            GlobalBookHoursDefaults { pages_per_hour: 60.0, words_per_hour: 15_000.0, characters_per_hour: f64::INFINITY },
+        ];
+
+        for invalid in invalid_cases {
+            assert!(validate_global_defaults(&invalid).is_err());
+            assert!(save_global_book_hours_defaults(&conn, &invalid).is_err());
+        }
+
+        // Verify default remained untouched
+        assert_eq!(load_global_book_hours_defaults(&conn).unwrap(), GlobalBookHoursDefaults::default());
+    }
+
+    #[test]
+    fn reject_invalid_inputs_on_profile_crud() {
+        let conn = test_conn();
+
+        // 1. Invalid difficulty on create
+        for bad_diff in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(create_reading_profile(&conn, "p-bad", "Bad", bad_diff, "", false, "2026-09-10T00:00:00Z").is_err());
+        }
+
+        // 2. Create a valid profile
+        create_reading_profile(&conn, "p-valid", "Valid", 1.2, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // 3. Invalid difficulty on update
+        for bad_diff in [0.0, -2.5, f64::NAN, f64::INFINITY] {
+            assert!(update_reading_profile(&conn, "p-valid", "Valid", bad_diff, "", "2026-09-10T01:00:00Z").is_err());
+        }
+
+        // 4. Unknown profile ID on update
+        assert!(update_reading_profile(&conn, "nonexistent-id", "Valid", 1.2, "", "2026-09-10T01:00:00Z").is_err());
+    }
+
+    #[test]
+    fn recalculation_preview_and_apply_validation_parity() {
+        let conn = test_conn();
+        create_reading_profile(&conn, "p-1", "P1", 1.0, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        // Case A: Unknown profile ID
+        let req_unknown = RecalculationPreviewRequest {
+            proposed_defaults: None,
+            proposed_profiles: Some(vec![ProfileDifficultyUpdate {
+                profile_id: "p-unknown".to_string(),
+                difficulty_multiplier: 1.5,
+            }]),
+        };
+        assert!(preview_book_hours_recalculation(&conn, &req_unknown).is_err());
+        assert!(apply_book_hours_recalculation(&conn, &req_unknown).is_err());
+
+        // Case B: Duplicate profile ID in request
+        let req_dup = RecalculationPreviewRequest {
+            proposed_defaults: None,
+            proposed_profiles: Some(vec![
+                ProfileDifficultyUpdate {
+                    profile_id: "p-1".to_string(),
+                    difficulty_multiplier: 1.5,
+                },
+                ProfileDifficultyUpdate {
+                    profile_id: "p-1".to_string(),
+                    difficulty_multiplier: 2.0,
+                },
+            ]),
+        };
+        assert!(preview_book_hours_recalculation(&conn, &req_dup).is_err());
+        assert!(apply_book_hours_recalculation(&conn, &req_dup).is_err());
+
+        // Case C: Invalid defaults (e.g. negative speed)
+        let req_bad_defaults = RecalculationPreviewRequest {
+            proposed_defaults: Some(GlobalBookHoursDefaults {
+                pages_per_hour: -50.0,
+                words_per_hour: 15_000.0,
+                characters_per_hour: 30_000.0,
+            }),
+            proposed_profiles: None,
+        };
+        assert!(preview_book_hours_recalculation(&conn, &req_bad_defaults).is_err());
+        assert!(apply_book_hours_recalculation(&conn, &req_bad_defaults).is_err());
+
+        // Case D: Invalid profile difficulty (e.g. NaN or 0.0)
+        let req_bad_diff = RecalculationPreviewRequest {
+            proposed_defaults: None,
+            proposed_profiles: Some(vec![ProfileDifficultyUpdate {
+                profile_id: "p-1".to_string(),
+                difficulty_multiplier: 0.0,
+            }]),
+        };
+        assert!(preview_book_hours_recalculation(&conn, &req_bad_diff).is_err());
+        assert!(apply_book_hours_recalculation(&conn, &req_bad_diff).is_err());
+    }
+
+    #[test]
+    fn recalculation_atomic_rollback_on_failure() {
+        let conn = test_conn();
+        create_reading_profile(&conn, "p-alpha", "Alpha", 1.0, "", false, "2026-09-10T00:00:00Z").unwrap();
+        create_reading_profile(&conn, "p-beta", "Beta", 1.2, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        let initial_defaults = load_global_book_hours_defaults(&conn).unwrap();
+
+        // 1. Validation phase failure (unknown profile)
+        let invalid_req = RecalculationPreviewRequest {
+            proposed_defaults: Some(GlobalBookHoursDefaults {
+                pages_per_hour: 45.0,
+                words_per_hour: 10_000.0,
+                characters_per_hour: 20_000.0,
+            }),
+            proposed_profiles: Some(vec![
+                ProfileDifficultyUpdate {
+                    profile_id: "p-alpha".to_string(),
+                    difficulty_multiplier: 2.5,
+                },
+                ProfileDifficultyUpdate {
+                    profile_id: "p-unknown".to_string(),
+                    difficulty_multiplier: 3.0,
+                },
+            ]),
+        };
+
+        assert!(apply_book_hours_recalculation(&conn, &invalid_req).is_err());
+        assert_eq!(load_global_book_hours_defaults(&conn).unwrap(), initial_defaults);
+        assert_eq!(get_reading_profile(&conn, "p-alpha").unwrap().unwrap().difficulty_multiplier, 1.0);
+
+        // 2. Mid-apply SQL execution failure:
+        // Install a trigger that aborts when p-beta is updated inside the savepoint
+        conn.execute(
+            "CREATE TRIGGER test_fail_on_beta
+             BEFORE UPDATE ON reading_profiles
+             WHEN NEW.id = 'p-beta'
+             BEGIN
+                 SELECT RAISE(ABORT, 'forced mid-apply failure');
+             END;",
+            [],
+        )
+        .unwrap();
+
+        let mid_fail_req = RecalculationPreviewRequest {
+            proposed_defaults: Some(GlobalBookHoursDefaults {
+                pages_per_hour: 45.0,
+                words_per_hour: 10_000.0,
+                characters_per_hour: 20_000.0,
+            }),
+            proposed_profiles: Some(vec![
+                ProfileDifficultyUpdate {
+                    profile_id: "p-alpha".to_string(),
+                    difficulty_multiplier: 2.5,
+                },
+                ProfileDifficultyUpdate {
+                    profile_id: "p-beta".to_string(),
+                    difficulty_multiplier: 3.0,
+                },
+            ]),
+        };
+
+        let result = apply_book_hours_recalculation(&conn, &mid_fail_req);
+        assert!(result.is_err(), "Must fail mid-apply on p-beta update");
+
+        // Verify that SAVEPOINT rollback restored defaults and p-alpha completely!
+        let defaults_after = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(defaults_after, initial_defaults, "Defaults must be rolled back on mid-apply failure");
+
+        let p_alpha_after = get_reading_profile(&conn, "p-alpha").unwrap().unwrap();
+        assert_eq!(p_alpha_after.difficulty_multiplier, 1.0, "p-alpha difficulty must be rolled back on mid-apply failure");
+
+        let p_beta_after = get_reading_profile(&conn, "p-beta").unwrap().unwrap();
+        assert_eq!(p_beta_after.difficulty_multiplier, 1.2, "p-beta difficulty must remain 1.2");
+    }
+
+    #[test]
+    fn atomic_multi_profile_and_defaults_application() {
+        let conn = test_conn();
+        create_reading_profile(&conn, "p-1", "Profile 1", 1.0, "", false, "2026-09-10T00:00:00Z").unwrap();
+        create_reading_profile(&conn, "p-2", "Profile 2", 1.5, "", false, "2026-09-10T00:00:00Z").unwrap();
+
+        let req = RecalculationPreviewRequest {
+            proposed_defaults: Some(GlobalBookHoursDefaults {
+                pages_per_hour: 40.0,
+                words_per_hour: 12_000.0,
+                characters_per_hour: 24_000.0,
+            }),
+            proposed_profiles: Some(vec![
+                ProfileDifficultyUpdate {
+                    profile_id: "p-1".to_string(),
+                    difficulty_multiplier: 1.8,
+                },
+                ProfileDifficultyUpdate {
+                    profile_id: "p-2".to_string(),
+                    difficulty_multiplier: 2.2,
+                },
+            ]),
+        };
+
+        let res = apply_book_hours_recalculation(&conn, &req).unwrap();
+        assert_eq!(res.progress_changed_count, 0);
+
+        // Verify persistent mutation of defaults and both profiles
+        let defaults = load_global_book_hours_defaults(&conn).unwrap();
+        assert_eq!(defaults.pages_per_hour, 40.0);
+        assert_eq!(defaults.words_per_hour, 12_000.0);
+        assert_eq!(defaults.characters_per_hour, 24_000.0);
+
+        let p1 = get_reading_profile(&conn, "p-1").unwrap().unwrap();
+        assert_eq!(p1.difficulty_multiplier, 1.8);
+
+        let p2 = get_reading_profile(&conn, "p-2").unwrap().unwrap();
+        assert_eq!(p2.difficulty_multiplier, 2.2);
+    }
 }
+
 
 
