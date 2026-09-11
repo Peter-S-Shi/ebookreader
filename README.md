@@ -1,96 +1,236 @@
-# EbookReader
+<p align="center">
+  <img src="assets/readme/hero.svg" alt="EbookReader — a Windows-first, local-first personal reading workspace" width="100%">
+</p>
 
-> A Windows-first, local-first personal reading workspace for PDF, EPUB, and TXT.
+<p align="center">
+  <strong>EbookReader v1.0.0</strong> · Windows-first · Local-first · EPUB / PDF / TXT · Optional local OCR
+</p>
 
-## Current Status
+<p align="center">
+  <a href="https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0"><strong>Download v1.0.0</strong></a>
+  ·
+  <a href="PRODUCT_SPEC.md">Product Spec</a>
+  ·
+  <a href="ARCHITECTURE.md">Architecture</a>
+  ·
+  <a href="DESIGN.md">Design</a>
+</p>
 
-- **Phase:** **v1.0.0 Released (Milestone 10 Complete) — Next: Portfolio Packaging (PP)** — Human Feature Freeze approved, V1 scope locked, M1-M9 complete, Full Automated Regression & Native Human Acceptance PASS, M10-A Clean Install PASS, M10-B Packaged RC Acceptance PASS, M10-C Release Governance & Publication complete (v1.0.0 released on GitHub)
-- **Milestone:** M0 Architecture Lock approved at the second Human Architecture Gate (2026-09-08); **M1-M10 complete; v1.0.0 released (`dea8d82`, Tag: `v1.0.0`)** — see `M0_TECHNICAL_SPIKE_REPORT.md`, `M0_ARCHITECTURE_DECISION.md`, `ROADMAP.md` (each completed Milestone's Exit Gate has its full evidence account), `PROJECT_STATUS.md`, `FEATURE_COMPLETE_CANDIDATE_REPORT.md` (cross-milestone reconciliation, residual-risk list, and confirmation no required V1 feature exists only in prototype form), reproducible M0 evidence harness at `tooling/m0-evidence/`
-- **V1 product/domain scope:** Frozen
-- **V1 UI baseline:** Frozen
-- **Architecture:** **Accepted Architecture Baseline** (M0-evidenced, corrective pass, human-approved)
-- **Feature Freeze:** Human-approved
-- **Release:** **v1.0.0 Released** (GitHub Release, Core NSIS/MSI installers and standalone Optional OCR Pack published with verified SHA256 checksums)
+---
 
-The Feature-Frozen V1 application is complete and released as **EbookReader v1.0.0**. M1-M10 milestones are complete; the next lifecycle phase is Portfolio Packaging (PP).
+## What is EbookReader?
 
-## Product Identity
+**EbookReader** is a Windows desktop reading workspace built around a simple idea: reading tools should stay quiet while your books, notes, plans, and reading history remain understandable and under your control.
 
-EbookReader combines reliable local reading, personal library and reading-asset management, transparent Book Hours, factual Actual Reading Time, optional local OCR for scanned PDFs, bilingual aligned reading, backup/restore, and update awareness.
+It supports **EPUB, PDF, and TXT**, with persistent reading progress, Notes / Excerpts / Highlights, bilingual aligned reading, Book Hours planning, local backup and restore, and an optional local OCR pack for scanned PDFs.
+
+The product is intentionally **local-first**. Core reading and user data stay on the machine; update awareness is the narrow V1 network exception.
 
 > **Quiet Surface, Living Motion**
 
-Core reading and user-data access are local-first. Optional update awareness is the narrow V1 network exception.
+---
 
-## Canonical Authorities
+## Product tour
 
-> **One fact, one owner.**
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/library.png" alt="EbookReader library with EPUB, PDF and TXT books">
+      <br><strong>Library</strong><br>
+      Multi-format library, collections, progress, and Continue Reading in one low-noise home surface.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/epub-highlight.png" alt="EPUB reader with highlighted passage">
+      <br><strong>Focused reading</strong><br>
+      EPUB reading with persistent position, typography controls, highlights, notes, and notebook access.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/bilingual-reading.png" alt="Bilingual aligned reading in English and Chinese">
+      <br><strong>Bilingual reading</strong><br>
+      Two independent books with synchronized navigation, side swap, contents navigation, and alignment inspection.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/notes-dark.png" alt="Global Notes Library in dark mode">
+      <br><strong>Global Notes Library</strong><br>
+      Notes, excerpts, and annotations stay tied to their source books and can be reviewed across the library.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/readme/book-hours-overview.png" alt="Book Hours planning overview">
+      <br><strong>Book Hours</strong><br>
+      A transparent planning model for estimated reading workload, separated from factual reading progress and time.
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/readme/data-recovery.png" alt="Data and Recovery Center">
+      <br><strong>Data & Recovery</strong><br>
+      App-data backup, full-library backup, restore, recovery snapshots, and explicit data-safety boundaries.
+    </td>
+  </tr>
+</table>
 
-| Authority | Canonical file |
-|---|---|
-| Product / domain semantics | `PRODUCT_SPEC.md` |
-| UI / interaction semantics | `DESIGN.md` |
-| Architecture decisions | `ARCHITECTURE.md` |
-| Format capability contract | `FORMAT_CAPABILITY_MATRIX.md` |
-| Delivery sequence / loop control | `ROADMAP.md` |
-| Manual acceptance | `MANUAL_QA.md` |
-| Current execution state | `PROJECT_STATUS.md` |
+---
 
-Other files may summarize or link; they must not redefine another authority's truth.
+## Why this project is different
 
-## Development Entry Point
+### Book Hours: planning without rewriting reality
 
-A new human or agent session should normally load:
-
-1. `README.md`
-2. `PROJECT_STATUS.md`
-3. the current Milestone / checkpoint section in `ROADMAP.md`
-
-Then load specialist authorities only as needed:
-
-- product behavior → relevant `PRODUCT_SPEC.md`
-- UI → relevant `DESIGN.md`
-- architecture → relevant `ARCHITECTURE.md`
-- format behavior → `FORMAT_CAPABILITY_MATRIX.md`
-- human acceptance → relevant `MANUAL_QA.md`
-
-Do not preload every large authority document into every session unless the task genuinely needs it.
-
-## Development Model
-
-> **Broad operational autonomy, narrow normative authority.**
-
-Routine implementation, debugging, focused refactoring, testing, retry, and evidence generation may proceed autonomously inside an approved execution envelope.
-
-Human gates remain mandatory for V1 scope/semantic change, frozen UI change, architecture lock/major reversal, high-consequence migration or destructive data-policy decisions, Feature Freeze, RC/Release promotion, and unresolved product-vs-technical conflict.
-
-Milestones are planning/delivery units, not automatic branch/PR/merge boundaries. Promotion is evidence-gated.
-
-## Lifecycle
+Book Hours is a first-class planning model rather than a manually entered target.
 
 ```text
-P0 Loop-Control Refactor
-→ M0 Feasibility & Architecture Lock
-→ Human Architecture Gate
-→ M1..M8 Autonomous Feature Loop
-→ Feature Complete Candidate
-→ Human Feature Freeze Gate
-→ Product Hardening
-→ Full Regression & Human Acceptance
-→ RC / Windows Release
-→ Portfolio / Maintenance
+Planned Book Hours = (Quantity / Baseline Speed) × Difficulty
+
+Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
 ```
 
-## Canonical UI Prototype
+- **Quantity** is format-aware: pages, words, or characters.
+- **Baseline Speed** is unit-specific and configurable.
+- **Difficulty** comes from one Reading Profile per book.
+- **Reading Progress remains an independent fact.**
+- Recalculation never rewrites reading progress, Actual Reading Time, or session history.
+- Missing inputs produce a truthful **Needs setup / Not calculated** state instead of synthetic `0h`.
 
-`docs/design/EbookReader_UI_Prototype_v0_5.html`
+### Bilingual reading: synchronized navigation, independent book data
 
-## Privacy & Repository Hygiene
+Bilingual reading pairs two real books without collapsing them into one document. Each side keeps its own reading state and annotations while navigation can remain synchronized.
 
-Do not commit local/private planning material unless explicitly approved. Prompt drafts, personal-source reading material, private handoffs, machine-specific paths, credentials/tokens, and non-redistributable test corpora remain local by default.
+### Optional local OCR
 
-Use synthetic or redistributable public examples and fixtures.
+Scanned PDFs remain visually readable without OCR. Users who need text recognition can install the standalone **EbookReader Optional OCR Pack**.
 
-## V1 Non-Goals
+- Core installer stays lightweight.
+- OCR runs locally through ONNX Runtime.
+- No cloud OCR dependency.
+- OCR corrections are preserved as user data.
+- Missing OCR assets are treated as an optional-component state, not a broken reader.
 
-Detailed V1 non-goals are owned by `PRODUCT_SPEC.md`. Do not restate or redefine them here.
+### Recovery is part of the product, not an afterthought
+
+The Data & Recovery Center makes backup and restore explicit. It distinguishes app data from reference files, creates safety snapshots before destructive recovery operations, and keeps local file ownership visible to the user.
+
+---
+
+## Core capabilities
+
+| Area | V1 capabilities |
+|---|---|
+| **Reading** | EPUB, PDF, TXT; persistent position/progress; rereads; format-aware controls |
+| **Annotations** | Notes, Excerpts, Highlights / Annotations, source-linked navigation |
+| **Organization** | Collections, library multi-select, soft removal from library |
+| **Planning** | Book Hours, Reading Profiles, Collection workload views, Calendar |
+| **Bilingual** | Alignment Packages, synchronized reading, independent book data |
+| **OCR** | Optional local OCR pack for scanned PDFs, correction workspace |
+| **Reliability** | SQLite persistence, app-data backup, full-library backup, restore, recovery snapshots |
+| **Preferences** | Light / dark appearance, typography, reading settings, update awareness |
+
+---
+
+## Architecture & stack
+
+EbookReader is a **Tauri 2** desktop application with a React / TypeScript frontend and a Rust core.
+
+- **Desktop shell:** Tauri 2
+- **Frontend:** React, TypeScript, Vite
+- **Core / persistence:** Rust + SQLite (`rusqlite`)
+- **EPUB:** Foliate.js
+- **PDF:** PDF.js
+- **OCR:** ONNX Runtime + PaddleOCR model assets in the optional OCR pack
+- **Platform target:** Windows-first
+
+The repository deliberately separates authority between product semantics, UI semantics, architecture, and delivery state instead of letting one document silently redefine another.
+
+| Concern | Canonical document |
+|---|---|
+| Product / domain semantics | [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) |
+| UI / interaction semantics | [`DESIGN.md`](DESIGN.md) |
+| Architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Format behavior | [`FORMAT_CAPABILITY_MATRIX.md`](FORMAT_CAPABILITY_MATRIX.md) |
+| Delivery / lifecycle | [`ROADMAP.md`](ROADMAP.md) |
+| Manual acceptance | [`MANUAL_QA.md`](MANUAL_QA.md) |
+| Current project state | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
+
+---
+
+## Release engineering
+
+**v1.0.0** is the first stable public release.
+
+The release process included:
+
+- full automated regression and native human acceptance;
+- packaged Windows RC verification;
+- clean Windows 11 VM installation and relaunch testing;
+- recursive packaged-runtime dependency closure auditing;
+- persistence, backup, restore, and recovery validation;
+- Optional OCR Pack installation and live OCR smoke testing;
+- release-identity consistency checks and CI promotion gates.
+
+Release artifacts:
+
+- `EbookReader_1.0.0_x64-setup.exe` — standard NSIS installer
+- `EbookReader_1.0.0_x64_en-US.msi` — MSI installer
+- `EbookReader_OCR_Pack_1.0.0_x64-setup.exe` — optional local OCR pack
+
+➡️ **[Download EbookReader v1.0.0](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)**
+
+---
+
+## Build from source
+
+Prerequisites:
+
+- Windows
+- Node.js / npm
+- Rust toolchain compatible with the repository
+- Tauri 2 prerequisites
+
+```powershell
+npm install
+npm run tauri dev
+```
+
+Production build:
+
+```powershell
+npm run tauri build
+```
+
+The optional OCR pack has its own packaging path and is intentionally not bundled into the lightweight Core installer.
+
+---
+
+## Product and engineering notes
+
+This repository preserves the engineering trail behind the release rather than presenting the app as a one-shot demo.
+
+Useful starting points:
+
+- [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) — frozen V1 product contract
+- [`DESIGN.md`](DESIGN.md) — **Quiet Surface, Living Motion** design authority
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — accepted architecture baseline
+- [`ROADMAP.md`](ROADMAP.md) — milestone gates and delivery evidence
+- [`FEATURE_COMPLETE_CANDIDATE_REPORT.md`](FEATURE_COMPLETE_CANDIDATE_REPORT.md) — feature-complete reconciliation
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — current lifecycle state
+
+The project prioritizes **engineering credibility over novelty claims**: clear contracts, explicit trade-offs, human gates, regression evidence, real packaging, and recoverable user data.
+
+---
+
+## Privacy
+
+EbookReader is local-first.
+
+- Reading files and user data are not uploaded by the core product.
+- OCR inference is local.
+- Update awareness is the narrow V1 network exception.
+- Local/private planning material and non-redistributable reading corpora are intentionally excluded from the public repository.
+
+---
+
+## Release
+
+**Current stable release:** [`v1.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)
+
+Windows Core installers and the Optional OCR Pack are published on the GitHub Release page with SHA256 checksums and third-party notices.
