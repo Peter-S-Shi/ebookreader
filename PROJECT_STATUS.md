@@ -58,16 +58,16 @@ Current Phase: **Milestone 10 Active (M10-B — Packaged RC Acceptance)**. M10-A
 - Production frontend build `npm run build`: passed.
 - Production Tauri release build `npm run tauri build`: passed.
 
-Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A Complete, M10-B in progress).
-Current Checkpoint / Promotion Unit: **M10-B (Packaged RC Acceptance Active — Ready for Targeted Human Retest)**.
+Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS]).
+Current Checkpoint / Promotion Unit: **M10-B (Packaged RC Acceptance Complete — HUMAN PASS; CI Test-Contract Resolved)**.
 Current Branch / PR: `milestone/10a-rc-clean-install` / PR #1
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
-RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance Active.
-Next Action: Await targeted human clean-environment retest on the updated Core installer and Optional OCR Pack installer.
+RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance HUMAN PASS.
+Next Action: Await GitHub PR CI green confirmation on the test-contract fix to close M10-B.
 
 
 

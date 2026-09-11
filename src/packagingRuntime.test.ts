@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error type error without @types/node package
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 // @ts-expect-error type error without @types/node package
 import { join } from "node:path";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 // @ts-expect-error local module import
 import { auditRuntimeClosure } from "../tooling/audit_runtime_closure.mjs";
+// @ts-expect-error local module import
+import { REQUIRED_OCR_FILES, findMakensis, buildOcrPack } from "../tooling/build_ocr_pack.mjs";
 
 const REQUIRED_REDIST_DLLS = [
   "WebView2Loader.dll",
@@ -15,10 +17,13 @@ const REQUIRED_REDIST_DLLS = [
   "libwinpthread-1.dll",
 ] as const;
 
-describe("Packaging runtime dependency closure (Release Blockers: WebView2Loader & MinGW DLLs)", () => {
+describe("Packaging runtime dependency closure & Core lightweight boundary", () => {
   const rootDir = process.cwd();
   const tauriConfPath = join(rootDir, "src-tauri", "tauri.conf.json");
   const redistDir = join(rootDir, "src-tauri", "redist");
+  const ocrNsiPath = join(rootDir, "tooling", "ocr_pack.nsi");
+  const ocrBuildScriptPath = join(rootDir, "tooling", "build_ocr_pack.mjs");
+  const ocrDir = join(rootDir, "ocr-assets");
 
   it("tauri.conf.json configures bundle.resources to map redist/* to installer root ./", () => {
     expect(existsSync(tauriConfPath)).toBe(true);
@@ -47,30 +52,59 @@ describe("Packaging runtime dependency closure (Release Blockers: WebView2Loader
     }
   });
 
+  it("auditRuntimeClosure passes with complete dependency closure when release binary exists", () => {
+    const releaseExe = join(rootDir, "target", "release", "ebookreader.exe");
+    if (existsSync(releaseExe)) {
+      const result = auditRuntimeClosure();
+      expect(result.issues).toEqual([]);
+      expect(result.valid).toBe(true);
+      for (const dll of REQUIRED_REDIST_DLLS) {
+        expect(result.requiredRedistDlls).toContain(dll);
+      }
+    }
+  });
+
   it("keeps Core packaging lightweight without bundling heavy ocr-assets into redist", () => {
     const ocrAssetsInRedist = join(redistDir, "PP-OCRv6_det_medium.onnx");
     expect(existsSync(ocrAssetsInRedist)).toBe(false);
   });
 
-  it("standalone OCR Pack asset directory contains complete PP-OCRv6 model set and ONNX Runtime", () => {
-    const ocrDir = join(rootDir, "ocr-assets");
-    const requiredFiles = [
+  it("standalone OCR Pack build tooling and manifest contract are fully specified in tracked sources", () => {
+    expect(existsSync(ocrBuildScriptPath)).toBe(true);
+    expect(typeof buildOcrPack).toBe("function");
+    expect(typeof findMakensis).toBe("function");
+    expect(Array.isArray(REQUIRED_OCR_FILES)).toBe(true);
+    expect(REQUIRED_OCR_FILES.length).toBe(5);
+
+    const expectedOcrFiles = [
       "PP-OCRv6_det_medium.onnx",
       "PP-OCRv6_rec_small.onnx",
       "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
       "onnxruntime.dll",
       "onnxruntime_providers_shared.dll",
     ];
-    for (const file of requiredFiles) {
-      const p = join(ocrDir, file);
-      expect(existsSync(p), `Missing OCR asset ${file}`).toBe(true);
-      expect(statSync(p).size).toBeGreaterThan(1000);
+    for (const file of expectedOcrFiles) {
+      expect(REQUIRED_OCR_FILES).toContain(file);
+    }
+
+    expect(existsSync(ocrNsiPath)).toBe(true);
+    const nsiContent = readFileSync(ocrNsiPath, "utf-8");
+    expect(nsiContent).toContain("InstallDir \"$APPDATA\\com.peter-shi.ebookreader\\ocr-assets\"");
+    for (const file of expectedOcrFiles) {
+      expect(nsiContent).toContain(`File "..\\ocr-assets\\${file}"`);
+      expect(nsiContent).toContain(`Delete "$INSTDIR\\${file}"`);
     }
   });
 
-  it("standalone OCR Pack build script tooling/build_ocr_pack.mjs exists and is functional", () => {
-    const scriptPath = join(rootDir, "tooling", "build_ocr_pack.mjs");
-    expect(existsSync(scriptPath)).toBe(true);
+  it("validates local OCR Pack asset payload when present in local packaging environment", () => {
+    const hasLocalOcrFiles = existsSync(ocrDir) && readdirSync(ocrDir).some((f: string) => f.endsWith(".onnx") || f.endsWith(".dll"));
+    if (hasLocalOcrFiles) {
+      for (const file of REQUIRED_OCR_FILES) {
+        const p = join(ocrDir, file);
+        expect(existsSync(p), `Missing local OCR asset ${file}`).toBe(true);
+        expect(statSync(p).size).toBeGreaterThan(1000);
+      }
+    }
   });
 });
 

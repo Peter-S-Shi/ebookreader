@@ -10,7 +10,7 @@ const outputDir = join(rootDir, "target", "release", "bundle", "ocr-pack");
 const outputFile = join(outputDir, "EbookReader_OCR_Pack_0.1.0_x64-setup.exe");
 const nsiScript = join(rootDir, "tooling", "ocr_pack.nsi");
 
-const REQUIRED_OCR_FILES = [
+export const REQUIRED_OCR_FILES = [
   "PP-OCRv6_det_medium.onnx",
   "PP-OCRv6_rec_small.onnx",
   "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
