@@ -27,7 +27,7 @@ use commands::{
     set_ocr_job_status_command, set_setting_command, start_next_read_command, update_book_title_command,
     // BH-2 Book Hours commands
     list_reading_profiles_command, get_reading_profile_command, create_reading_profile_command,
-    update_reading_profile_command, delete_reading_profile_command,
+    update_reading_profile_command, delete_reading_profile_command, set_default_reading_profile_command,
     get_book_workload_command, set_book_workload_command,
     get_global_book_hours_defaults_command, set_global_book_hours_defaults_command,
     get_book_hours_overview_command, get_book_hours_item_command,
@@ -137,6 +137,7 @@ pub fn run() {
             create_reading_profile_command,
             update_reading_profile_command,
             delete_reading_profile_command,
+            set_default_reading_profile_command,
             get_book_workload_command,
             set_book_workload_command,
             get_global_book_hours_defaults_command,

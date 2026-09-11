@@ -62,13 +62,6 @@ interface CollectionDTO {
   name: string;
 }
 
-// Mirrors `commands::BookHours`.
-interface BookHoursDTO {
-  base_hours: number;
-  cumulative_hours: number;
-  cumulative_reading_percent: number;
-}
-
 // Mirrors `commands::ImportBookResult`.
 type ImportBookResult =
   | { kind: "imported"; book_id: string }
@@ -95,6 +88,11 @@ function App() {
   // overlay, not a top-level destination -- reached from a Book's own
   // "Details" action, not the nav.
   const [detailsBook, setDetailsBook] = useState<BookSummary | null>(null);
+  const [detailsFocusSection, setDetailsFocusSection] = useState<"organization" | "details">("details");
+  const [bookHoursInitialTab, setBookHoursInitialTab] = useState<
+    "overview" | "byProfile" | "byCollection" | "books" | "profiles" | "formula"
+  >("overview");
+  const [bookHoursInitialBookId, setBookHoursInitialBookId] = useState<string | undefined>(undefined);
   // FC-C01/FC-C02: the exact source location to seek to once `openBook`'s
   // Reader mounts, threaded from whichever Search hit or Notebook asset
   // was clicked. `null` when opening a Book normally (resumes its last
@@ -124,16 +122,11 @@ function App() {
   // FC-A01 (`PRODUCT_SPEC.md` §4.3/4.4): Collections are a user-controlled
   // grouping of Books; a Book may belong to several. `collectionFilter` is
   // the Library's optional "show only this Collection" view; `null` means
-  // "All". `organizeBookId` is which Book's inline Collections editor
-  // is expanded, loaded lazily since most Books are never opened.
+  // "All".
   const [collections, setCollections] = useState<CollectionDTO[]>([]);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
   const [collectionFilterBookIds, setCollectionFilterBookIds] = useState<Set<string> | null>(null);
-  const [organizeBookId, setOrganizeBookId] = useState<string | null>(null);
-  const [organizeBookCollections, setOrganizeBookCollections] = useState<CollectionDTO[]>([]);
-  const [organizeBookHours, setOrganizeBookHours] = useState<BookHoursDTO | null>(null);
-  const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
   const [renamingBookId, setRenamingBookId] = useState<string | null>(null);
@@ -245,35 +238,6 @@ function App() {
       setCollectionFilterBookIds(null);
     }
     await refreshCollections();
-  }
-
-  async function toggleOrganizePanel(bookId: string) {
-    if (organizeBookId === bookId) {
-      setOrganizeBookId(null);
-      return;
-    }
-    setOrganizeBookId(bookId);
-    setAddToCollectionChoice("");
-    const [bookCollections, bookHours] = await Promise.all([
-      invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }),
-      invoke<BookHoursDTO | null>("get_book_hours_command", { bookId }),
-    ]);
-    setOrganizeBookCollections(bookCollections);
-    setOrganizeBookHours(bookHours);
-  }
-
-  async function addBookToCollection(bookId: string, collectionId: string) {
-    if (!collectionId) return;
-    await invoke("add_book_to_collection_command", { bookId, collectionId });
-    setOrganizeBookCollections(await invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }));
-    setAddToCollectionChoice("");
-    if (collectionFilter) await applyCollectionFilter(collectionFilter);
-  }
-
-  async function removeBookFromCollection(bookId: string, collectionId: string) {
-    await invoke("remove_book_from_collection_command", { bookId, collectionId });
-    setOrganizeBookCollections(await invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId }));
-    if (collectionFilter) await applyCollectionFilter(collectionFilter);
   }
 
   async function importBook() {
@@ -438,6 +402,7 @@ function App() {
     return (
       <BookDetails
         book={detailsBook}
+        initialFocusSection={detailsFocusSection}
         onClose={() => setDetailsBook(null)}
         onRead={() => {
           openBookAtLocation(detailsBook.book_id, null);
@@ -446,6 +411,12 @@ function App() {
         onOpenBilingual={() => {
           const b = books?.find((item) => item.book_id === detailsBook.book_id);
           if (b) openBilingualForBook(b);
+        }}
+        onManageBookHours={(bookId) => {
+          setDetailsBook(null);
+          setDestination("bookHours");
+          setBookHoursInitialTab("books");
+          setBookHoursInitialBookId(bookId);
         }}
       />
     );
@@ -548,7 +519,11 @@ function App() {
 
       <main className="main">
         {destination === "bookHours" ? (
-          <BookHoursPlanning onBack={() => setDestination("data")} />
+          <BookHoursPlanning
+            onBack={() => setDestination("data")}
+            initialTab={bookHoursInitialTab}
+            initialBookId={bookHoursInitialBookId}
+          />
         ) : (
           <>
             <header className="top">
@@ -873,10 +848,24 @@ function App() {
                               <button type="button" className="btn-sm" onClick={() => startRenamingBook(book)}>
                                 Edit Title
                               </button>
-                              <button type="button" className="btn-sm" onClick={() => setDetailsBook(book)}>
+                              <button
+                                type="button"
+                                className="btn-sm"
+                                onClick={() => {
+                                  setDetailsFocusSection("details");
+                                  setDetailsBook(book);
+                                }}
+                              >
                                 Details
                               </button>
-                              <button type="button" className="btn-sm" onClick={() => toggleOrganizePanel(book.book_id)}>
+                              <button
+                                type="button"
+                                className="btn-sm"
+                                onClick={() => {
+                                  setDetailsFocusSection("organization");
+                                  setDetailsBook(book);
+                                }}
+                              >
                                 Organize
                               </button>
                               <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
@@ -894,65 +883,6 @@ function App() {
                           </>
                         )}
                       </div>
-                      {organizeBookId === book.book_id && (
-                        <div className="organize-panel" role="region" aria-label={`Organize ${book.title}`}>
-                          <div className="organize-section">
-                            <span className="organize-label">Collections: </span>
-                            {organizeBookCollections.length === 0 ? (
-                              <span className="organize-none">None</span>
-                            ) : (
-                              organizeBookCollections.map((collection) => (
-                                <span key={collection.id} className="collection-chip">
-                                  {collection.name}
-                                  <button
-                                    type="button"
-                                    onClick={() => removeBookFromCollection(book.book_id, collection.id)}
-                                  >
-                                    Remove
-                                  </button>
-                                </span>
-                              ))
-                            )}
-                            <label className="organize-select-wrap">
-                              Add to Collection
-                              <select
-                                value={addToCollectionChoice}
-                                onChange={(e) => {
-                                  setAddToCollectionChoice(e.target.value);
-                                  addBookToCollection(book.book_id, e.target.value);
-                                }}
-                              >
-                                <option value="">Choose a Collection…</option>
-                                {collections.map((collection) => (
-                                  <option key={collection.id} value={collection.id}>
-                                    {collection.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                          <div role="region" aria-label={`Book Hours for ${book.title}`} className="organize-section workload-section">
-                            <span className="organize-label">Book Hours: </span>
-                            {organizeBookHours ? (
-                              <span className="book-hours-summary">
-                                Base {organizeBookHours.base_hours.toFixed(1)}h, Cumulative{" "}
-                                {organizeBookHours.cumulative_hours.toFixed(1)}h (
-                                {organizeBookHours.cumulative_reading_percent.toFixed(0)}% cumulative reading)
-                              </span>
-                            ) : (
-                              <span className="organize-none">Not configured yet.</span>
-                            )}
-                            <button
-                              type="button"
-                              className="btn-sm"
-                              style={{ marginLeft: "8px" }}
-                              onClick={() => setDestination("bookHours")}
-                            >
-                              Manage in Book Hours Planning
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </li>
                   );
                 })}

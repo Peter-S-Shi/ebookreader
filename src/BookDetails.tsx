@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { NotebookPanel } from "./NotebookPanel";
+import type { BookHoursItemDTO } from "./BookHoursPlanning";
 
 interface BookDetailsBook {
   book_id: string;
@@ -11,10 +12,7 @@ interface BookDetailsBook {
   available: boolean;
 }
 
-// Mirrors `ebookreader_domain::completion::ReadingProgress`'s serialized
-// fields. `cumulative_percent()` is a computed method, not a field, so
-// it is recomputed here from the same SS8.3 formula rather than
-// duplicating a second source of truth on the Rust side.
+// Mirrors `ebookreader_domain::completion::ReadingProgress`'s serialized fields.
 interface ReadingProgressDTO {
   completed_read_count: number;
   active_read_in_progress: boolean;
@@ -22,7 +20,10 @@ interface ReadingProgressDTO {
 }
 
 function cumulativePercent(progress: ReadingProgressDTO): number {
-  return progress.completed_read_count * 100 + (progress.active_read_in_progress ? progress.active_pass_progress : 0);
+  return (
+    progress.completed_read_count * 100 +
+    (progress.active_read_in_progress ? progress.active_pass_progress : 0)
+  );
 }
 
 // serde's `Duration` impl serializes as `{ secs, nanos }`.
@@ -38,7 +39,13 @@ function formatDuration(total: ActualReadingTimeDTO["total"]): string {
   return `${hours}h ${minutes}m`;
 }
 
-interface BookHoursDTO {
+interface CollectionDTO {
+  id: string;
+  name: string;
+}
+
+// Backward-compat fallback DTO
+interface LegacyBookHoursDTO {
   base_hours: number;
   cumulative_hours: number;
   cumulative_reading_percent: number;
@@ -49,42 +56,141 @@ interface BookDetailsProps {
   onClose: () => void;
   onRead: () => void;
   onOpenBilingual?: () => void;
+  initialFocusSection?: "organization" | "details";
+  onManageBookHours?: (bookId: string) => void;
 }
 
-/// `DESIGN.md` `ER-BOOK-001` "Book Details": "Reading/file/OCR summary
-/// without admin-dashboard feel" -- reuses the v0.5 prototype's
-/// composition (Reading / Book Hours / Library & File cards + a Quick
-/// actions aside) rather than inventing a new layout. FC-A11: this is
-/// the first place Book Hours and Actual Reading Time are actually
-/// presented to the user (both commands already existed; nothing called
-/// them from the UI).
-export function BookDetails({ book, onClose, onRead, onOpenBilingual }: BookDetailsProps) {
+/// `DESIGN.md` `ER-BOOK-001` "Book Details" + BH-3C: "Reading/file/OCR summary
+/// without admin-dashboard feel" -- reuses the v0.5/v0.6 prototype's
+/// composition (Reading / Organization / Book Hours / Library & File cards + Quick
+/// actions aside). Collections membership is managed here.
+export function BookDetails({
+  book,
+  onClose,
+  onRead,
+  onOpenBilingual,
+  initialFocusSection = "details",
+  onManageBookHours,
+}: BookDetailsProps) {
   const [progress, setProgress] = useState<ReadingProgressDTO | null>(null);
   const [actualTime, setActualTime] = useState<ActualReadingTimeDTO | null>(null);
-  const [bookHours, setBookHours] = useState<BookHoursDTO | null>(null);
+  const [bookHoursItem, setBookHoursItem] = useState<BookHoursItemDTO | null>(null);
+  const [legacyBookHours, setLegacyBookHours] = useState<LegacyBookHoursDTO | null>(null);
+  const [allCollections, setAllCollections] = useState<CollectionDTO[]>([]);
+  const [bookCollections, setBookCollections] = useState<CollectionDTO[]>([]);
+  const [addToCollectionChoice, setAddToCollectionChoice] = useState("");
   const [notebookOpen, setNotebookOpen] = useState(false);
+
+  const orgSectionRef = useRef<HTMLElement>(null);
+
+  const loadCollections = async () => {
+    try {
+      const [allColls, bookColls] = await Promise.all([
+        invoke<CollectionDTO[]>("list_collections_command").catch(() => []),
+        invoke<CollectionDTO[]>("list_collections_for_book_command", { bookId: book.book_id }).catch(
+          () => [],
+        ),
+      ]);
+      setAllCollections(allColls || []);
+      setBookCollections(bookColls || []);
+    } catch {
+      // Ignored
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id }),
-      invoke<ActualReadingTimeDTO>("get_actual_reading_time_command", { bookId: book.book_id }),
-      invoke<BookHoursDTO | null>("get_book_hours_command", { bookId: book.book_id }),
-    ]).then(([p, t, h]) => {
+      invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id }).catch(
+        () => null,
+      ),
+      invoke<ActualReadingTimeDTO>("get_actual_reading_time_command", { bookId: book.book_id }).catch(
+        () => null,
+      ),
+      invoke<BookHoursItemDTO | null>("get_book_hours_item_command", { bookId: book.book_id }).catch(
+        () => null,
+      ),
+      invoke<LegacyBookHoursDTO | null>("get_book_hours_command", { bookId: book.book_id }).catch(
+        () => null,
+      ),
+    ]).then(([p, t, item, legacy]) => {
       if (cancelled) return;
       setProgress(p);
       setActualTime(t);
-      setBookHours(h);
+      setBookHoursItem(item);
+      setLegacyBookHours(legacy);
     });
+
+    loadCollections();
+
     return () => {
       cancelled = true;
     };
   }, [book.book_id]);
 
+  useEffect(() => {
+    if (initialFocusSection === "organization" && orgSectionRef.current) {
+      orgSectionRef.current.scrollIntoView?.({ behavior: "smooth" });
+      orgSectionRef.current.focus?.();
+    }
+  }, [initialFocusSection]);
+
+  const handleAddToCollection = async (collectionId: string) => {
+    if (!collectionId) return;
+    try {
+      await invoke("add_book_to_collection_command", {
+        bookId: book.book_id,
+        collectionId,
+      });
+      setAddToCollectionChoice("");
+      await loadCollections();
+    } catch (err) {
+      console.error("Failed to add book to collection:", err);
+    }
+  };
+
+  const handleRemoveFromCollection = async (collectionId: string) => {
+    try {
+      await invoke("remove_book_from_collection_command", {
+        bookId: book.book_id,
+        collectionId,
+      });
+      await loadCollections();
+    } catch (err) {
+      console.error("Failed to remove book from collection:", err);
+    }
+  };
+
+  // Planned & Current calculations
+  const plannedHours = bookHoursItem?.calculation
+    ? `${bookHoursItem.calculation.planned_book_hours.toFixed(1)}h`
+    : legacyBookHours
+      ? `${legacyBookHours.base_hours.toFixed(1)}h`
+      : null;
+
+  const currentHours = bookHoursItem?.calculation
+    ? `${bookHoursItem.calculation.current_book_hours.toFixed(1)}h`
+    : legacyBookHours
+      ? `${legacyBookHours.cumulative_hours.toFixed(1)}h`
+      : null;
+
+  const cumProgress = bookHoursItem
+    ? `${Math.round(bookHoursItem.cumulative_percent)}%`
+    : progress
+      ? `${cumulativePercent(progress).toFixed(0)}%`
+      : legacyBookHours
+        ? `${legacyBookHours.cumulative_reading_percent.toFixed(0)}%`
+        : "0%";
+
   return (
-    <section className="screen active book-details-screen" id="details" role="dialog" aria-label="Book Details">
+    <section
+      className="screen active book-details-screen"
+      id="details"
+      role="dialog"
+      aria-label="Book Details"
+    >
       <div className="top">
-        <button type="button" className="icon" onClick={onClose}>
+        <button type="button" className="icon" onClick={onClose} aria-label="Back">
           ← Back
         </button>
         <div className="title">Book Details</div>
@@ -102,6 +208,11 @@ export function BookDetails({ book, onClose, onRead, onOpenBilingual }: BookDeta
             <div className="meta">{book.format.toUpperCase()} Publication</div>
             <div style={{ marginTop: "11px" }}>
               <span className="pill">{book.available ? "Text available" : "Needs Relink"}</span>
+              {bookHoursItem?.profile_name && (
+                <span className="pill" style={{ color: "var(--accent)" }}>
+                  {bookHoursItem.profile_name}
+                </span>
+              )}
             </div>
           </div>
 
@@ -126,19 +237,114 @@ export function BookDetails({ book, onClose, onRead, onOpenBilingual }: BookDeta
               )}
             </section>
 
-            <section className="detailCard" aria-label="Book Hours">
-              <h3>Book Hours</h3>
-              {bookHours ? (
+            <section
+              ref={orgSectionRef}
+              className="detailCard"
+              id="organization"
+              aria-label="Organization"
+              tabIndex={-1}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h3 style={{ margin: 0 }}>Organization</h3>
+                <div className="grow" />
+                <span className="hint">Collections &amp; Profile</span>
+              </div>
+              <div style={{ marginTop: "12px" }}>
+                <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "6px" }}>
+                  Collections (a Book may belong to several)
+                </div>
+                <div className="collectionManageList">
+                  {bookCollections.length === 0 ? (
+                    <span className="hint" style={{ fontSize: "11px" }}>
+                      No Collections assigned.
+                    </span>
+                  ) : (
+                    bookCollections.map((col) => (
+                      <span key={col.id} className="collectionChipRemovable">
+                        {col.name}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFromCollection(col.id)}
+                          aria-label={`Remove from ${col.name}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ marginTop: "8px", display: "flex", gap: "8px", alignItems: "center" }}>
+                  <label htmlFor="detailsAddCollection" className="sr-only">
+                    Add to Collection
+                  </label>
+                  <select
+                    id="detailsAddCollection"
+                    aria-label="Add to Collection"
+                    value={addToCollectionChoice}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAddToCollectionChoice(val);
+                      handleAddToCollection(val);
+                    }}
+                    style={{ height: "32px", fontSize: "11px" }}
+                  >
+                    <option value="">Add to Collection…</option>
+                    {allCollections
+                      .filter((c) => !bookCollections.some((bc) => bc.id === c.id))
+                      .map((col) => (
+                        <option key={col.id} value={col.id}>
+                          {col.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="sep" style={{ margin: "12px 0" }} />
+
                 <div className="kv">
-                  <div>Base estimate</div>
-                  <div>{`${bookHours.base_hours.toFixed(1)}h`}</div>
+                  <div>Reading Profile</div>
+                  <div>
+                    <span className="bhBadge profile">
+                      {bookHoursItem?.profile_name ?? "Default"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="detailCard" aria-label="Book Hours">
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h3 style={{ margin: 0 }}>Book Hours</h3>
+                <div className="grow" />
+                {onManageBookHours && (
+                  <button
+                    type="button"
+                    className="btn"
+                    id="manageBookHoursFromDetails"
+                    style={{ height: "31px", fontSize: "11px" }}
+                    onClick={() => onManageBookHours(book.book_id)}
+                  >
+                    Manage in Data
+                  </button>
+                )}
+              </div>
+              {plannedHours ? (
+                <div className="kv" style={{ marginTop: "12px" }}>
+                  <div>Planned Book Hours</div>
+                  <div id="dBase">{plannedHours}</div>
                   <div>Cumulative progress</div>
-                  <div>{`${bookHours.cumulative_reading_percent.toFixed(0)}%`}</div>
+                  <div id="dCum">{cumProgress}</div>
                   <div>Current Book Hours</div>
-                  <div>{`${bookHours.cumulative_hours.toFixed(1)}h`}</div>
+                  <div id="dHours">{currentHours ?? "—"}</div>
                 </div>
               ) : (
-                <p>Not configured yet.</p>
+                <div style={{ marginTop: "12px" }}>
+                  <p style={{ margin: 0 }}>Not configured yet.</p>
+                  <span className="hint" style={{ fontSize: "11px" }}>
+                    Configure quantity and unit under Data → Book Hours Planning.
+                  </span>
+                </div>
               )}
             </section>
 
@@ -175,7 +381,11 @@ export function BookDetails({ book, onClose, onRead, onOpenBilingual }: BookDeta
       </div>
 
       {notebookOpen && (
-        <NotebookPanel bookId={book.book_id} bookTitle={book.title} onClose={() => setNotebookOpen(false)} />
+        <NotebookPanel
+          bookId={book.book_id}
+          bookTitle={book.title}
+          onClose={() => setNotebookOpen(false)}
+        />
       )}
     </section>
   );

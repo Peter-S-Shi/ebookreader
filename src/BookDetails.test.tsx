@@ -42,6 +42,110 @@ describe("BookDetails (DESIGN.md ER-BOOK-001; FC-A11)", () => {
     expect(screen.getByText("Available")).toBeInTheDocument();
   });
 
+  it("renders Organization section with Collections management and Reading Profile", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "list_collections_command") {
+        return [
+          { id: "c1", name: "Favorites" },
+          { id: "c2", name: "Philosophy" },
+        ];
+      }
+      if (cmd === "list_collections_for_book_command") {
+        return [{ id: "c1", name: "Favorites" }];
+      }
+      if (cmd === "get_book_hours_item_command") {
+        return {
+          book_id: "b1",
+          title: "The Little Prince",
+          profile_id: "p1",
+          profile_name: "Textbook",
+          collections: ["Favorites"],
+          quantity: 100,
+          unit: "pages",
+          speed_override: null,
+          cumulative_percent: 62,
+          calculation: {
+            planned_book_hours: 4.0,
+            current_book_hours: 2.48,
+            cumulative_percent: 62,
+            baseline_speed: 60,
+            difficulty_multiplier: 2.4,
+          },
+        };
+      }
+      if (cmd === "add_book_to_collection_command") return undefined;
+      if (cmd === "remove_book_from_collection_command") return undefined;
+      return null;
+    });
+
+    render(<BookDetails book={book} onClose={vi.fn()} onRead={vi.fn()} initialFocusSection="organization" />);
+
+    expect(await screen.findByText("Favorites")).toBeInTheDocument();
+    expect(screen.getAllByText("Textbook").length).toBeGreaterThanOrEqual(1);
+
+    // Add to collection
+    const addSelect = screen.getByLabelText("Add to Collection");
+    await user.selectOptions(addSelect, "c2");
+
+    expect(invokeMock).toHaveBeenCalledWith("add_book_to_collection_command", {
+      bookId: "b1",
+      collectionId: "c2",
+    });
+
+    // Remove from collection
+    const removeBtn = screen.getByRole("button", { name: "Remove from Favorites" });
+    await user.click(removeBtn);
+
+    expect(invokeMock).toHaveBeenCalledWith("remove_book_from_collection_command", {
+      bookId: "b1",
+      collectionId: "c1",
+    });
+  });
+
+  it("handles Manage in Data button click to deep-link into Book Hours Planning", async () => {
+    const user = userEvent.setup();
+    const onManageBookHours = vi.fn();
+
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_item_command") {
+        return {
+          book_id: "b1",
+          title: "The Little Prince",
+          profile_id: "p1",
+          profile_name: "Textbook",
+          collections: [],
+          quantity: 100,
+          unit: "pages",
+          speed_override: null,
+          cumulative_percent: 50,
+          calculation: {
+            planned_book_hours: 4.0,
+            current_book_hours: 2.0,
+            cumulative_percent: 50,
+            baseline_speed: 60,
+            difficulty_multiplier: 2.4,
+          },
+        };
+      }
+      return null;
+    });
+
+    render(
+      <BookDetails
+        book={book}
+        onClose={vi.fn()}
+        onRead={vi.fn()}
+        onManageBookHours={onManageBookHours}
+      />,
+    );
+
+    const manageBtn = await screen.findByRole("button", { name: "Manage in Data" });
+    await user.click(manageBtn);
+
+    expect(onManageBookHours).toHaveBeenCalledWith("b1");
+  });
+
   it("shows 'Not configured yet' for Book Hours when no workload config exists", async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === "get_reading_progress_command") {
@@ -74,7 +178,7 @@ describe("BookDetails (DESIGN.md ER-BOOK-001; FC-A11)", () => {
     const onClose = vi.fn();
 
     render(<BookDetails book={book} onClose={onClose} onRead={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "← Back" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
 
     expect(onClose).toHaveBeenCalled();
   });

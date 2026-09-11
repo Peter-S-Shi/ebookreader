@@ -421,9 +421,7 @@ describe("Book Details + Continue Reading (DESIGN.md ER-BOOK-001/SS4; FC-A11)", 
     await screen.findByText("A Book");
 
     await user.click(screen.getByRole("button", { name: "Details" }));
-    expect(await screen.findByRole("dialog", { name: "Book Details" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "← Back" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByText("A Book")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Book Details" })).not.toBeInTheDocument();
   });
@@ -654,7 +652,7 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     expect(screen.getByText("A Book")).toBeInTheDocument();
   });
 
-  it("the Organize panel adds/removes a Book's Collection membership and does not contain legacy Tag inputs", async () => {
+  it("the Organize action opens BookDetails Organization section, manages Collections, and excludes legacy Tag inputs", async () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([
       { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
@@ -675,6 +673,7 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     });
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === "get_book_hours_command") return null;
+      if (cmd === "get_book_hours_item_command") return null;
       return undefined;
     });
 
@@ -682,29 +681,31 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
     await screen.findByText("A Book");
 
     await user.click(screen.getByRole("button", { name: "Organize" }));
-    const panel = await screen.findByRole("region", { name: "Organize A Book" });
+    const details = await screen.findByRole("dialog", { name: "Book Details" });
+    const orgSection = within(details).getByRole("region", { name: "Organization" });
 
-    await user.selectOptions(within(panel).getByLabelText("Add to Collection"), "col-1");
+    await user.selectOptions(within(orgSection).getByLabelText("Add to Collection"), "col-1");
     expect(collectionsMock).toHaveBeenCalledWith("add_book_to_collection_command", { bookId: "b1", collectionId: "col-1" });
-    await waitFor(() => expect(panel.querySelector(".collection-chip")).toHaveTextContent("Favorites"));
 
-    await user.click(within(panel).getByRole("button", { name: "Remove" }));
+    const removeBtn = await within(orgSection).findByRole("button", { name: "Remove from Favorites" });
+    await user.click(removeBtn);
     expect(collectionsMock).toHaveBeenCalledWith("remove_book_from_collection_command", { bookId: "b1", collectionId: "col-1" });
 
     // Legacy generic tags must not be rendered
-    expect(within(panel).queryByLabelText("New Tag")).not.toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Add Tag" })).not.toBeInTheDocument();
+    expect(within(orgSection).queryByLabelText("New Tag")).not.toBeInTheDocument();
+    expect(within(orgSection).queryByRole("button", { name: "Add Tag" })).not.toBeInTheDocument();
   });
 });
 
-describe("Book Hours summary in Organize panel (PRODUCT_SPEC.md §9; FC-A05)", () => {
-  it("shows 'Not configured yet.' and navigates to Book Hours Planning when clicked", async () => {
+describe("Book Hours summary in BookDetails (PRODUCT_SPEC.md §9; BH-3C)", () => {
+  it("shows 'Not configured yet.' and navigates to Book Hours Planning when Manage in Data is clicked", async () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([
       { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === "get_book_hours_command") return null;
+      if (cmd === "get_book_hours_item_command") return null;
       if (cmd === "get_book_hours_overview_command") {
         return {
           total_planned_hours: 0,
@@ -723,14 +724,14 @@ describe("Book Hours summary in Organize panel (PRODUCT_SPEC.md §9; FC-A05)", (
     await user.click(screen.getByRole("button", { name: "Organize" }));
 
     expect(await screen.findByText("Not configured yet.")).toBeInTheDocument();
-    const manageBtn = screen.getByRole("button", { name: "Manage in Book Hours Planning" });
+    const manageBtn = screen.getByRole("button", { name: "Manage in Data" });
     expect(manageBtn).toBeInTheDocument();
 
     await user.click(manageBtn);
     expect(await screen.findByRole("region", { name: "Book Hours Planning" })).toBeInTheDocument();
   });
 
-  it("displays read-only summary and excludes editable workload inputs", async () => {
+  it("displays read-only summary and excludes editable workload inputs in BookDetails", async () => {
     const user = userEvent.setup();
     invokeMock.mockResolvedValueOnce([
       { book_id: "b1", title: "A Book", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
@@ -745,16 +746,18 @@ describe("Book Hours summary in Organize panel (PRODUCT_SPEC.md §9; FC-A05)", (
     render(<App />);
     await screen.findByText("A Book");
     await user.click(screen.getByRole("button", { name: "Organize" }));
-    const panel = await screen.findByRole("region", { name: "Book Hours for A Book" });
+    const details = await screen.findByRole("dialog", { name: "Book Details" });
+    const bhSection = within(details).getByRole("region", { name: "Book Hours" });
 
-    expect(within(panel).getByText(/base 20\.0h, cumulative 10\.0h/i)).toBeInTheDocument();
-    expect(within(panel).getByRole("button", { name: "Manage in Book Hours Planning" })).toBeInTheDocument();
+    expect(within(bhSection).getByText("20.0h")).toBeInTheDocument();
+    expect(within(bhSection).getByText("10.0h")).toBeInTheDocument();
+    expect(within(bhSection).getByRole("button", { name: "Manage in Data" })).toBeInTheDocument();
 
     // No editable workload controls
-    expect(within(panel).queryByLabelText("Quantity")).not.toBeInTheDocument();
-    expect(within(panel).queryByLabelText("Baseline Speed")).not.toBeInTheDocument();
-    expect(within(panel).queryByLabelText("Difficulty Coefficient")).not.toBeInTheDocument();
-    expect(within(panel).queryByRole("button", { name: "Save Book Hours Config" })).not.toBeInTheDocument();
+    expect(within(bhSection).queryByLabelText("Quantity")).not.toBeInTheDocument();
+    expect(within(bhSection).queryByLabelText("Baseline Speed")).not.toBeInTheDocument();
+    expect(within(bhSection).queryByLabelText("Difficulty Coefficient")).not.toBeInTheDocument();
+    expect(within(bhSection).queryByRole("button", { name: "Save Book Hours Config" })).not.toBeInTheDocument();
   });
 });
 

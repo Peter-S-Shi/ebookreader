@@ -3952,5 +3952,229 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   }
 }
 
+/* BH-3C Profiles, Formula & Defaults, Recalculation Impact */
+.bhProfileCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+}
+
+.bhProfileCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  padding: 15px;
+}
+
+.bhProfileCard .topline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bhProfileCard .topline b {
+  font-size: 14px;
+}
+
+.bhProfileCard .profileStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.bhProfileCard .profileStats div {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface2);
+  padding: 9px;
+}
+
+.bhProfileCard .profileStats span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.bhProfileCard .profileStats b {
+  font-size: 14px;
+}
+
+.bhFormulaFlow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 13px;
+}
+
+.bhFormulaToken {
+  min-width: 130px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 13px;
+  padding: 10px;
+}
+
+.bhFormulaToken span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bhFormulaToken b {
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.bhOp {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.bhFormulaResult {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accentSoft);
+}
+
+.bhRuleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.bhControl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.bhControl:first-of-type {
+  border-top: 0;
+}
+
+.bhControl b {
+  display: block;
+  font-size: 12px;
+}
+
+.bhControl .desc {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.bhControl input,
+.bhControl select {
+  height: 37px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  padding: 0 9px;
+  width: 100%;
+}
+
+.bhImpact {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.bhImpact div {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface2);
+  padding: 8px;
+}
+
+.bhImpact span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.bhImpact b {
+  font-size: 13px;
+  display: block;
+  margin-top: 2px;
+}
+
+.previewList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 14px 0;
+}
+
+.previewCell {
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.previewCell span {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+
+.previewCell b {
+  font-size: 13px;
+}
+
+.collectionManageList {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.collectionChipRemovable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.collectionChipRemovable button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.collectionChipRemovable button:hover {
+  color: #a34c45;
+}
+
+@media (max-width: 1050px) {
+  .bhRuleGrid {
+    grid-template-columns: 1fr;
+  }
+  .bhImpact {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
 
 

@@ -232,21 +232,21 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A & BH-3B)
 
     // Metrics grid
     expect(screen.getByText("164.2h")).toBeInTheDocument();
-    expect(screen.getByText("Across 2 calculated Books.")).toBeInTheDocument();
+    expect(screen.getByText("System-calculated total workload")).toBeInTheDocument();
     expect(screen.getByText("79.4h")).toBeInTheDocument();
-    expect(screen.getByText("Completed-equivalent Book Hours from unchanged reading progress.")).toBeInTheDocument();
+    expect(screen.getByText("Weighted by independent reading progress")).toBeInTheDocument();
     // Completion = 79.4 / 164.2 * 100 = 48%
     expect(screen.getByText("Book Hours Completion")).toBeInTheDocument();
     expect(screen.getByText("48%")).toBeInTheDocument();
-    expect(screen.getByText("2 / 3")).toBeInTheDocument();
-    expect(screen.getByText("1 Book is excluded from Book Hours totals until configured.")).toBeInTheDocument();
+    expect(screen.getByText("67%")).toBeInTheDocument();
+    expect(screen.getByText("2 of 3 books calculated")).toBeInTheDocument();
 
     // Summary by Profile table
     const profileTable = screen.getByRole("table", { name: "Summary by Profile" });
     expect(profileTable).toBeInTheDocument();
     expect(within(profileTable).getByText("Textbook")).toBeInTheDocument();
     expect(within(profileTable).getByText("Novel")).toBeInTheDocument();
-    expect(within(profileTable).getByText("Default")).toBeInTheDocument();
+    expect(within(profileTable).getByText("[Default]")).toBeInTheDocument();
 
     // Summary by Collection table
     const collectionTable = screen.getByRole("table", { name: "Summary by Collection" });
@@ -260,7 +260,7 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A & BH-3B)
     const { unmount } = render(<BookHoursPlanning onBack={vi.fn()} />);
 
     await screen.findByText("What are Book Hours?");
-    expect(screen.getByText("1 Book needs setup")).toBeInTheDocument();
+    expect(screen.getByText("2 of 3 books calculated")).toBeInTheDocument();
     unmount();
 
     const allCalculatedOverview: BookHoursOverviewDTO = {
@@ -275,8 +275,7 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A & BH-3B)
     render(<BookHoursPlanning onBack={vi.fn()} />);
 
     await screen.findByText("What are Book Hours?");
-    expect(screen.getByText("All Books calculated")).toBeInTheDocument();
-    expect(screen.getByText("All Books in the library are calculated.")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3 books calculated")).toBeInTheDocument();
   });
 
   it("renders truthful empty states when library has no books or profiles without crashing or NaN", async () => {
@@ -285,11 +284,10 @@ describe("Book Hours Planning — Frontend Foundation & Overview (BH-3A & BH-3B)
 
     await screen.findByText("What are Book Hours?");
     expect(screen.getAllByText("0.0h")).toHaveLength(2);
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.getByText("No planned book hours available yet.")).toBeInTheDocument();
-    expect(screen.getByText("0 / 0")).toBeInTheDocument();
-    expect(screen.getByText("No Reading Profiles created yet.")).toBeInTheDocument();
-    expect(screen.getByText("No Collections created yet.")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getByText("0 of 0 books calculated")).toBeInTheDocument();
+    expect(screen.getByText("No profiles found.")).toBeInTheDocument();
+    expect(screen.getByText("No collections found.")).toBeInTheDocument();
   });
 
   it("supports accessible keyboard navigation across tabs", async () => {
@@ -332,7 +330,7 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
 
     // Detail header shows selected profile (Textbook default selection)
     expect(within(profilesPane).getByRole("heading", { level: 2, name: /Textbook/ })).toBeInTheDocument();
-    expect(within(profilesPane).getByText(/Shared difficulty coefficient 2\.4/)).toBeInTheDocument();
+    expect(within(profilesPane).getByText(/Difficulty coefficient 2\.4/)).toBeInTheDocument();
     expect(within(profilesPane).getAllByText("Semester Reading").length).toBeGreaterThan(0); // Collections touched chip & row chip
 
     // Member books table under Textbook
@@ -379,7 +377,7 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     await user.click(interestBtn);
 
     expect(within(collectionsPane).getByRole("heading", { level: 2, name: /Interest/ })).toBeInTheDocument();
-    expect(within(collectionsPane).getByText(/1 of 1 Book currently contributes? to Collection Book Hours totals/)).toBeInTheDocument();
+    expect(within(collectionsPane).getByText(/1 of 1 Books currently contribute to Collection Book Hours totals/)).toBeInTheDocument();
     expect(within(collectionsPane).getByText("Pride and Prejudice")).toBeInTheDocument();
   });
 
@@ -516,22 +514,276 @@ describe("Book Hours Planning — BH-3B Navigation, Management & Setup Drawer", 
     expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Introduction to Psychology" })).not.toBeInTheDocument();
   });
 
-  it("maintains Tab 5 (Profiles) and Tab 6 (Formula & Defaults) as clearly marked placeholders for BH-3C", async () => {
-    const user = userEvent.setup();
+  it("auto-opens setup drawer when initialBookId is provided", async () => {
     setupDefaultMocks();
 
-    render(<BookHoursPlanning onBack={vi.fn()} />);
-    await screen.findByText("What are Book Hours?");
+    render(<BookHoursPlanning onBack={vi.fn()} initialTab="books" initialBookId="b-3" />);
 
-    const profilesTab = screen.getByRole("tab", { name: "Profiles" });
-    await user.click(profilesTab);
-    expect(screen.getByText("Manage difficulty coefficients, profile metadata, and default profile assignments.")).toBeInTheDocument();
-    expect(screen.getAllByText(/This view will be fully activated in the upcoming batch \(BH-3C\)/).length).toBeGreaterThan(0);
+    const drawer = await screen.findByRole("dialog", {
+      name: "Book Hours Setup for Pride and Prejudice",
+    });
+    expect(drawer).toBeInTheDocument();
+    expect(within(drawer).getByText("Pride and Prejudice")).toBeInTheDocument();
+  });
 
-    const formulaTab = screen.getByRole("tab", { name: "Formula & Defaults" });
-    await user.click(formulaTab);
-    expect(screen.getByText("Configure unit-specific baseline speeds (pages/hour, words/hour, characters/hour) and preview recalculation impact.")).toBeInTheDocument();
-    expect(screen.getAllByText(/This view will be fully activated in the upcoming batch \(BH-3C\)/).length).toBeGreaterThan(0);
+  it("displays legacy_untyped option and migration warning banner only when book has legacy unit", async () => {
+    const legacyBookOverview: BookHoursOverviewDTO = {
+      ...mockPopulatedOverview,
+      books: [
+        {
+          book_id: "b-legacy",
+          title: "Legacy Untyped Book",
+          profile_id: "p-novel",
+          profile_name: "Novel",
+          collections: [],
+          quantity: 200,
+          unit: "legacy_untyped",
+          speed_override: 50,
+          cumulative_percent: 10,
+          calculation: null,
+        },
+      ],
+    };
+    setupDefaultMocks(legacyBookOverview);
+
+    render(<BookHoursPlanning onBack={vi.fn()} initialTab="books" initialBookId="b-legacy" />);
+
+    const drawer = await screen.findByRole("dialog", {
+      name: "Book Hours Setup for Legacy Untyped Book",
+    });
+    expect(drawer).toBeInTheDocument();
+    expect(within(drawer).getByText(/Migrating legacy book: please select a standard unit/)).toBeInTheDocument();
+    expect(within(drawer).getByRole("option", { name: "Legacy / Untyped" })).toBeInTheDocument();
+  });
+
+  it("fully supports Profiles Tab (Tab 5) CRUD: listing, create, edit, set default, and delete", async () => {
+    const user = userEvent.setup();
+    let currentProfiles = [...mockReadingProfiles];
+
+    invokeMock.mockImplementation(async (cmd: string, args?: any) => {
+      if (cmd === "get_book_hours_overview_command") return mockPopulatedOverview;
+      if (cmd === "get_global_book_hours_defaults_command") return mockGlobalDefaults;
+      if (cmd === "list_reading_profiles_command") return currentProfiles;
+      if (cmd === "create_reading_profile_command") {
+        const newP: ReadingProfileDTO = {
+          id: args.id,
+          name: args.name,
+          difficulty_multiplier: args.difficultyMultiplier,
+          description: args.description,
+          is_default: false,
+          created_at: args.createdAt,
+          updated_at: args.createdAt,
+        };
+        currentProfiles.push(newP);
+        return newP;
+      }
+      if (cmd === "update_reading_profile_command") {
+        const idx = currentProfiles.findIndex((p) => p.id === args.id);
+        if (idx >= 0) {
+          currentProfiles[idx] = {
+            ...currentProfiles[idx],
+            name: args.name,
+            difficulty_multiplier: args.difficultyMultiplier,
+            description: args.description,
+            updated_at: args.updatedAt,
+          };
+        }
+        return currentProfiles[idx];
+      }
+      if (cmd === "set_default_reading_profile_command") {
+        currentProfiles = currentProfiles.map((p) => ({
+          ...p,
+          is_default: p.id === args.id,
+        }));
+        return undefined;
+      }
+      if (cmd === "delete_reading_profile_command") {
+        currentProfiles = currentProfiles.filter((p) => p.id !== args.id);
+        return undefined;
+      }
+      return undefined;
+    });
+
+    render(<BookHoursPlanning onBack={vi.fn()} initialTab="profiles" />);
+
+    const profilesPane = await screen.findByRole("tabpanel", { name: "Profiles" });
+    expect(within(profilesPane).getByText("Textbook")).toBeInTheDocument();
+    expect(within(profilesPane).getByText("Novel")).toBeInTheDocument();
+    expect(within(profilesPane).getByText("Light Reading")).toBeInTheDocument();
+
+    // 1. Create Profile
+    const newBtn = within(profilesPane).getByRole("button", { name: /New Profile/ });
+    await user.click(newBtn);
+
+    const drawer = screen.getByRole("dialog", { name: "Create Reading Profile" });
+    expect(drawer).toBeInTheDocument();
+
+    await user.type(within(drawer).getByLabelText("Profile Name"), "Research");
+    const diffInput = within(drawer).getByLabelText("Difficulty Coefficient");
+    await user.clear(diffInput);
+    await user.type(diffInput, "3.0");
+    await user.type(within(drawer).getByLabelText("Description"), "Complex scientific papers");
+
+    await user.click(within(drawer).getByRole("button", { name: "Save Profile" }));
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "create_reading_profile_command",
+      expect.objectContaining({
+        name: "Research",
+        difficultyMultiplier: 3.0,
+        description: "Complex scientific papers",
+      }),
+    );
+
+    // 2. Edit Profile
+    const editBtns = within(profilesPane).getAllByRole("button", { name: "Edit" });
+    await user.click(editBtns[0]); // Edit Textbook
+
+    const editDrawer = screen.getByRole("dialog", { name: "Edit Reading Profile" });
+    expect(editDrawer).toBeInTheDocument();
+    const editDiff = within(editDrawer).getByLabelText("Difficulty Coefficient");
+    await user.clear(editDiff);
+    await user.type(editDiff, "2.5");
+    await user.click(within(editDrawer).getByRole("button", { name: "Save Profile" }));
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "update_reading_profile_command",
+      expect.objectContaining({
+        id: "p-textbook",
+        name: "Textbook",
+        difficultyMultiplier: 2.5,
+        description: "Academic textbooks & deep technical reading",
+      }),
+    );
+
+    // 3. Set Default Profile
+    const setDefaultBtns = within(profilesPane).getAllByRole("button", { name: "Set Default" });
+    await user.click(setDefaultBtns[0]); // Set Textbook as default
+
+    expect(invokeMock).toHaveBeenCalledWith("set_default_reading_profile_command", {
+      id: "p-textbook",
+    });
+
+    // 4. Delete Profile with Confirmation
+    const lightCard = within(profilesPane).getByText("Light Reading").closest(".bhProfileCard")!;
+    const deleteBtn = within(lightCard as HTMLElement).getByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    const confirmModal = screen.getByRole("dialog", { name: "Confirm Delete Profile" });
+    expect(confirmModal).toBeInTheDocument();
+    expect(within(confirmModal).getByText(/Are you sure you want to delete profile/)).toBeInTheDocument();
+    expect(within(confirmModal).getByText(/Books currently assigned to this profile will be reassigned to the default profile/)).toBeInTheDocument();
+
+    await user.click(within(confirmModal).getByRole("button", { name: "Confirm Delete" }));
+
+    expect(invokeMock).toHaveBeenCalledWith("delete_reading_profile_command", {
+      id: "p-light",
+    });
+  });
+
+  it("fully supports Formula & Defaults Tab (Tab 6): formula rules, speed inputs, impact preview, and apply", async () => {
+    const user = userEvent.setup();
+
+    const mockRecalcPreview = {
+      affected_books_count: 2,
+      old_total_planned_hours: 164.2,
+      new_total_planned_hours: 180.0,
+      hours_delta: 15.8,
+      profile_impacts: [
+        {
+          profile_id: "p-textbook",
+          profile_name: "Textbook",
+          old_planned_hours: 88.0,
+          new_planned_hours: 103.8,
+          hours_delta: 15.8,
+          affected_books_count: 1,
+        },
+      ],
+      collection_impacts: [
+        {
+          collection_id: "c-semester",
+          collection_name: "Semester Reading",
+          old_planned_hours: 88.0,
+          new_planned_hours: 103.8,
+          hours_delta: 15.8,
+          affected_books_count: 1,
+        },
+      ],
+      affected_books: [
+        {
+          book_id: "b-1",
+          title: "Introduction to Psychology",
+          profile_name: "Textbook",
+          old_planned_hours: 34.56,
+          new_planned_hours: 50.36,
+          hours_delta: 15.8,
+        },
+      ],
+    };
+
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_book_hours_overview_command") return mockPopulatedOverview;
+      if (cmd === "get_global_book_hours_defaults_command") return mockGlobalDefaults;
+      if (cmd === "list_reading_profiles_command") return mockReadingProfiles;
+      if (cmd === "preview_book_hours_recalculation_command") return mockRecalcPreview;
+      if (cmd === "apply_book_hours_recalculation_command") return mockRecalcPreview;
+      return undefined;
+    });
+
+    render(<BookHoursPlanning onBack={vi.fn()} initialTab="formula" />);
+
+    const formulaPane = await screen.findByRole("tabpanel", { name: "Formula & Defaults" });
+    expect(within(formulaPane).getByText("Global Book Hours Formula")).toBeInTheDocument();
+    expect(within(formulaPane).getByText("system calculated")).toBeInTheDocument();
+    expect(within(formulaPane).getByText("independent reading fact")).toBeInTheDocument();
+
+    // Edit baseline speeds
+    const pagesInput = within(formulaPane).getByLabelText("Baseline Speed (Pages)", { exact: false }) || document.getElementById("bhGlobalSpeedPages");
+    expect(pagesInput).toHaveValue(60);
+
+    // Click Preview recalculation
+    const previewBtn = within(formulaPane).getByRole("button", { name: "Preview recalculation" });
+    await user.click(previewBtn);
+
+    expect(invokeMock).toHaveBeenCalledWith("preview_book_hours_recalculation_command", {
+      request: {
+        proposed_defaults: {
+          pages_per_hour: 60,
+          words_per_hour: 15000,
+          characters_per_hour: 30000,
+        },
+        proposed_profiles: null,
+      },
+    });
+
+    // Verify Impact Preview Modal
+    const impactModal = await screen.findByRole("dialog", {
+      name: "Book Hours Recalculation Preview",
+    });
+    expect(impactModal).toBeInTheDocument();
+    expect(within(impactModal).getByText("No reading facts have changed. This preview shows planning values only.")).toBeInTheDocument();
+    expect(within(impactModal).getByText("Reading Progress changes")).toBeInTheDocument();
+    expect(within(impactModal).getByText("164.2h")).toBeInTheDocument(); // Old total
+    expect(within(impactModal).getByText("180.0h")).toBeInTheDocument(); // New total
+
+    // Affected books list
+    expect(within(impactModal).getByText("Introduction to Psychology")).toBeInTheDocument();
+
+    // Click Apply after confirmation
+    const applyBtn = within(impactModal).getByRole("button", { name: "Apply after confirmation" });
+    await user.click(applyBtn);
+
+    expect(invokeMock).toHaveBeenCalledWith("apply_book_hours_recalculation_command", {
+      request: {
+        proposed_defaults: {
+          pages_per_hour: 60,
+          words_per_hour: 15000,
+          characters_per_hour: 30000,
+        },
+        proposed_profiles: null,
+      },
+    });
   });
 });
+
 

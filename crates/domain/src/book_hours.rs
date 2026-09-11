@@ -318,6 +318,33 @@ pub fn update_reading_profile(
     get_reading_profile(conn, id)
 }
 
+pub fn set_default_reading_profile(conn: &Connection, id: &str) -> rusqlite::Result<ReadingProfile> {
+    let exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM reading_profiles WHERE id = ?1",
+            [id],
+            |_| Ok(true),
+        )
+        .optional()?
+        .unwrap_or(false);
+
+    if !exists {
+        return Err(rusqlite::Error::InvalidParameterName(format!(
+            "unknown reading profile id '{id}'"
+        )));
+    }
+
+    conn.execute("UPDATE reading_profiles SET is_default = 0", [])?;
+    conn.execute(
+        "UPDATE reading_profiles SET is_default = 1, updated_at = datetime('now') WHERE id = ?1",
+        [id],
+    )?;
+
+    get_reading_profile(conn, id)?.ok_or_else(|| {
+        rusqlite::Error::InvalidParameterName(format!("failed to fetch reading profile '{id}'"))
+    })
+}
+
 pub fn delete_reading_profile(conn: &Connection, id: &str) -> rusqlite::Result<bool> {
     // Cannot delete the default profile
     let is_default: bool = conn
@@ -333,10 +360,19 @@ pub fn delete_reading_profile(conn: &Connection, id: &str) -> rusqlite::Result<b
         return Ok(false);
     }
 
+    // Find default profile id
+    let default_id: String = conn
+        .query_row(
+            "SELECT id FROM reading_profiles WHERE is_default = 1 LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or_else(|_| "profile-default".to_string());
+
     // Reassign books referencing this profile to default profile
     conn.execute(
-        "UPDATE book SET profile_id = 'profile-default' WHERE profile_id = ?1",
-        [id],
+        "UPDATE book SET profile_id = ?1 WHERE profile_id = ?2",
+        params![&default_id, id],
     )?;
 
     let affected = conn.execute("DELETE FROM reading_profiles WHERE id = ?1", [id])?;
@@ -1366,6 +1402,50 @@ mod tests {
         let delete_default = delete_reading_profile(&conn, "profile-default").unwrap();
         assert!(!delete_default);
         assert!(get_reading_profile(&conn, "profile-default").unwrap().is_some());
+    }
+
+    #[test]
+    fn set_default_reading_profile_switches_default_and_reassigns_books_on_delete() {
+        let conn = test_conn();
+        create_reading_profile(
+            &conn,
+            "prof-a",
+            "Profile A",
+            1.2,
+            "Desc A",
+            false,
+            "2026-09-10T12:00:00Z",
+        )
+        .unwrap();
+
+        create_reading_profile(
+            &conn,
+            "prof-b",
+            "Profile B",
+            1.5,
+            "Desc B",
+            false,
+            "2026-09-10T12:00:00Z",
+        )
+        .unwrap();
+
+        // Switch default to prof-a
+        let new_def = set_default_reading_profile(&conn, "prof-a").unwrap();
+        assert!(new_def.is_default);
+        assert_eq!(new_def.id, "prof-a");
+
+        let old_def = get_reading_profile(&conn, "profile-default").unwrap().unwrap();
+        assert!(!old_def.is_default);
+
+        // Add a book referencing prof-b
+        conn.execute("INSERT INTO book (id, title, profile_id) VALUES ('book-test', 'Book Test', 'prof-b')", []).unwrap();
+
+        // Delete prof-b, it should reassign book-test to prof-a (the current default)
+        let deleted = delete_reading_profile(&conn, "prof-b").unwrap();
+        assert!(deleted);
+
+        let book_prof: String = conn.query_row("SELECT profile_id FROM book WHERE id = 'book-test'", [], |r| r.get(0)).unwrap();
+        assert_eq!(book_prof, "prof-a");
     }
 
     #[test]

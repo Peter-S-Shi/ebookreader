@@ -17,8 +17,8 @@ use ebookreader_domain::book_hours::{
     get_reading_profile, list_reading_profiles, list_workload_config_revisions,
     load_global_book_hours_defaults, load_workload_config, preview_book_hours_recalculation,
     save_global_book_hours_defaults, save_workload_config, set_book_workload,
-    update_reading_profile, BookHoursItem, BookHoursOverview, BookWorkloadSetup,
-    GlobalBookHoursDefaults, ReadingProfile, RecalculationPreviewRequest,
+    set_default_reading_profile, update_reading_profile, BookHoursItem, BookHoursOverview,
+    BookWorkloadSetup, GlobalBookHoursDefaults, ReadingProfile, RecalculationPreviewRequest,
     RecalculationPreviewResult, WorkloadConfig, WorkloadConfigRevision,
 };
 use ebookreader_domain::calendar::{self, DayDetail};
@@ -582,6 +582,12 @@ pub fn update_reading_profile_command(
 pub fn delete_reading_profile_command(state: State<DbState>, id: String) -> Result<bool, String> {
     let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
     delete_reading_profile(&conn, &id).map_err(|e| format!("could not delete reading profile: {e}"))
+}
+
+#[tauri::command]
+pub fn set_default_reading_profile_command(state: State<DbState>, id: String) -> Result<ReadingProfile, String> {
+    let conn = state.0.lock().map_err(|e| format!("Library database lock poisoned: {e}"))?;
+    set_default_reading_profile(&conn, &id).map_err(|e| format!("could not set default reading profile: {e}"))
 }
 
 // ---------------------------------------------------------------------------
