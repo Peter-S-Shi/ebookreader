@@ -6,6 +6,19 @@ import { BilingualReader } from "./BilingualReader";
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 
+vi.mock("pdfjs-dist", () => ({
+  GlobalWorkerOptions: { workerSrc: "" },
+  getDocument: () => ({
+    promise: Promise.resolve({
+      numPages: 5,
+      getPage: (pageNum: number) =>
+        Promise.resolve({
+          getTextContent: () => Promise.resolve({ items: [{ str: `PDF Page ${pageNum} text` }] }),
+        }),
+    }),
+  }),
+}));
+
 function bytesOf(text: string): Uint8Array {
   return new TextEncoder().encode(text);
 }
@@ -86,5 +99,26 @@ describe("BilingualReader", () => {
 
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalled();
+  });
+
+  it("opens the Contents drawer and shows truthful empty state for unstructured TXT books", async () => {
+    const user = userEvent.setup();
+    render(<BilingualReader package={pkg} bookA={bookA} bookB={bookB} onBack={() => {}} />);
+    await screen.findByText("Hello fox.");
+
+    await user.click(screen.getByRole("button", { name: /Contents/i }));
+    expect(screen.getByRole("region", { name: "Book Contents" })).toBeInTheDocument();
+    expect(screen.getByText("No contents available for this source.")).toBeInTheDocument();
+  });
+
+  it("opens the Contents drawer and displays structured contents for PDF / EPUB books", async () => {
+    const user = userEvent.setup();
+    const pdfBookA = { bookId: "book-a", title: "PDF Edition", format: "pdf" };
+    render(<BilingualReader package={pkg} bookA={pdfBookA} bookB={bookB} onBack={() => {}} />);
+    await screen.findByText(/PDF Page 1 text/);
+
+    await user.click(screen.getByRole("button", { name: /Contents/i }));
+    expect(screen.getByRole("region", { name: "Book Contents" })).toBeInTheDocument();
+    expect(screen.getByText("Page 1")).toBeInTheDocument();
   });
 });

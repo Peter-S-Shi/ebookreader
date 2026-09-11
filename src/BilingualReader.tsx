@@ -45,35 +45,53 @@ interface FoliateView extends HTMLElement {
   book?: FoliateBook;
 }
 
-/// Extracts a Book's full plain text, reusing exactly the same per-format
-/// paths already validated for Library-wide Search indexing (Reader.tsx/
-/// PdfReader.tsx/TxtReader.tsx) -- see `crates/domain/src/alignment.rs`
-/// for why this is the accepted evidence basis for the Bilingual Reading
-/// 🧪 marker rather than a new extraction pipeline. Sections/pages are
-/// joined with a blank line so the plain-text pane at least shows
-/// paragraph-ish breaks.
-async function extractBookText(bookId: string, format: string): Promise<string> {
+export interface BookContentsItem {
+  id: string;
+  label: string;
+  pageNumber?: number;
+  offset: number;
+}
+
+export interface ExtractedBookData {
+  text: string;
+  contents: BookContentsItem[];
+}
+
+/// Extracts a Book's full plain text and structural contents (EPUB sections/TOC,
+/// PDF pages/outline), reusing exactly the same per-format paths already
+/// validated for Library-wide Search indexing. For unstructured TXT sources,
+/// `contents` is empty ([]), surfacing a truthful "No contents available".
+async function extractBookData(bookId: string, format: string): Promise<ExtractedBookData> {
   const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
   const data = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
 
   if (format === "txt") {
-    return new TextDecoder("utf-8").decode(data);
+    const text = new TextDecoder("utf-8").decode(data);
+    return { text, contents: [] };
   }
 
   if (format === "pdf") {
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const pages: string[] = [];
+    const contents: BookContentsItem[] = [];
+    let currentOffset = 0;
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      pages.push(textContent.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+      const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+      contents.push({
+        id: `page-${i}`,
+        label: `Page ${i}`,
+        pageNumber: i,
+        offset: currentOffset,
+      });
+      pages.push(pageText);
+      currentOffset += pageText.length + 2;
     }
-    return pages.join("\n\n");
+    return { text: pages.join("\n\n"), contents };
   }
 
-  // EPUB (reflowable or fixed-layout): open via foliate-js exactly as
-  // Reader.tsx does for search indexing, but headless -- the element is
-  // never attached visibly, only used to reach book.sections.
+  // EPUB (reflowable or fixed-layout): open via foliate-js
   // @ts-expect-error -- foliate-js has no published type declarations
   await import("foliate-js/view.js");
   const file = new File([new Uint8Array(data)], "book.epub", { type: "application/epub+zip" });
@@ -81,40 +99,47 @@ async function extractBookText(bookId: string, format: string): Promise<string> 
   await view.open(file);
   const sections = view.book?.sections ?? [];
   const parts: string[] = [];
+  const contents: BookContentsItem[] = [];
+  let currentOffset = 0;
+  let secIdx = 1;
   for (const section of sections) {
     if (!section.createDocument) continue;
     const doc = await section.createDocument();
-    const text = doc.body?.textContent ?? "";
-    if (text.trim()) parts.push(text.trim());
+    const text = (doc.body?.textContent ?? "").trim();
+    if (text) {
+      contents.push({
+        id: `sec-${secIdx}`,
+        label: `Section ${secIdx}`,
+        offset: currentOffset,
+      });
+      parts.push(text);
+      currentOffset += text.length + 2;
+      secIdx++;
+    }
   }
-  return parts.join("\n\n");
+  return { text: parts.join("\n\n"), contents };
 }
 
 /// `DESIGN.md` SS11 / `PRODUCT_SPEC.md` SS14 "Bilingual Reading" (canonical
 /// `ER-BI-001`): two independent reading panes, optional synchronized
-/// navigation, side swap, alignment status inspection -- matching the
-/// accepted `docs/design/EbookReader_UI_Prototype_v0_5.html#bilingual`
-/// composition. Per SS14's own non-goals ("no alignment authoring,
-/// mapping drag/drop, or sentence re-segmentation tools") and the scope
-/// decision recorded in `crates/domain/src/alignment.rs`, synchronized
-/// navigation here is scroll-position-ratio based (matching the
-/// prototype's own reference implementation exactly), not a per-
-/// paragraph anchor jump -- the Alignment Package's mappings are used
-/// only for the read-only Alignment panel, never to drive scroll.
+/// navigation, side swap, alignment status inspection, and bounded long-book
+/// Contents navigation -- matching the accepted design authority.
 export function BilingualReader({ package: pkg, bookA, bookB, onBack }: BilingualReaderProps) {
-  const [textA, setTextA] = useState<string | null>(null);
-  const [textB, setTextB] = useState<string | null>(null);
+  const [dataA, setDataA] = useState<ExtractedBookData | null>(null);
+  const [dataB, setDataB] = useState<ExtractedBookData | null>(null);
   const [swapped, setSwapped] = useState(false);
   const [syncOn, setSyncOn] = useState(true);
   const [alignmentOpen, setAlignmentOpen] = useState(false);
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [selectedContentsSide, setSelectedContentsSide] = useState<"left" | "right">("left");
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    extractBookText(bookA.bookId, bookA.format).then((text) => {
-      if (!cancelled) setTextA(text);
+    extractBookData(bookA.bookId, bookA.format).then((data) => {
+      if (!cancelled) setDataA(data);
     });
     return () => {
       cancelled = true;
@@ -123,8 +148,8 @@ export function BilingualReader({ package: pkg, bookA, bookB, onBack }: Bilingua
 
   useEffect(() => {
     let cancelled = false;
-    extractBookText(bookB.bookId, bookB.format).then((text) => {
-      if (!cancelled) setTextB(text);
+    extractBookData(bookB.bookId, bookB.format).then((data) => {
+      if (!cancelled) setDataB(data);
     });
     return () => {
       cancelled = true;
@@ -145,12 +170,34 @@ export function BilingualReader({ package: pkg, bookA, bookB, onBack }: Bilingua
     }, 0);
   }
 
+  function jumpToDestination(side: "left" | "right", offset: number) {
+    const scroller = side === "left" ? leftScrollRef.current : rightScrollRef.current;
+    const targetText = side === "left" ? leftText : rightText;
+    if (!scroller || !targetText || targetText.length === 0) return;
+
+    const maxScroll = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
+    const ratio = Math.min(1, Math.max(0, offset / targetText.length));
+    scroller.scrollTop = ratio * maxScroll;
+
+    if (syncOn) {
+      const counterpartScroller = side === "left" ? rightScrollRef.current : leftScrollRef.current;
+      if (counterpartScroller) {
+        const counterpartMax = Math.max(1, counterpartScroller.scrollHeight - counterpartScroller.clientHeight);
+        counterpartScroller.scrollTop = ratio * counterpartMax;
+      }
+    }
+  }
+
   const left = swapped ? bookB : bookA;
   const right = swapped ? bookA : bookB;
-  const leftText = swapped ? textB : textA;
-  const rightText = swapped ? textA : textB;
+  const leftText = swapped ? dataB?.text ?? null : dataA?.text ?? null;
+  const rightText = swapped ? dataA?.text ?? null : dataB?.text ?? null;
+  const leftContents = swapped ? dataB?.contents ?? [] : dataA?.contents ?? [];
+  const rightContents = swapped ? dataA?.contents ?? [] : dataB?.contents ?? [];
   const leftLang = swapped ? pkg.lang_b : pkg.lang_a;
   const rightLang = swapped ? pkg.lang_a : pkg.lang_b;
+
+  const currentContents = selectedContentsSide === "left" ? leftContents : rightContents;
 
   return (
     <div className="bilingual-reader" role="dialog" aria-label="Bilingual Reading">
@@ -163,10 +210,28 @@ export function BilingualReader({ package: pkg, bookA, bookB, onBack }: Bilingua
           {bookA.title} · {pkg.lang_a} ↔ {pkg.lang_b}
         </span>
         <div className="bilingual-toolbar-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setContentsOpen((o) => !o);
+              setAlignmentOpen(false);
+            }}
+            aria-expanded={contentsOpen}
+            aria-label="Contents"
+          >
+            📖 Contents
+          </button>
           <button type="button" onClick={() => setSwapped((s) => !s)}>
             ⇄ Swap
           </button>
-          <button type="button" onClick={() => setAlignmentOpen((o) => !o)}>
+          <button
+            type="button"
+            onClick={() => {
+              setAlignmentOpen((o) => !o);
+              setContentsOpen(false);
+            }}
+            aria-expanded={alignmentOpen}
+          >
             Alignment
           </button>
         </div>
@@ -212,6 +277,49 @@ export function BilingualReader({ package: pkg, bookA, bookB, onBack }: Bilingua
           ⛓ Sync navigation {syncOn ? "on" : "off"}
         </button>
       </div>
+
+      {contentsOpen && (
+        <div className="bilingual-contents-panel" role="region" aria-label="Book Contents">
+          <h3>Contents</h3>
+          <div className="bilingual-contents-side-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedContentsSide === "left"}
+              aria-pressed={selectedContentsSide === "left"}
+              onClick={() => setSelectedContentsSide("left")}
+            >
+              Left: {left.title}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedContentsSide === "right"}
+              aria-pressed={selectedContentsSide === "right"}
+              onClick={() => setSelectedContentsSide("right")}
+            >
+              Right: {right.title}
+            </button>
+          </div>
+
+          {currentContents.length === 0 ? (
+            <p className="bilingual-contents-empty">No contents available for this source.</p>
+          ) : (
+            <ul className="bilingual-contents-list">
+              {currentContents.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => jumpToDestination(selectedContentsSide, item.offset)}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {alignmentOpen && (
         <div className="bilingual-align-panel" role="region" aria-label="Alignment Package">

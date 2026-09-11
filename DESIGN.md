@@ -328,6 +328,7 @@ Canonical structure:
 - explicit sync on/off;
 - side swap;
 - alignment-status inspection;
+- bounded long-book Contents navigation (intentional V1 design amendment);
 - each side keeps its own Note/Excerpt/Annotation actions.
 
 The UI must communicate:
@@ -339,6 +340,16 @@ Alignment inspection may surface mismatch/review status.
 It must not become an editor in V1.
 
 Both reading panes require visible usable vertical scrolling where content exceeds the viewport.
+
+### Intentional V1 Design Amendment: Long-Book Contents Navigation
+
+A compact toolbar entry ("Contents") opens a collapsible drawer allowing structure inspection and navigation of either the Left or Right Book using real source structure:
+
+- **EPUB**: source TOC items and section index list;
+- **PDF**: page outline and 1..N page navigation;
+- **TXT / Unstructured**: truthful "No contents available for this source".
+
+Clicking a Contents item navigates that specific Book's scroller to the destination offset. When Sync is ON, the counterpart pane continues following the existing scroll-ratio synchronization. When Sync is OFF, only the targeted Book navigates, keeping the counterpart independent. This amendment does not introduce chapter-alignment semantics, modify Alignment Package schema, infer fake TXT chapters, or replace scroll-ratio sync.
 
 ---
 
