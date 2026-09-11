@@ -1006,6 +1006,9 @@ Hardening is system-wide quality convergence, not feature growth.
   - Explicit user HUMAN PASS recorded.
 
 ### M10-B — Packaged RC Acceptance (Active)
+- Core Installer: Lightweight (~13MB setup executable), zero external dependencies, bundles complete runtime DLL closure (`WebView2Loader.dll`, `libstdc++-6.dll`, `libgcc_s_seh-1.dll`, `libwinpthread-1.dll`). Normal visual reading for scanned PDF works without OCR.
+- Optional OCR Pack: Official standalone installer (`EbookReader_OCR_Pack_0.1.0_x64-setup.exe`, ~56.5MB setup executable) packaging verified ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0). Auto-discovered at `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\`. When uninstalled, UI displays a neutral informational degraded state (`OCR Pack Not Installed`).
+- Scope: End-to-end acceptance across the 14 core workflows on clean Windows environment.
 
 ## Scope
 
@@ -1017,7 +1020,7 @@ Hardening is system-wide quality convergence, not feature growth.
 - create user data (notes, highlights);
 - Book Hours create/change smoke;
 - Bilingual / Alignment smoke;
-- OCR smoke;
+- OCR optional pack smoke & uninstalled neutral degraded state;
 - close / reopen;
 - persistence verification;
 - backup / Restore round-trip & restored-state check;

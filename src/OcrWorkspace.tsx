@@ -47,6 +47,12 @@ async function renderPageToDataUrl(pdf: pdfjsLib.PDFDocumentProxy, pageNum: numb
   return canvas.toDataURL("image/png");
 }
 
+interface OcrStatusDTO {
+  available: boolean;
+  installed_path: string | null;
+  message: string;
+}
+
 export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }: OcrWorkspaceProps) {
   const pageCount = pdf.numPages;
   const [scope, setScope] = useState<OcrScope>("current");
@@ -61,7 +67,15 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
   const [pagesPrepared, setPagesPrepared] = useState(0);
   const [draft, setDraft] = useState("");
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState<OcrStatusDTO | null>(null);
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Check Optional OCR Pack availability on mount
+  useEffect(() => {
+    invoke<OcrStatusDTO>("get_ocr_status_command")
+      .then((status) => setOcrStatus(status))
+      .catch(() => {});
+  }, []);
 
   // Render high-resolution source PDF page in the primary comparison pane
   useEffect(() => {
@@ -145,9 +159,10 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
     setPagesPrepared(0);
     const pages: [number, number[]][] = [];
     for (const p of pagesToRun) {
-      const dataUrl = await renderPageToDataUrl(pdf, p);
-      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-      const bytes = Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const dataUrl = (await renderPageToDataUrl(pdf, p)) || "";
+      const commaIdx = dataUrl.indexOf(",");
+      const base64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : "";
+      const bytes = base64 ? Array.from(atob(base64), (c) => c.charCodeAt(0)) : [];
       pages.push([p, bytes]);
       setPagesPrepared((n) => n + 1);
     }
@@ -342,12 +357,20 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
           )}
           {phase === "failed" && (
             <div className="ocr-failed-controls">
-              <span className="ocr-status-pill ocr-status-pill--error" role="alert">
-                Failed: {error}
-              </span>
-              <button type="button" onClick={handleStart}>
-                Retry
-              </button>
+              {error?.includes("Optional OCR Pack is not installed") ? (
+                <span className="ocr-status-pill ocr-status-pill--info" role="status">
+                  Optional OCR Pack not installed — install EbookReader OCR Pack to enable OCR
+                </span>
+              ) : (
+                <>
+                  <span className="ocr-status-pill ocr-status-pill--error" role="alert">
+                    Failed: {error}
+                  </span>
+                  <button type="button" onClick={handleStart}>
+                    Retry
+                  </button>
+                </>
+              )}
             </div>
           )}
           {phase === "complete" && (
@@ -362,6 +385,17 @@ export function OcrWorkspace({ bookId, pdf, currentPage, onClose, onOcrUpdated }
           </button>
         </div>
       </div>
+
+      {/* Optional OCR Pack Uninstalled Informative Banner */}
+      {ocrStatus && !ocrStatus.available && (
+        <div className="ocr-uninstalled-banner" role="status" aria-label="Optional OCR Pack notice">
+          <span className="ocr-uninstalled-badge">Optional Component</span>
+          <span className="ocr-uninstalled-text">
+            The Optional OCR Pack is not installed. Scanned PDF visual reading works normally.
+            Install the official EbookReader OCR Pack to enable local text recognition on scanned pages.
+          </span>
+        </div>
+      )}
 
       {/* Main Comparison Area: Source Canvas Left + OCR Text/Editor Right */}
       <div className="ocr-workspace-body">

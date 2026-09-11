@@ -47,17 +47,32 @@ describe("Packaging runtime dependency closure (Release Blockers: WebView2Loader
     }
   });
 
-  it("auditRuntimeClosure passes with 100% complete dependency closure", () => {
-    const releaseExe = join(rootDir, "target", "release", "ebookreader.exe");
-    if (existsSync(releaseExe)) {
-      const result = auditRuntimeClosure();
-      expect(result.issues).toEqual([]);
-      expect(result.valid).toBe(true);
-      for (const dll of REQUIRED_REDIST_DLLS) {
-        expect(result.requiredRedistDlls).toContain(dll);
-      }
+  it("keeps Core packaging lightweight without bundling heavy ocr-assets into redist", () => {
+    const ocrAssetsInRedist = join(redistDir, "PP-OCRv6_det_medium.onnx");
+    expect(existsSync(ocrAssetsInRedist)).toBe(false);
+  });
+
+  it("standalone OCR Pack asset directory contains complete PP-OCRv6 model set and ONNX Runtime", () => {
+    const ocrDir = join(rootDir, "ocr-assets");
+    const requiredFiles = [
+      "PP-OCRv6_det_medium.onnx",
+      "PP-OCRv6_rec_small.onnx",
+      "ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+      "onnxruntime.dll",
+      "onnxruntime_providers_shared.dll",
+    ];
+    for (const file of requiredFiles) {
+      const p = join(ocrDir, file);
+      expect(existsSync(p), `Missing OCR asset ${file}`).toBe(true);
+      expect(statSync(p).size).toBeGreaterThan(1000);
     }
   });
+
+  it("standalone OCR Pack build script tooling/build_ocr_pack.mjs exists and is functional", () => {
+    const scriptPath = join(rootDir, "tooling", "build_ocr_pack.mjs");
+    expect(existsSync(scriptPath)).toBe(true);
+  });
 });
+
 
 

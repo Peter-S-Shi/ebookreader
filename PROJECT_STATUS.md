@@ -38,41 +38,36 @@ Current Phase: **Milestone 10 Active (M10-B — Packaged RC Acceptance)**. M10-A
   - PowerShell validation confirmed AppData storage initialization (`C:\Users\CleanUser\AppData\Roaming\com.peter-shi.ebookreader\library.sqlite3`).
 - **M10-A Verdict: HUMAN PASS (Closed).**
 
-**M10-B Packaged RC Acceptance (Active):**
-- Scope: End-to-end acceptance of the installed application on clean Windows environment across core workflows:
-  - EPUB import / open / read;
-  - PDF import / open / read;
-  - TXT import / open / read;
-  - Core reading workflow;
-  - Representative user data creation (notes, highlights);
-  - Book Hours create / change smoke;
-  - Bilingual / Alignment smoke;
-  - OCR smoke;
-  - Close / reopen lifecycle;
-  - Database & user data persistence;
-  - Full Library Backup;
-  - Full Library Restore;
-  - Restored-state verification;
-  - Update-awareness smoke;
-  - Privacy / license review.
+**M10-B Packaged RC Acceptance & OCR Corrective Pass (Active):**
+- Scope: End-to-end acceptance of the installed application on clean Windows environment across core workflows.
+- OCR Architectural Reconciliation (Corrective Pass):
+  - EbookReader Core is a lightweight standalone application (~13 MB installer); heavy neural network models (~100 MB) are decoupled from the Core installer.
+  - Scanned PDFs remain fully readable visually without OCR; text-dependent features present a truthful, neutral degraded state (`OCR Pack Not Installed`).
+  - Standalone Optional OCR Pack: Created official `EbookReader_OCR_Pack_0.1.0_x64-setup.exe` (~56.5 MB solid LZMA compression) packaging ONNX Runtime (MIT) and PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0).
+  - Zero-Configuration Discovery: Core automatically detects installed OCR assets in `%APPDATA%\com.peter-shi.ebookreader\ocr-assets\` or `$INSTDIR\ocr-assets\` with full integrity validation (`is_complete_ocr_dir`).
+- Candidate Artifacts:
+  - Core NSIS Installer: `target/release/bundle/nsis/EbookReader_0.1.0_x64-setup.exe` (4,817,866 bytes, SHA256: `1F947C2482FF0734ACDAD9EEC036B47265A488F5EBC7FEAE82709626ED8C6D64`)
+  - Core MSI Installer: `target/release/bundle/msi/EbookReader_0.1.0_x64_en-US.msi` (6,365,184 bytes, SHA256: `9BF631C346AE43C9EC1E33B5E19F13FBF364774FFC32B7208A7BEE27BA7A03C2`)
+  - Optional OCR Pack: `target/release/bundle/ocr-pack/EbookReader_OCR_Pack_0.1.0_x64-setup.exe` (59,202,756 bytes, SHA256: `F446F02E2528625B5F35253328D7E497D93B786703CB55E840B32C2664920B3D`)
 
 **Full Automated Regression Verification:**
-- Frontend unit tests `npm test`: 38 test files, 302 passed; 0 failed.
+- Frontend unit tests `npm test`: 38 test files, 306 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
-- Rust workspace tests `cargo test --workspace`: 216 passed, 2 ignored; 0 failed.
+- Rust workspace tests `cargo test --workspace` + `cargo test -p ebookreader`: 219 passed, 2 ignored; 0 failed.
+- PE runtime dependency closure `node tooling/audit_runtime_closure.mjs`: 100% closure verified (0 unresolved DLLs).
 - Production frontend build `npm run build`: passed.
 - Production Tauri release build `npm run tauri build`: passed.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Active** (M10-A Complete, M10-B in progress).
-Current Checkpoint / Promotion Unit: **M10-B (Packaged RC Acceptance Active)**.
+Current Checkpoint / Promotion Unit: **M10-B (Packaged RC Acceptance Active — Ready for Targeted Human Retest)**.
 Current Branch / PR: `milestone/10a-rc-clean-install` / PR #1
 Current Blockers: None.
 Current Escalations: None.
-Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening & Book Hours V1 Redesign)**.
+Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
 RC / Release State: M10-A Clean Install PASS (HUMAN PASS); M10-B Packaged RC Acceptance Active.
-Next Action: Await human packaged acceptance testing results across the 14 M10-B workflows on the installed build.
+Next Action: Await targeted human clean-environment retest on the updated Core installer and Optional OCR Pack installer.
 
 
 

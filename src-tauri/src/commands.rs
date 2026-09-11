@@ -1105,30 +1105,55 @@ pub fn clear_ocr_cache_command(state: State<DbState>, book_id: String) -> Result
     ocr::clear_page_results(&conn, &book_id).map_err(|e| format!("could not clear OCR cache: {e}"))
 }
 
-/// Searches this machine for the local, gitignored `ocr-assets/` dev
-/// convention (`tooling/m5-evidence/README.md`): the current working
-/// directory and the running executable's directory, each searched up
-/// through a few parent levels for a folder containing `onnxruntime.dll`.
-///
-/// This is a dev-only convenience, not a release distribution strategy --
-/// per that same evidence doc, the final self-contained model/runtime
-/// packaging decision is explicitly deferred to later release evidence
-/// work, not resolved here.
-fn find_ocr_assets_dir() -> Option<std::path::PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        roots.push(cwd);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.to_path_buf());
+fn is_complete_ocr_dir(dir: &std::path::Path) -> bool {
+    dir.join("onnxruntime.dll").is_file()
+        && dir.join("PP-OCRv6_det_medium.onnx").is_file()
+        && dir.join("ch_ppocr_mobile_v2.0_cls_mobile.onnx").is_file()
+        && dir.join("PP-OCRv6_rec_small.onnx").is_file()
+}
+
+/// Searches standard app-owned and development locations for the Optional
+/// EbookReader OCR Pack:
+/// 1. AppData directory (%APPDATA%\com.peter-shi.ebookreader\ocr-assets)
+/// 2. LocalAppData directory (%LOCALAPPDATA%\com.peter-shi.ebookreader\ocr-assets)
+/// 3. Installed application directory ($INSTDIR\ocr-assets or $INSTDIR)
+/// 4. Current working directory and parent paths (dev/portable environment)
+pub fn find_ocr_assets_dir() -> Option<std::path::PathBuf> {
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let appdata_ocr = std::path::PathBuf::from(appdata)
+            .join("com.peter-shi.ebookreader")
+            .join("ocr-assets");
+        if is_complete_ocr_dir(&appdata_ocr) {
+            return Some(appdata_ocr);
         }
     }
-    for root in roots {
-        let mut dir = root.as_path();
+
+    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+        let local_ocr = std::path::PathBuf::from(localappdata)
+            .join("com.peter-shi.ebookreader")
+            .join("ocr-assets");
+        if is_complete_ocr_dir(&local_ocr) {
+            return Some(local_ocr);
+        }
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let inst_ocr = dir.join("ocr-assets");
+            if is_complete_ocr_dir(&inst_ocr) {
+                return Some(inst_ocr);
+            }
+            if is_complete_ocr_dir(dir) {
+                return Some(dir.to_path_buf());
+            }
+        }
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        let mut dir = cwd.as_path();
         for _ in 0..6 {
             let candidate = dir.join("ocr-assets");
-            if candidate.join("onnxruntime.dll").is_file() {
+            if is_complete_ocr_dir(&candidate) {
                 return Some(candidate);
             }
             match dir.parent() {
@@ -1137,7 +1162,33 @@ fn find_ocr_assets_dir() -> Option<std::path::PathBuf> {
             }
         }
     }
+
     None
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct OcrStatusDTO {
+    pub available: bool,
+    pub installed_path: Option<String>,
+    pub message: String,
+}
+
+/// Returns the current discovery status of the Optional OCR Pack.
+#[tauri::command]
+pub fn get_ocr_status_command() -> OcrStatusDTO {
+    if let Some(path) = find_ocr_assets_dir() {
+        OcrStatusDTO {
+            available: true,
+            installed_path: Some(path.to_string_lossy().to_string()),
+            message: "EbookReader OCR Pack is installed and available.".to_string(),
+        }
+    } else {
+        OcrStatusDTO {
+            available: false,
+            installed_path: None,
+            message: "Optional OCR Pack is not installed. Scanned PDF visual reading works normally; install the official EbookReader OCR Pack to enable local text recognition.".to_string(),
+        }
+    }
 }
 
 /// Runs the real OCR pipeline (detect -> classify orientation -> recognize
@@ -1176,7 +1227,7 @@ pub fn run_ocr_job_command(
     let mut engine_guard = ocr_state.0.lock().map_err(|e| format!("OCR engine lock poisoned: {e}"))?;
     if engine_guard.is_none() {
         let assets_dir = find_ocr_assets_dir()
-            .ok_or_else(|| "OCR is unavailable on this machine (no local OCR model assets found)".to_string())?;
+            .ok_or_else(|| "Optional OCR Pack is not installed. Scanned PDF visual reading works normally; install the official EbookReader OCR Pack to enable local text recognition.".to_string())?;
         let engine = OcrEngine::load(
             &assets_dir.join("onnxruntime.dll"),
             &assets_dir.join("PP-OCRv6_det_medium.onnx"),
@@ -1236,3 +1287,42 @@ pub fn run_ocr_job_command(
     ocr::set_job_status(&conn, &job_id, OcrJobStatus::Succeeded)
         .map_err(|e| format!("could not finish OCR job: {e}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_complete_ocr_dir_rejects_empty_dir() {
+        let temp = std::env::temp_dir().join(format!("ocr_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&temp).unwrap();
+        assert!(!is_complete_ocr_dir(&temp));
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_is_complete_ocr_dir_accepts_when_all_files_present() {
+        let temp = std::env::temp_dir().join(format!("ocr_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&temp).unwrap();
+        std::fs::write(temp.join("onnxruntime.dll"), b"mock").unwrap();
+        std::fs::write(temp.join("PP-OCRv6_det_medium.onnx"), b"mock").unwrap();
+        std::fs::write(temp.join("ch_ppocr_mobile_v2.0_cls_mobile.onnx"), b"mock").unwrap();
+        std::fs::write(temp.join("PP-OCRv6_rec_small.onnx"), b"mock").unwrap();
+
+        assert!(is_complete_ocr_dir(&temp));
+        let _ = std::fs::remove_dir_all(&temp);
+    }
+
+    #[test]
+    fn test_get_ocr_status_command_returns_valid_dto() {
+        let status = get_ocr_status_command();
+        if status.available {
+            assert!(status.installed_path.is_some());
+            assert!(status.message.contains("installed and available"));
+        } else {
+            assert!(status.installed_path.is_none());
+            assert!(status.message.contains("Optional OCR Pack is not installed"));
+        }
+    }
+}
+

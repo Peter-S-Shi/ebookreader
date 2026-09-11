@@ -131,4 +131,65 @@ describe("OcrWorkspace — UX Convergence & Side-by-Side Review", () => {
       });
     });
   });
+
+  it("renders truthful neutral info banner when Optional OCR Pack is not installed", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "get_ocr_status_command") {
+        return {
+          available: false,
+          installed_path: null,
+          message: "Optional OCR Pack is not installed.",
+        };
+      }
+      return null;
+    });
+
+    render(
+      <OcrWorkspace
+        bookId="pdf1"
+        pdf={mockPdf}
+        currentPage={1}
+        onClose={vi.fn()}
+        onOcrUpdated={vi.fn()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Optional OCR Pack notice")).toBeInTheDocument();
+      expect(screen.getByText("Optional Component")).toBeInTheDocument();
+      expect(screen.getByText(/The Optional OCR Pack is not installed/)).toBeInTheDocument();
+    });
+  });
+
+  it("displays neutral info status pill when OCR job returns missing OCR Pack error", async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "create_ocr_job_command") {
+        return { id: "job-123" };
+      }
+      if (cmd === "run_ocr_job_command") {
+        throw new Error("Optional OCR Pack is not installed. Scanned PDF visual reading works normally; install the official EbookReader OCR Pack to enable local text recognition.");
+      }
+      return null;
+    });
+
+    render(
+      <OcrWorkspace
+        bookId="pdf1"
+        pdf={mockPdf}
+        currentPage={1}
+        onClose={vi.fn()}
+        onOcrUpdated={vi.fn()}
+      />
+    );
+
+    const runButton = screen.getByRole("button", { name: "Run OCR" });
+    fireEvent.click(runButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Optional OCR Pack not installed — install EbookReader OCR Pack to enable OCR/)).toBeInTheDocument();
+      // Should not show scary red Failed: prefix
+      expect(screen.queryByText(/^Failed:/)).not.toBeInTheDocument();
+    });
+  });
 });
+

@@ -16,7 +16,7 @@ The Feature-Frozen V1 application is complete through M9 Product Hardening. M10-
 
 ## Product Identity
 
-EbookReader combines reliable local reading, personal library and reading-asset management, transparent Book Hours, factual Actual Reading Time, local OCR for scanned PDFs, bilingual aligned reading, backup/restore, and update awareness.
+EbookReader combines reliable local reading, personal library and reading-asset management, transparent Book Hours, factual Actual Reading Time, optional local OCR for scanned PDFs, bilingual aligned reading, backup/restore, and update awareness.
 
 > **Quiet Surface, Living Motion**
 
