@@ -362,8 +362,11 @@ Book Hours is EbookReader's reading workload planning system.
   ```text
   Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
   ```
-- **Automatic Calculation on Import**: Newly imported Books with discoverable measurable quantity (e.g. PDF/EPUB page count) automatically receive Planned Book Hours using global fallback defaults or profile defaults.
-- **Needs Setup State**: If required inputs are missing (Quantity is missing/zero, or Speed ≤ 0), the Book is marked `Needs Setup` (`Not Calculated`). It is excluded from aggregate Book Hours sums and counted in coverage metrics.
+- **Format-Appropriate Trustworthy Quantity Discovery**:
+  - **PDF (fixed-layout)**: physical document page count (`pages`) is used when discoverable.
+  - **Reflowable EPUB / TXT**: reliable word count (`words`) or character count (`characters`) when reliably extracted from document content/metadata. If quantity is unknown, the Book remains in `Needs Setup` (`Not Calculated`). The system never fabricates or invents a fictional page count for reflowable formats.
+- **Automatic Import Calculation**: Newly imported Books with discoverable trustworthy quantity automatically receive Planned Book Hours using the default neutral profile or global fallback defaults.
+- **Needs Setup State**: If required inputs are missing (Quantity is missing/zero, or Speed ≤ 0), the Book is marked `Needs Setup` (`Not Calculated`). It is excluded from aggregate Book Hours sums and tracked in explicit calculation coverage metrics (`11 of 13 Books calculated`).
 - **Strictly Derived / Planning State**: Users never directly enter Planned Book Hours.
 
 ### 8.2 Database Schema & Migration Path
@@ -382,21 +385,26 @@ CREATE TABLE reading_profiles (
     updated_at TEXT NOT NULL
 );
 
--- Seed defaults:
--- - General (Diff: 1.0, Speed: 60 pages/h, is_default: 1)
--- - Textbook (Diff: 2.4, Speed: 50 pages/h)
--- - Novel (Diff: 1.0, Speed: 70 pages/h)
--- - Research Paper (Diff: 2.8, Speed: 18 pages/h)
--- - Poem (Diff: 0.7, Speed: 30 pages/h)
+-- Minimum neutral system fallback:
+-- Only a single neutral default profile is seeded:
+-- id: 'profile-default', name: 'Default', difficulty_multiplier: 1.0, baseline_speed: 60.0, speed_unit: 'pages', is_default: 1.
+-- (Note: Demo profile names in Prototype v0.6 such as Textbook/Novel/Paper/Poem are illustrative UI examples and are not hardcoded into production architecture. User-authored Profiles are the intended model.)
 ```
 
 - **Book Profile Binding**:
   - `books` table schema is updated with `profile_id TEXT REFERENCES reading_profiles(id)`, `workload_quantity REAL`, `workload_unit TEXT`, `workload_speed_override REAL`.
   - Every Book has at most one Reading Profile (1:1 or 1:0).
-- **Migration & History Preservation**:
-  - Migration copies legacy `workload_config` quantities and coefficients into the new structure without data loss.
-  - Legacy `workload_config_revision` is preserved for historical audit snapshots.
-  - Generic `tags` and `book_tags` remain decoupled from Book Hours calculation.
+- **Lossless Legacy `workload_config` Migration**:
+  - In the legacy schema, `workload_config` held a per-book `(quantity, baseline_speed, difficulty_coefficient)`.
+  - In the V1 schema, difficulty is 100% owned by `reading_profiles`.
+  - **Migration logic**:
+    1. For books with default difficulty (1.0), migrate quantity to `books.workload_quantity` and set `books.profile_id = 'profile-default'`.
+    2. For books with custom legacy `difficulty_coefficient != 1.0` (e.g. 1.1), migration creates an explicit user-visible `reading_profile` row (e.g. `Custom (1.1x)` with `difficulty_multiplier = 1.1`) and assigns `books.profile_id` to it.
+    3. This guarantees that difficulty remains 100% Profile-owned in the domain model with zero hidden secondary multipliers, while preserving all existing user-configured coefficients and quantities losslessly.
+    4. The legacy `workload_config_revision` table is preserved as an immutable audit snapshot history.
+- **Legacy Tag Reconciliation**:
+  - Collections are the multi-membership organization system; Reading Profiles are the singular workload classification system.
+  - Legacy `tags` and `book_tags` database tables remain in SQLite as unindexed legacy rows to avoid destructive drops, but are removed from V1 product APIs, commands, and UI surfaces.
 
 ### 8.3 Aggregation & Deduplication
 

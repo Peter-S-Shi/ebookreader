@@ -391,7 +391,7 @@ Do not copy enterprise calendar/dashboard patterns or gamify heavily.
 
 ### 13.2 Book Hours Planning (`ER-BH-001`)
 
-Visual & IA Authority: `docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html`.
+Visual & IA Authority: `docs/design/EbookReader_UI_Prototype_v0_6_Book_Hours_Planning.html` (authoritative for visual hierarchy, IA, layouts, and interaction flows; demo Profile names such as Textbook/Novel are illustrative UI examples, not hardcoded domain presets).
 
 The Book Hours Planning surface is accessible via **Data → Book Data → Book Hours Planning**, **Calendar → Planning**, or **Book Details → Book Hours → Manage in Data**.
 
@@ -399,9 +399,9 @@ The Book Hours Planning surface is accessible via **Data → Book Data → Book 
 - **Overview (`#bhOverview`)**:
   - Hero explanation cards emphasizing that Book Hours is a planning model and Reading Progress is an independent reading fact.
   - Summary metric cards: Total Planned Book Hours, Current Book Hours, Library Progress %, Calculation Coverage (e.g. `11 / 13 calculated`, `2 Books need setup`).
-  - Summary by Profile and Summary by Collection tables.
+  - Summary by Profile and Summary by Collection tables (Collections are the multi-grouping mechanism; Reading Profiles are the singular workload classification; generic Tags are not a separate V1 classification system).
 - **By Profile (`#bhProfilesView`)**:
-  - Master-detail view of Reading Profiles (Textbook, Novel, Research Paper, Poem, etc.).
+  - Master-detail view of Reading Profiles (user-authored profiles with neutral system fallback).
   - Books using the selected Profile with individual progress %, planned hours, current hours, and remaining hours.
 - **By Collection (`#bhCollectionsView`)**:
   - Master-detail view of Collections.
@@ -410,11 +410,11 @@ The Book Hours Planning surface is accessible via **Data → Book Data → Book 
   - Clear note explaining collection totals may overlap because books can belong to multiple collections.
 - **Books (`#bhBooksView`)**:
   - Searchable/filterable library table with profile, collection, and calculation state filters.
-  - Shows calculation status badges: `Calculated` (good) vs `Needs setup` / `Needs quantity` (warn).
+  - Shows calculation status badges: `Calculated` (good) vs `Needs setup` / `Needs quantity` (warn). Quantity reflects format-appropriate units (PDF physical pages, EPUB/TXT words or characters).
   - Quick action to open the Book Hours Setup drawer for any book.
 - **Profiles (`#bhProfilesManage`)**:
   - Profile cards grid displaying difficulty coefficient, books count, planned BH, current BH, preferred speed, and unit.
-  - Actions to add new profile or edit existing profile.
+  - Actions to add new profile or edit existing user-authored profile.
 - **Formula & Defaults (`#bhFormula`)**:
   - Canonical formula flow visualization: `(Quantity ÷ Baseline Speed) × Difficulty = Planned Book Hours`; `Planned Book Hours × Cumulative Reading % = Current Book Hours`.
   - Global defaults configuration: fallback profile, default quantity unit, fallback baseline speed, fallback difficulty coefficient.

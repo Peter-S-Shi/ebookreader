@@ -84,7 +84,8 @@ At minimum:
 - reading history;
 - completed-read overrides;
 - Book Hours configuration/history;
-- Collections/Tags;
+- Collections;
+- Reading Profiles;
 - Alignment Packages;
 - settings.
 
@@ -147,27 +148,25 @@ Important properties include:
 
 ### 4.3 Collection
 
-A user-controlled grouping of Books.
+A user-controlled multi-membership grouping of Books.
 
 A Book may belong to multiple Collections. Collection aggregates may overlap since Books can appear in several Collections simultaneously.
 
-### 4.4 Tag
+### 4.4 ReadingProfile
 
-A generic descriptive label for search and organization. Tags do not drive Book Hours or workload calculations.
+A user-authored reading workload classification. Each Book belongs to at most one Reading Profile (1:1 or 1:0).
 
-### 4.5 ReadingProfile
+The Reading Profile is the singular mechanism for workload/difficulty behavior and owns:
 
-A Book belongs to at most one Reading Profile (1:1 or 1:0).
-
-A Reading Profile replaces the legacy concept of Book-Hours tags/categories and owns:
-
-- shared difficulty coefficient (e.g. Textbook 2.4, Novel 1.0, Research Paper 2.8, Poem 0.7);
-- preferred baseline reading speed and quantity unit defaults;
+- difficulty coefficient (e.g. 1.0, 1.5, 2.0; demo profile names in Prototype v0.6 are illustrative examples, not hardcoded presets);
+- preferred baseline reading speed and matching quantity unit defaults;
 - descriptive notes and planning metadata.
 
-Profile-level updates only affect Books assigned to that Profile. If a Book has no assigned Profile, it uses the global fallback defaults.
+Profile-level updates only affect Books assigned to that Profile. If a Book has no assigned Profile, it uses the minimal neutral global fallback defaults.
 
-### 4.6 DocumentLocation
+*(Note: Legacy tag rows from pre-V1 schemas are safely preserved as unindexed historical data during migration, but generic Tags are not a parallel first-class V1 product classification mechanism.)*
+
+### 4.5 DocumentLocation
 
 A unified location envelope with format-specific anchors.
 
@@ -434,7 +433,10 @@ Book Hours is EbookReader's planning model for estimating reading workload.
   ```text
   Planned Book Hours = (Quantity / Baseline Speed) × Difficulty Coefficient
   ```
-- **Automatic Import Calculation**: When a Book is imported and sufficient measurable inputs exist (e.g. valid page count > 0), the system automatically calculates Planned Book Hours using global defaults or assigned Reading Profile defaults.
+- **Format-Appropriate Trustworthy Quantity Discovery**:
+  - **PDF (fixed-layout)**: uses physical document page count (`pages`) where discoverable and reliable.
+  - **EPUB & TXT (reflowable)**: uses supported word count (`words`) or character count (`characters`) when reliably extracted from document structure/content. If a trustworthy quantity cannot be determined, the Book remains in the `Needs Setup` state until the user provides quantity. The system never invents or fabricates an arbitrary page count for reflowable formats.
+- **Automatic Import Calculation**: When a Book is imported and sufficient measurable inputs exist (e.g. valid quantity > 0, baseline speed > 0), the system automatically calculates Planned Book Hours using global fallback defaults or assigned Reading Profile defaults.
 - **Completed-Equivalent Current Book Hours**:
   ```text
   Current Book Hours = Planned Book Hours × Cumulative Reading % / 100
@@ -442,13 +444,14 @@ Book Hours is EbookReader's planning model for estimating reading workload.
 
 ### 9.2 Calculation Coverage & "Needs Setup" State
 
-- A Book with missing required inputs (e.g. quantity unknown, speed ≤ 0) legitimately receives no Book Hours result and enters the **`Needs Setup` (`Not Calculated`)** state.
+- A Book with missing required inputs (e.g. quantity unknown/zero, speed ≤ 0) legitimately receives no Book Hours result and enters the **`Needs Setup` (`Not Calculated`)** state.
 - Books in `Needs Setup` remain fully valid, readable Library Books; they are excluded from aggregate Book Hours sums rather than silently coerced to `0h`.
 - Aggregates always expose explicit calculation coverage (e.g. `11 of 13 Books calculated` / `1 Needs setup`).
 
 ### 9.3 Reading Profiles & Collections Aggregation
 
 - **Singular Profile Binding**: Each Book has at most one Reading Profile (1:1 or 1:0). Profiles partition Books cleanly for workload modeling.
+- **User-Authored Model**: Reading Profiles are user-created and user-configured; the system ships only a single neutral fallback default (difficulty 1.0, neutral baseline speed) without subjective preset profiles.
 - **Multiple Collections**: A Book may belong to multiple Collections.
 - **Global vs Collection Aggregates**:
   - Global library totals deduplicate Books (each Book contributes once to library Planned/Current Book Hours).
