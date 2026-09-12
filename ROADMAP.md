@@ -1028,7 +1028,7 @@ Hardening is system-wide quality convergence, not feature growth.
 - Merged PR #1 into `main` (`dea8d82`) and tagged `v1.0.0`.
 - Published GitHub Release `v1.0.0` with verified candidate artifacts and SHA256 checksums (`EbookReader_1.0.0_x64-setup.exe`, `EbookReader_1.0.0_x64_en-US.msi`, `EbookReader_OCR_Pack_1.0.0_x64-setup.exe`).
 - Verified third-party notices and license attributions for ONNX Runtime (MIT), PaddleOCR (Apache-2.0), and WebView2.
-- Milestone 10 is complete, Portfolio Packaging is complete, and the next lifecycle phase is the Local Workspace Slimming Audit.
+- Milestone 10, Portfolio Packaging, and the Local Workspace Slimming Audit are complete. The project is now in Lifecycle Archived / Maintenance Mode; maintenance work or future version planning requires explicit user authorization.
 
 ## RC Exit Gate
 

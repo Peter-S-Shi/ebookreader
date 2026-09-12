@@ -1,6 +1,6 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-12 (v1.0.0 Released — M10 Complete — Portfolio Packaging Complete)
+Last Updated: 2026-09-12 (v1.0.0 Released — M1-M10 Complete — Portfolio Packaging Complete — Workspace Slimming Complete — Lifecycle Archived / Maintenance Mode)
 
 Current Phase: **Lifecycle Archived / Maintenance Mode**. EbookReader v1.0.0 is released; M1-M10, Portfolio Packaging, and the Local Workspace Slimming Audit are complete. No development milestone is active. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. M10-C Release Governance & Publication is **Complete**; PR #1 merged into `main`, Git Tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published with approved candidate artifacts and verified SHA256 checksums. Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Full Automated Regression and CI Promotion Gate are **PASS (All Green)**. Human Feature Freeze remains **APPROVED** and V1 scope remains locked. Maintenance work or future version planning requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
 
@@ -8,7 +8,7 @@ Current Phase: **Lifecycle Archived / Maintenance Mode**. EbookReader v1.0.0 is 
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
 - Native acceptance passed for Highlight lifecycle, Collections management, Library multi-select, Bilingual Alignment management, and Book Hours smoke coverage.
 - The known native layout/form overlap and card/button overflow behavior was audited and resolved inside M9 Product Hardening within the frozen V1 scope.
-- Feature Freeze remains in effect: no new features, workflow redesigns, Feature Freeze scope expansion, or unrelated refactors are permitted.
+- For the released v1.0.0 baseline, Feature Freeze remains in effect: no V1 scope expansion, workflow redesign, or unrelated refactor is permitted. Any maintenance work or future version planning requires explicit user authorization.
 
 **M9 Product Hardening & Corrective Retest Summary:**
 - Bounded release-blocker audit followed `ROADMAP.md` M9 scope. Earliest-wrong-layer attribution for the known native layout/form overlap and card/button overflow issue: shared CSS layout contracts, not domain or feature wiring, lacked a systemic viewport containment rule for compact native windows.
