@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-11 (v1.0.0 Released — Milestone 10 Complete)
+Last Updated: 2026-09-12 (v1.0.0 Released — M10 Complete — Portfolio Packaging Complete)
 
-Current Phase: **Milestone 10 Complete (v1.0.0 Released) — Next Lifecycle Phase: Portfolio Packaging (PP)**. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. M10-C Release Governance & Publication is **Complete**; PR #1 merged into `main`, Git Tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published with approved candidate artifacts and verified SHA256 checksums. Full Automated Regression and CI Promotion Gate are **PASS (All Green)**. Human Feature Freeze remains **APPROVED** and V1 scope remains locked.
+Current Phase: **Portfolio Packaging Complete (v1.0.0 Released; M1-M10 Complete) — Next Lifecycle Phase: Local Workspace Slimming Audit**. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. M10-C Release Governance & Publication is **Complete**; PR #1 merged into `main`, Git Tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published with approved candidate artifacts and verified SHA256 checksums. Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Full Automated Regression and CI Promotion Gate are **PASS (All Green)**. Human Feature Freeze remains **APPROVED** and V1 scope remains locked.
 
 **Feature Freeze Decision Summary:**
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
@@ -61,12 +61,13 @@ Current Phase: **Milestone 10 Complete (v1.0.0 Released) — Next Lifecycle Phas
 - Production Tauri release build `npm run tauri build`: passed.
 
 Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Complete** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Complete [RELEASED]).
-Current Checkpoint: **V1_0_0_RELEASED_M10_COMPLETE_PP_NEXT**.
-Current Branch / PR: `governance/m10-post-release-reconciliation` / PR #2 (Base: `main` @ `dea8d82`, Tag: `v1.0.0`)
+Current Checkpoint: **V1_0_0_RELEASED_M10_COMPLETE_PP_COMPLETE_WORKSPACE_SLIMMING_NEXT**.
+Current Branch / PR: `main` after Portfolio Packaging closeout governance merge (PR #3 already merged at `e15ab2c`).
 Current Blockers: None.
 Current Escalations: None.
 Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
 Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
 Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
 RC / Release State: **v1.0.0 Released (GitHub Release & Assets Published)**.
-Next Action: Proceed to Portfolio Packaging (PP) phase when authorized.
+Portfolio Packaging State: **Complete** — public README portfolio packaging and showcase assets merged via PR #3.
+Next Action: Complete the Local Workspace Slimming Audit and await explicit human cleanup approval before deleting any local artifacts.
