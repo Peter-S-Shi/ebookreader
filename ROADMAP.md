@@ -1,7 +1,7 @@
 # EbookReader V1 Roadmap
 
-Status: **Milestone 10 Complete (v1.0.0 Released) — Next: Portfolio Packaging (PP)**
-M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Human Feature Freeze remains approved, V1 scope remains locked, and Milestone 10 is COMPLETE. Next lifecycle phase is Portfolio Packaging (PP).
+Status: **Portfolio Packaging Complete (v1.0.0 Released; M1-M10 Complete) — Next: Local Workspace Slimming Audit**
+M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze remains approved, V1 scope remains locked, Milestones 1-10 are COMPLETE, and Portfolio Packaging is COMPLETE. Next lifecycle phase is the Local Workspace Slimming Audit; maintenance or further version development is not started.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -233,7 +233,11 @@ Full Regression & Human Acceptance
         ↓
 M10 Release Candidate / Packaging / Windows Release
         ↓
-Portfolio / Maintenance
+Portfolio Packaging
+        ↓
+Local Workspace Slimming Audit
+        ↓
+Maintenance / Future Version Planning
 ```
 
 ---
@@ -1024,7 +1028,7 @@ Hardening is system-wide quality convergence, not feature growth.
 - Merged PR #1 into `main` (`dea8d82`) and tagged `v1.0.0`.
 - Published GitHub Release `v1.0.0` with verified candidate artifacts and SHA256 checksums (`EbookReader_1.0.0_x64-setup.exe`, `EbookReader_1.0.0_x64_en-US.msi`, `EbookReader_OCR_Pack_1.0.0_x64-setup.exe`).
 - Verified third-party notices and license attributions for ONNX Runtime (MIT), PaddleOCR (Apache-2.0), and WebView2.
-- Milestone 10 is complete; next lifecycle phase is Portfolio Packaging (PP).
+- Milestone 10 is complete, Portfolio Packaging is complete, and the next lifecycle phase is the Local Workspace Slimming Audit.
 
 ## RC Exit Gate
 
