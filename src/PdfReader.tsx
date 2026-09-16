@@ -14,6 +14,9 @@ import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
 import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { TocPanel, type TocItem } from "./TocPanel";
+import { pdfOutlineToTocItems } from "./pdfOutline";
+import { parsePageJumpInput } from "./pdfPageInput";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -95,6 +98,20 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [zoomScale, setZoomScale] = useState(DEFAULT_PDF_SCALE);
   const [fitMode, setFitMode] = useState<PdfFitMode>("custom");
   const [notebookOpen, setNotebookOpen] = useState(false);
+  // V2-M2: native PDF bookmarks (pdf.js `getOutline()`) surfaced in the
+  // same shared Contents UI (`TocPanel`) EPUB already uses. Empty when the
+  // PDF has no usable outline, matching Reader.tsx's own `toc.length > 0`
+  // gate for hiding the Contents button entirely rather than showing one
+  // that opens onto nothing.
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [tocOpen, setTocOpen] = useState(false);
+  // V2-M2 addendum: the editable current-page field. `pageInputText` is
+  // the field's own draft text, kept in sync with `pageNumber` (which is
+  // the single source of truth, updated by Previous/Next, bookmark
+  // navigation, and continuous-scroll) so external page changes are
+  // reflected even mid-edit -- see the sync effect below.
+  const [pageInputText, setPageInputText] = useState("1");
+  const [pageJumpInvalid, setPageJumpInvalid] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; page: number; assetId?: string } | null>(null);
   // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
@@ -146,6 +163,10 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       setPageCount(pdf.numPages);
       setPageNumber(startPage);
       setPdfDoc(pdf);
+
+      const outline = await pdf.getOutline();
+      if (cancelled) return;
+      setToc(await pdfOutlineToTocItems(outline, pdf));
 
       // Check text content of initial target page immediately for text selection state.
       // Entire-document scanned state (hasExtractableText = false) remains unknown
@@ -519,6 +540,79 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
   }
 
+  // V2-M2: a Contents bookmark's href is the 1-based page number produced
+  // by `pdfOutlineToTocItems` -- mirrors NotebookPanel's own `onJumpTo`
+  // page-jump pattern (validate range, switch to single-page view, set the
+  // page directly) rather than routing PDF navigation through any
+  // EPUB-specific path.
+  // V2-M2 addendum: keeps the editable page field synced with pageNumber
+  // regardless of which path changed it (Previous/Next, a bookmark jump,
+  // continuous-scroll's own page tracking, ...) -- pageNumber is the one
+  // state every navigation path already funnels through.
+  useEffect(() => {
+    setPageInputText(String(pageNumber));
+    setPageJumpInvalid(false);
+  }, [pageNumber]);
+
+  function commitPageJump() {
+    const result = parsePageJumpInput(pageInputText, pageCount);
+    if (result.kind === "empty") {
+      setPageInputText(String(pageNumber));
+      setPageJumpInvalid(false);
+      return;
+    }
+    if (result.kind === "invalid") {
+      setPageJumpInvalid(true);
+      return;
+    }
+    setPageJumpInvalid(false);
+    if (result.page === pageNumber) {
+      setPageInputText(String(pageNumber));
+      return;
+    }
+    if (viewMode === "continuous") {
+      pendingContinuousPageRef.current = result.page;
+    }
+    setPageNumber(result.page);
+    if (viewMode === "single") {
+      triggerPageTurnAnimation();
+    } else if (pageCount > 0) {
+      saveLocation(result.page, pageCount);
+    }
+  }
+
+  function renderPageJumpField() {
+    return (
+      <span className="pdf-page-jump">
+        Page{" "}
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label="Current page"
+          className="pdf-page-jump-input"
+          value={pageInputText}
+          onChange={(e) => setPageInputText(e.target.value)}
+          onBlur={commitPageJump}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitPageJump();
+            }
+          }}
+        />
+        {pageCount > 0 ? ` of ${pageCount}` : ""}
+      </span>
+    );
+  }
+
+  function handleTocNavigate(href: string) {
+    const page = parseInt(href, 10);
+    if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return;
+    setViewMode("single");
+    setPageNumber(page);
+    setTocOpen(false);
+  }
+
   async function applyFit(nextFitMode: Exclude<PdfFitMode, "custom">) {
     const pdf = pdfRef.current;
     const surface = viewMode === "continuous" ? continuousContainerRef.current : singlePageSurfaceRef.current;
@@ -570,6 +664,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       progressPercent={pageCount > 0 ? (pageNumber / pageCount) * 100 : progress?.active_pass_progress}
       toolbarExtra={
         <>
+          {toc.length > 0 && (
+            <button type="button" onClick={() => setTocOpen((open) => !open)}>
+              Contents
+            </button>
+          )}
           <select
             aria-label="View mode"
             value={viewMode}
@@ -616,10 +715,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               >
                 Previous
               </button>
-              <span>
-                Page {pageNumber}
-                {pageCount > 0 ? ` of ${pageCount}` : ""}
-              </span>
+              {renderPageJumpField()}
               <button
                 type="button"
                 disabled={pageCount > 0 && pageNumber >= pageCount}
@@ -629,12 +725,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               </button>
             </>
           )}
-          {viewMode === "continuous" && (
-            <span>
-              Page {pageNumber}
-              {pageCount > 0 ? ` of ${pageCount}` : ""}
-            </span>
-          )}
+          {viewMode === "continuous" && renderPageJumpField()}
           <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
             {soundEnabled ? "Sound: On" : "Sound: Off"}
           </button>
@@ -649,7 +740,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         </>
       }
       overlay={
-        notebookOpen ? (
+        tocOpen ? (
+          <TocPanel toc={toc} onNavigate={handleTocNavigate} onClose={() => setTocOpen(false)} />
+        ) : notebookOpen ? (
           <NotebookPanel
             key={notebookRefreshKey}
             bookId={bookId}
@@ -692,6 +785,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       {jumpFailed && (
         <p role="alert" className="jump-failed-notice">
           Could not jump to the exact location — opened the Book instead.
+        </p>
+      )}
+      {pageJumpInvalid && (
+        <p role="alert" className="pdf-page-jump-invalid-notice">
+          Enter a whole page number{pageCount > 0 ? ` between 1 and ${pageCount}` : ""}.
         </p>
       )}
       {hasExtractableText === false && (

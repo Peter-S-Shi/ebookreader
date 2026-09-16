@@ -10,7 +10,12 @@ import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
 import { BookHoursPlanning } from "./BookHoursPlanning";
-import { loadAndApplyMotionPreference, loadDefaultImportMode, loadUpdateCheckOnStartupPreference } from "./appSettings";
+import {
+  loadAndApplyAppearance,
+  loadAndApplyMotionPreference,
+  loadDefaultImportMode,
+  loadUpdateCheckOnStartupPreference,
+} from "./appSettings";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import { formatSearchSnippet } from "./searchUtils";
 import "./App.css";
@@ -139,6 +144,11 @@ function App() {
   const [bulkTargetCollectionId, setBulkTargetCollectionId] = useState("");
   const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  // V2-M2: window.confirm() does not reliably show a native dialog in this
+  // Tauri/WebView2 setup (a human retest confirmed a single click removed a
+  // book instantly with no prompt), so single-book Remove uses the same
+  // in-app dialog pattern as bulk Remove instead.
+  const [removeConfirmBookId, setRemoveConfirmBookId] = useState<string | null>(null);
 
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
@@ -211,6 +221,16 @@ function App() {
   // is actually reachable/effective from the moment the app opens.
   useEffect(() => {
     loadAndApplyMotionPreference();
+  }, []);
+
+  // V2-M2: applied here for the same reason as Reduced Motion above --
+  // previously only Settings.tsx's own mount effect ever called this, so
+  // an explicit Light/Dark choice was not honored until the user visited
+  // Settings that session (in the interim, no `data-theme` attribute is
+  // set at all, so the CSS's `prefers-color-scheme` media query decided
+  // instead -- the "exits in Light, reopens in Dark" symptom).
+  useEffect(() => {
+    loadAndApplyAppearance();
   }, []);
 
   useEffect(() => {
@@ -391,11 +411,10 @@ function App() {
     await refreshLibrary();
   }
 
-  async function removeBook(bookId: string) {
-    const confirmed = window.confirm(
-      "Remove this Book from the Library? Reading data is kept, and no source file will be deleted.",
-    );
-    if (!confirmed) return;
+  async function confirmRemoveBook() {
+    const bookId = removeConfirmBookId;
+    if (!bookId) return;
+    setRemoveConfirmBookId(null);
     await invoke("remove_book_command", { bookId });
     await refreshLibrary();
   }
@@ -1029,7 +1048,11 @@ function App() {
                                   >
                                     Organize
                                   </button>
-                                  <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
+                                  <button
+                                    type="button"
+                                    className="btn-sm danger"
+                                    onClick={() => setRemoveConfirmBookId(book.book_id)}
+                                  >
                                     Remove from Library
                                   </button>
                                   <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
@@ -1241,6 +1264,25 @@ function App() {
                   setBulkError(null);
                 }}
               >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeConfirmBookId && (
+        <div className="overlay open" role="dialog" aria-label="Remove Book from Library">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Remove from Library</h2>
+            </div>
+            <p>Remove this Book from the Library? Reading data is kept, and no source file will be deleted.</p>
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={confirmRemoveBook}>
+                Remove from Library
+              </button>
+              <button type="button" className="btn" onClick={() => setRemoveConfirmBookId(null)}>
                 Cancel
               </button>
             </div>

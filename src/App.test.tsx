@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock } = vi.hoisted(() => ({
@@ -47,6 +47,8 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
   "update_awareness.check_on_startup",
   "motion.reduced",
   "files.default_import_mode",
+  "appearance.theme_mode",
+  "appearance.accent_color",
 ]);
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -120,7 +122,10 @@ beforeEach(() => {
         return undefined;
     }
   });
-  updateCheckPrefMock.mockResolvedValue("false");
+  updateCheckPrefMock.mockImplementation(async (_cmd: string, args: { key?: string } = {}) => {
+    if (args.key === "appearance.theme_mode" || args.key === "appearance.accent_color") return null;
+    return "false";
+  });
   delete document.documentElement.dataset.motion;
 });
 
@@ -218,9 +223,14 @@ describe("Library", () => {
     expect(within(presentItem).queryByText(/needs relink/i)).not.toBeInTheDocument();
   });
 
-  it("removes a book from the Library only after confirming the separated consequence", async () => {
+  it("removes a book from the Library only after confirming via the in-app dialog", async () => {
+    // Regression for a real runtime defect (V2-M2): window.confirm() does not
+    // reliably show a native dialog in this Tauri/WebView2 setup -- a human
+    // retest confirmed a single click on "Remove from Library" removed the
+    // book instantly with no prompt at all. The confirmation must go through
+    // a real rendered dialog the test can find and click, not a mocked
+    // browser primitive that can silently no-op in production.
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "to-remove", title: "Removable Book", path: "C:/books/removable.epub", format: "epub", ownership_mode: "reference", available: true },
     ]); // initial list
@@ -231,15 +241,18 @@ describe("Library", () => {
     await screen.findByText("Removable Book");
 
     await user.click(screen.getByRole("button", { name: "Remove from Library" }));
+    const removeDialog = screen.getByRole("dialog", { name: "Remove Book from Library" });
+    expect(within(removeDialog).getByText(/Reading data is kept/)).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", expect.anything());
+
+    await user.click(within(removeDialog).getByRole("button", { name: "Remove from Library" }));
 
     expect(await screen.findByText(/library is empty/i)).toBeInTheDocument();
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Reading data is kept"));
     expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "to-remove" });
   });
 
   it("does not remove a book when Remove from Library confirmation is cancelled", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     invokeMock.mockResolvedValueOnce([
       { book_id: "keep", title: "Keep Book", path: "C:/books/keep.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
@@ -248,8 +261,12 @@ describe("Library", () => {
     await screen.findByText("Keep Book");
 
     await user.click(screen.getByRole("button", { name: "Remove from Library" }));
+    const removeDialog = screen.getByRole("dialog", { name: "Remove Book from Library" });
 
-    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", { bookId: "keep" });
+    await user.click(within(removeDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Remove Book from Library" })).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", expect.anything());
     expect(screen.getByText("Keep Book")).toBeInTheDocument();
   });
 
@@ -399,6 +416,58 @@ describe("Reduced Motion reachability (DESIGN.md SS17; FC-A09)", () => {
     await screen.findByText(/library is empty/i);
 
     await waitFor(() => expect(document.documentElement.dataset.motion).toBe("reduced"));
+  });
+});
+
+describe("Theme persistence reachability (V2-M2)", () => {
+  // Regression for a real startup-state bug: `loadAndApplyAppearance()` was
+  // previously only ever called from Settings.tsx's own mount effect, so an
+  // explicit Light or Dark choice was not honored until the user separately
+  // visited Settings that session -- exactly the "exits in Light, reopens in
+  // Dark" symptom, since with no data-theme attribute set at all the CSS's
+  // `prefers-color-scheme` media query decides instead.
+  afterEach(() => {
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("applies a persisted Light theme choice on mount, without visiting Settings", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "light";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
+  });
+
+  it("applies a persisted Dark theme choice on mount, without visiting Settings", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "dark";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
+  });
+
+  it("leaves System mode System-driven (no data-theme attribute) on mount", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "system";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(collectionsMock).toHaveBeenCalled());
+    expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 });
 
@@ -903,11 +972,15 @@ describe("Settings", () => {
     render(<App />);
     await screen.findByText(/library is empty/i);
 
-    invokeMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null); // get_setting_command x2
+    // V2-M2: appearance.theme_mode/appearance.accent_color are now also
+    // read at App's own startup (see "Theme persistence reachability"
+    // below), so -- like motion.reduced and the other App-mount-time keys
+    // -- they're routed through updateCheckPrefMock, not invokeMock; that's
+    // also what Settings.tsx's own mount effect hits when it reads them.
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(await screen.findByRole("button", { name: "Appearance" })).toBeInTheDocument();
-    expect(invokeMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
+    expect(updateCheckPrefMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
   });
 });
 

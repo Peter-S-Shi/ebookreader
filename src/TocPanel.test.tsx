@@ -39,4 +39,42 @@ describe("TocPanel", () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  describe("hierarchical collapse/expand (V2-M2)", () => {
+    it("shows an expand/collapse toggle for a parent entry with subitems, but not for a leaf entry", () => {
+      render(<TocPanel toc={TOC} onNavigate={vi.fn()} onClose={vi.fn()} />);
+
+      expect(screen.getByRole("button", { name: "Collapse Chapter 2" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^(Collapse|Expand) Chapter 1$/ })).not.toBeInTheDocument();
+    });
+
+    it("starts fully expanded: nested entries are visible without any interaction", () => {
+      render(<TocPanel toc={TOC} onNavigate={vi.fn()} onClose={vi.fn()} />);
+
+      expect(screen.getByRole("button", { name: "Section 2.1" })).toBeInTheDocument();
+    });
+
+    it("collapsing a parent hides its children, and expanding it again shows them", async () => {
+      const user = userEvent.setup();
+      render(<TocPanel toc={TOC} onNavigate={vi.fn()} onClose={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Collapse Chapter 2" }));
+      expect(screen.queryByRole("button", { name: "Section 2.1" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Chapter 2" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Expand Chapter 2" }));
+      expect(screen.getByRole("button", { name: "Section 2.1" })).toBeInTheDocument();
+    });
+
+    it("still navigates when a parent entry's own label is clicked, collapsed or not", async () => {
+      const user = userEvent.setup();
+      const onNavigate = vi.fn();
+      render(<TocPanel toc={TOC} onNavigate={onNavigate} onClose={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Collapse Chapter 2" }));
+      await user.click(screen.getByRole("button", { name: "Chapter 2" }));
+
+      expect(onNavigate).toHaveBeenCalledWith("ch2.xhtml");
+    });
+  });
 });
