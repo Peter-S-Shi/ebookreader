@@ -26,6 +26,35 @@ function collectCollapsibleHrefs(items: TocItem[]): string[] {
   return hrefs;
 }
 
+function BoxedPlusIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <line x1="8" y1="5.25" x2="8" y2="10.75" />
+      <line x1="5.25" y1="8" x2="10.75" y2="8" />
+    </svg>
+  );
+}
+
+function BoxedMinusIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <line x1="5.25" y1="8" x2="10.75" y2="8" />
+    </svg>
+  );
+}
+
+function BoxedCloseIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="2" width="12" height="12" rx="2" />
+      <line x1="5.5" y1="5.5" x2="10.5" y2="10.5" />
+      <line x1="10.5" y1="5.5" x2="5.5" y2="10.5" />
+    </svg>
+  );
+}
+
 // DESIGN.md §5 Reader composition: "Contents · optional" panel.
 export function TocPanel({ toc, onNavigate, onClose }: TocPanelProps) {
   // V2-M2: collapse state lives here (not per-TocList instance) so it
@@ -70,13 +99,21 @@ export function TocPanel({ toc, onNavigate, onClose }: TocPanelProps) {
             <button
               type="button"
               className="toc-expand-toggle"
+              aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+              title={allCollapsed ? "Expand all" : "Collapse all"}
               onClick={handleToggleAll}
             >
-              {allCollapsed ? "Expand all" : "Collapse all"}
+              {allCollapsed ? <BoxedPlusIcon /> : <BoxedMinusIcon />}
             </button>
           )}
-          <button type="button" onClick={onClose}>
-            Close
+          <button
+            type="button"
+            className="toc-close-button"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+          >
+            <BoxedCloseIcon />
           </button>
         </div>
       </div>
