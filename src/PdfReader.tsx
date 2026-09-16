@@ -13,7 +13,8 @@ import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
-import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { extractContextDetails, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { applyPdfHighlights, clearPdfHighlights, recolorPdfHighlight, type PdfAnnotationItem } from "./pdfHighlight";
 import { TocPanel, type TocItem } from "./TocPanel";
 import { pdfOutlineToTocItems } from "./pdfOutline";
 import { parsePageJumpInput } from "./pdfPageInput";
@@ -113,7 +114,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [pageInputText, setPageInputText] = useState("1");
   const [pageJumpInvalid, setPageJumpInvalid] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
-  const [selection, setSelection] = useState<{ text: string; page: number; assetId?: string } | null>(null);
+  const [selection, setSelection] = useState<{
+    text: string;
+    page: number;
+    assetId?: string;
+    prefix?: string;
+    suffix?: string;
+  } | null>(null);
   // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
   // any page) must display a truthful degraded state rather than pretend
   // search/selection/excerpt work -- `null` until the whole-document text
@@ -139,7 +146,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
       const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
-      const pdf = await pdfjsLib.getDocument({ data: uint8Bytes }).promise;
+      const pdf = await pdfjsLib.getDocument({
+        data: uint8Bytes,
+        cMapUrl: "/cmaps/",
+        cMapPacked: true,
+      }).promise;
       if (cancelled) return;
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
       // An anchor that fails to parse to a valid in-range page is reported
@@ -302,26 +313,23 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             { bookId },
           );
           if (!cancelled && textLayerDiv) {
-            const pageAnnotations = assets.filter(
-              (a) => a.kind === "annotation" && !a.orphaned && a.anchor?.primary_anchor === String(pageNumber),
-            );
-            for (const ann of pageAnnotations) {
-              if (!ann.text?.trim()) continue;
-              const query = ann.text.trim().toLowerCase();
-              const color = extractHighlightColor(ann.anchor?.context_selector);
-              const spans = Array.from(textLayerDiv.querySelectorAll("span"));
-              for (const span of spans) {
-                if (span.textContent && span.textContent.toLowerCase().includes(query)) {
-                  span.classList.add("reader-highlight");
-                  span.dataset.color = color;
-                  span.dataset.assetId = ann.id;
-                  span.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    setSelection({ text: span.textContent || "", page: pageNumber, assetId: ann.id });
-                  });
-                }
-              }
-            }
+            const pageAnnotations: PdfAnnotationItem[] = assets
+              .filter(
+                (a) => a.kind === "annotation" && !a.orphaned && a.anchor?.primary_anchor === String(pageNumber),
+              )
+              .map((ann) => {
+                const details = extractContextDetails(ann.anchor?.context_selector);
+                return {
+                  id: ann.id,
+                  text: ann.text,
+                  color: details.color,
+                  contextPrefix: details.prefix,
+                  contextSuffix: details.suffix,
+                };
+              });
+            applyPdfHighlights(textLayerDiv, pageAnnotations, (assetId, text) => {
+              setSelection({ text, page: pageNumber, assetId });
+            });
           }
         } catch {
           // ignore highlight rehydration error if assets fail
@@ -366,7 +374,24 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         setSelection(null);
         return;
       }
-      setSelection({ text, page: pageNumber });
+
+      let prefix = "";
+      let suffix = "";
+      try {
+        const preRange = document.createRange();
+        preRange.selectNodeContents(layer);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        prefix = preRange.toString().slice(-20);
+
+        const postRange = document.createRange();
+        postRange.selectNodeContents(layer);
+        postRange.setStart(range.endContainer, range.endOffset);
+        suffix = postRange.toString().slice(0, 20);
+      } catch {
+        // fallback if range extraction fails
+      }
+
+      setSelection({ text, page: pageNumber, prefix, suffix });
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
@@ -381,7 +406,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       progression_hint: pageCount > 0 ? selection.page / pageCount : 0,
       primary_anchor: String(selection.page),
       fallback_anchors: [],
-      context_selector: formatContextSelector(selection.text, color),
+      context_selector: formatContextSelector(selection.text, color, selection.prefix, selection.suffix),
     };
 
     let targetAssetId = selection.assetId;
@@ -393,10 +418,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           anchor,
         }).catch(() => {});
         if (textLayerRef.current) {
-          const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
-          if (span) {
-            span.dataset.color = color;
-          }
+          recolorPdfHighlight(textLayerRef.current, targetAssetId, color);
         }
       } else {
         // Create new highlight
@@ -408,19 +430,21 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             anchor,
           });
           if (textLayerRef.current) {
-            const query = selection.text.trim().toLowerCase();
-            const spans = Array.from(textLayerRef.current.querySelectorAll("span"));
-            for (const span of spans) {
-              if (span.textContent && span.textContent.toLowerCase().includes(query)) {
-                span.classList.add("reader-highlight");
-                span.dataset.color = color;
-                span.dataset.assetId = created.id;
-                span.addEventListener("click", (e) => {
-                  e.stopPropagation();
-                  setSelection({ text: span.textContent || "", page: selection.page, assetId: created.id });
-                });
-              }
-            }
+            applyPdfHighlights(
+              textLayerRef.current,
+              [
+                {
+                  id: created.id,
+                  text: selection.text,
+                  color,
+                  contextPrefix: selection.prefix,
+                  contextSuffix: selection.suffix,
+                },
+              ],
+              (assetId, text) => {
+                setSelection({ text, page: selection.page, assetId });
+              },
+            );
           }
         } catch {
           // creation fallback
@@ -442,12 +466,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     if (targetAssetId) {
       await invoke("delete_reading_asset_command", { assetId: targetAssetId }).catch(() => {});
       if (textLayerRef.current) {
-        const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
-        if (span) {
-          span.classList.remove("reader-highlight");
-          delete span.dataset.color;
-          delete span.dataset.assetId;
-        }
+        clearPdfHighlights(textLayerRef.current, targetAssetId);
       }
     }
 
