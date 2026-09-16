@@ -28,6 +28,9 @@ import {
   type PdfImageRect,
   type PageScanSample,
 } from "./pdfAppearance";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { extractPagePdfLinks, type PdfLinkItem, type PdfLinkTarget } from "./pdfLinks";
+import { PdfExternalLinkModal } from "./PdfExternalLinkModal";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -121,6 +124,8 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   // that opens onto nothing.
   const [toc, setToc] = useState<TocItem[]>([]);
   const [tocOpen, setTocOpen] = useState(false);
+  const [pageLinks, setPageLinks] = useState<PdfLinkItem[]>([]);
+  const [externalLinkPromptUrl, setExternalLinkPromptUrl] = useState<string | null>(null);
   // V2-M2 addendum: the editable current-page field. `pageInputText` is
   // the field's own draft text, kept in sync with `pageNumber` (which is
   // the single source of truth, updated by Previous/Next, bookmark
@@ -403,6 +408,19 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           }
         } catch {
           // ignore highlight rehydration error if assets fail
+        }
+      }
+      if (cancelled) return;
+
+      // Extract and resolve clickable PDF hyperlinks for the page (V2-M4-U4A)
+      try {
+        const links = await extractPagePdfLinks(page, pdf, viewport);
+        if (!cancelled) {
+          setPageLinks(links);
+        }
+      } catch {
+        if (!cancelled) {
+          setPageLinks([]);
         }
       }
       if (cancelled) return;
@@ -791,6 +809,36 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     setTocOpen(false);
   }
 
+  function handlePdfLinkClick(target: PdfLinkTarget) {
+    if (target.kind === "internal") {
+      const targetPage = target.pageNumber;
+      if (targetPage >= 1 && (pageCount === 0 || targetPage <= pageCount)) {
+        if (targetPage === pageNumber) return;
+        if (viewMode === "continuous") {
+          pendingContinuousPageRef.current = targetPage;
+        }
+        setPageNumber(targetPage);
+        playPageTurn();
+        if (viewMode === "single") {
+          triggerPageTurnAnimation();
+        } else if (pageCount > 0) {
+          saveLocation(targetPage, pageCount);
+        }
+      }
+    } else if (target.kind === "external") {
+      setExternalLinkPromptUrl(target.url);
+    }
+  }
+
+  async function handleOpenExternalLink(url: string) {
+    setExternalLinkPromptUrl(null);
+    try {
+      await openUrl(url);
+    } catch (e) {
+      console.error("Failed to open external URL:", e);
+    }
+  }
+
   async function applyFit(nextFitMode: Exclude<PdfFitMode, "custom">) {
     const pdf = pdfRef.current;
     const surface = viewMode === "continuous" ? continuousContainerRef.current : singlePageSurfaceRef.current;
@@ -818,6 +866,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         ocrWorkspaceOpen ||
         showCompletionPrompt ||
         checkpoint.showPrompt ||
+        externalLinkPromptUrl !== null ||
         selection !== null
       ) {
         return;
@@ -827,7 +876,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pageNumber, pageCount, viewMode, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, selection, soundEnabled]);
+  }, [pageNumber, pageCount, viewMode, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, externalLinkPromptUrl, selection, soundEnabled]);
 
   function switchViewMode(next: PdfViewMode) {
     setFitMode("custom");
@@ -1073,6 +1122,44 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             <canvas ref={canvasRef} />
             <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
             <div ref={textLayerRef} className="textLayer pdf-text-layer" />
+            <div className="pdf-link-layer" aria-label="PDF Links">
+              {pageLinks.map((link, idx) => {
+                const label =
+                  link.target.kind === "internal"
+                    ? `Jump to page ${link.target.pageNumber}`
+                    : link.target.kind === "external"
+                    ? `Open external link: ${link.target.url}`
+                    : "Unsupported link";
+                return (
+                  <a
+                    key={idx}
+                    role="link"
+                    tabIndex={0}
+                    aria-label={label}
+                    className="pdf-link-item"
+                    style={{
+                      left: `${link.rect.left}px`,
+                      top: `${link.rect.top}px`,
+                      width: `${link.rect.width}px`,
+                      height: `${link.rect.height}px`,
+                    }}
+                    title={label}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePdfLinkClick(link.target);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePdfLinkClick(link.target);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
       ) : (
@@ -1103,6 +1190,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             </div>
           ))}
         </div>
+      )}
+      {externalLinkPromptUrl && (
+        <PdfExternalLinkModal
+          url={externalLinkPromptUrl}
+          onConfirm={handleOpenExternalLink}
+          onCancel={() => setExternalLinkPromptUrl(null)}
+        />
       )}
     </ReaderShell>
   );

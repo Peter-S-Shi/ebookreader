@@ -2,11 +2,16 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PdfReader } from "./PdfReader";
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, openUrlMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  openUrlMock: vi.fn(),
+}));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: openUrlMock }));
 
 const mockRenderTask = { promise: Promise.resolve(), cancel: vi.fn() };
 const viewportScales: number[] = [];
+const mockGetAnnotations = vi.fn(async () => [] as unknown[]);
 const mockGetPage = vi.fn().mockImplementation(async (_pageNo: number) => ({
   getViewport: ({ scale }: { scale?: number } = {}) => {
     const resolvedScale = scale ?? 1.2;
@@ -22,6 +27,7 @@ const mockGetPage = vi.fn().mockImplementation(async (_pageNo: number) => ({
   getTextContent: async () => ({ items: [] }), // No text items -> scanned PDF
   streamTextContent: async () => ({ items: [] }),
   getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
+  getAnnotations: mockGetAnnotations,
 }));
 
 const mockGetOutline = vi.fn(async () => null as unknown[] | null);
@@ -60,12 +66,14 @@ vi.mock("pdfjs-dist", () => ({
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   invokeMock.mockReset();
+  openUrlMock.mockReset();
   mockGetPage.mockClear();
   viewportScales.length = 0;
   mockRenderTask.cancel.mockClear();
   mockGetOutline.mockReset().mockResolvedValue(null);
   mockGetDestination.mockReset().mockResolvedValue(null);
   mockGetPageIndex.mockReset().mockResolvedValue(0);
+  mockGetAnnotations.mockReset().mockResolvedValue([]);
   invokeMock.mockImplementation(async (cmd: string, args: any) => {
     if (cmd === "read_book_file_command") {
       return new Uint8Array([37, 80, 68, 70, 45]);
@@ -370,6 +378,85 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       const pdfPage = document.querySelector(".pdf-page") as HTMLElement;
       expect(pdfPage).toBeInTheDocument();
       expect(pdfPage.getAttribute("data-appearance")).toBe("night");
+    });
+  });
+
+  describe("Native PDF Hyperlinks", () => {
+    it("navigates to the resolved destination page when an internal link is clicked", async () => {
+      mockGetAnnotations.mockResolvedValueOnce([
+        {
+          subtype: "Link",
+          rect: [50, 100, 200, 150],
+          dest: [24, { name: "XYZ" }, 0, 0, null], // target page 25
+        },
+      ]);
+
+      render(<PdfReader bookId="pdf1" title="Hyperlink PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const link = await screen.findByRole("link", { name: /jump to page 25/i });
+      expect(link).toBeInTheDocument();
+
+      fireEvent.click(link);
+      await waitFor(() => expect(screen.getByDisplayValue("25")).toBeInTheDocument());
+    });
+
+    it("opens confirmation modal for external HTTP/HTTPS link and opens URL in browser on confirm", async () => {
+      const targetUrl = "https://example.com/path?foo=bar#target";
+      mockGetAnnotations.mockResolvedValueOnce([
+        {
+          subtype: "Link",
+          rect: [50, 100, 200, 150],
+          url: targetUrl,
+        },
+      ]);
+
+      render(<PdfReader bookId="pdf1" title="Hyperlink PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const link = await screen.findByRole("link", { name: `Open external link: ${targetUrl}` });
+      expect(link).toBeInTheDocument();
+
+      fireEvent.click(link);
+
+      // Confirmation modal should appear
+      const modal = await screen.findByRole("alertdialog", { name: "Open External Link" });
+      expect(modal).toBeInTheDocument();
+      expect(screen.getByText(targetUrl)).toBeInTheDocument();
+
+      // Click Cancel
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("alertdialog", { name: "Open External Link" })).not.toBeInTheDocument();
+      expect(openUrlMock).not.toHaveBeenCalled();
+
+      // Click again and Confirm
+      fireEvent.click(link);
+      await screen.findByRole("alertdialog", { name: "Open External Link" });
+      fireEvent.click(screen.getByRole("button", { name: "Open in Browser" }));
+
+      expect(openUrlMock).toHaveBeenCalledTimes(1);
+      expect(openUrlMock).toHaveBeenCalledWith(targetUrl);
+      expect(screen.queryByRole("alertdialog", { name: "Open External Link" })).not.toBeInTheDocument();
+    });
+
+    it("does not trigger modal or browser opening for disallowed schemes", async () => {
+      mockGetAnnotations.mockResolvedValueOnce([
+        {
+          subtype: "Link",
+          rect: [50, 100, 200, 150],
+          url: "javascript:alert(1)",
+        },
+      ]);
+
+      render(<PdfReader bookId="pdf1" title="Hyperlink PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const link = await screen.findByRole("link", { name: /unsupported link/i });
+      expect(link).toBeInTheDocument();
+
+      fireEvent.click(link);
+      expect(screen.queryByRole("alertdialog", { name: "Open External Link" })).not.toBeInTheDocument();
+      expect(openUrlMock).not.toHaveBeenCalled();
     });
   });
 });

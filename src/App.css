@@ -4646,3 +4646,67 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+
+/* PDF Hyperlink Layer (V2-M4-U4A) */
+.pdf-link-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 3;
+}
+
+.pdf-link-item {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.12s ease, outline 0.12s ease;
+}
+
+.pdf-link-item:hover,
+.pdf-link-item:focus-visible {
+  background-color: var(--accentSoft, rgba(62, 102, 144, 0.14));
+  outline: 1.5px solid var(--accent, #3e6690);
+}
+
+.pdf-external-link-modal {
+  max-width: 520px;
+  width: 90vw;
+}
+
+.pdf-external-link-desc {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.pdf-external-link-target {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  max-height: 120px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pdf-external-link-url {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--accent);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.pdf-external-link-warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
