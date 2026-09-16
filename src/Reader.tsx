@@ -121,8 +121,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   // V2-M3 item 3: derived from the renderer's own live page/pages getters
-  // (see epubPageIndicator.ts) -- null in Continuous Scroll mode, or
-  // before the current chapter's layout has been measured.
+  // (see epubPageIndicator.ts) -- null before the current chapter's layout has been measured.
   const [pageIndicator, setPageIndicator] = useState<EpubPageIndicator | null>(null);
   const positionIndicatorEnabled = useReadingPositionIndicatorEnabled();
   const positionIndicatorEnabledRef = useRef(positionIndicatorEnabled);
@@ -271,7 +270,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
         if (!cfi) return;
         playPageTurnRef.current();
-        if (hostRef.current && (viewModeRef.current as string) !== "continuous") {
+        if (hostRef.current) {
           hostRef.current.classList.remove("page-turn-animating");
           void hostRef.current.offsetWidth;
           hostRef.current.classList.add("page-turn-animating");
@@ -373,12 +372,8 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     );
   }
 
-  function isPaginatedMode() {
-    return viewModeRef.current !== "scrolled";
-  }
-
   function handleReadingKeyDown(event: KeyboardEvent) {
-    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+    if (shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
     if (event.key === "ArrowRight") {
@@ -398,7 +393,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   }
 
   function handleReadingWheel(event: ReadingWheelEvent) {
-    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target)) return;
+    if (shouldLetTargetHandleInput(event.target)) return;
     const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     if (Math.abs(dominantDelta) < 10) return;
     event.preventDefault();

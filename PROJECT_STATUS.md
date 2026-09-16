@@ -86,24 +86,29 @@ Current Phase: **V2 Feature Freeze / Product Hardening Entry**. V1.0.0 remains t
 - **Addendum B — PDF Reader Toolbar Re-layout**: Reorganized PDF Reader chrome into clear header identity (Row 1), reading configuration (Row 2: Document, View, Geometry), and actions/tools (Row 3: Navigation, Tools) with responsive group wrapping.
 - **Addendum C — PDF Page 1 Cover Thumbnails in Library**: Extended `BookCover` to render Page 1 PDF thumbnails using offscreen canvas and session-memory caching. Features `IntersectionObserver` visibility-gated lazy loading, bounded concurrency queue (`MAX_CONCURRENT_PDF_COVERS = 2`), in-flight deduplication, and format placeholder fallback.
 
+**V2-M5 Hardening Product Scope Decision (Complete):**
+- **Reading Mode Standardization**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB: Single page, Double page; PDF: Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+- **Production Cleanup**: Removed selectable continuous reading mode from EPUB (`scrolled`) and PDF (`continuous`), cleaned up obsolete toolbar selectors, and added backward-compatible fallback normalization for legacy persisted modes.
+
 **Automated Verification State (on Frozen V2 Branch):**
-- Frontend unit & integration tests `npm test`: 55 test files, 501 passed; 0 failed.
+- Frontend unit & integration tests `npm test`: 54 test files, 497 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
 - Rust workspace tests `cargo test --workspace`: 216 passed; 0 failed.
-- Targeted verification performed and passed on each milestone and addendum; full hardening/regression sweep and packaging validation will execute during the Hardening phase.
+- Full verification passed on the updated working tree.
 
 ---
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, Hardening Scope Decision Complete.
 - **Current Checkpoint**: `V2_FEATURE_COMPLETE_FROZEN_HARDENING_ENTRY`.
 - **Current Branch / PR**: `v2-m1/epub-preference-override-compat` (long-lived V2 branch; unmerged; no open PR).
 - **Current Blockers**: None.
 - **Current Escalations**: None.
-- **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, and lazy PDF cover thumbnails).
-- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4) and Addenda (A–C) have passed human acceptance.
+- **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, and standardized page-based reading modes).
+- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), and Hardening scope corrections have been executed.
 - **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development, workflow redesign, new format promises, or unrelated refactors permitted without explicit human scope reopening. Allowed work is limited to hardening fixes (defect/correctness, regression, evidence-backed compatibility, performance/memory, security/privacy, accessibility, packaging/runtime-closure, test/harness, and documentation truth corrections).
 - **RC / Release State**: `v1.0.0` released on `main`; V2 is unmerged, unreleased, and not yet an RC.
-- **Next Action**: **V2 Product Hardening on the frozen long-lived branch.**
+- **Next Action**: **V2 Product Hardening exit work on the frozen long-lived branch.**
+
 

@@ -24,7 +24,7 @@ Legend:
 | Import / Library | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Library Cover Art | ✅ embedded | ✅ embedded | ✅ Page 1 thumb | ✅ Page 1 thumb | ✅ Page 1 thumb | ✅ Page 1 thumb | ⚠️ format icon |
 | Normal visual reading | ✅ | ✅ | ✅ | ✅ (WASM JBIG2) | ✅ | ✅ | ✅ |
-| Continuous scroll | ✅ | ⚠️ engine-dependent | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Continuous scroll | — (deferred V3) | — (deferred V3) | — (deferred V3) | — (deferred V3) | — (deferred V3) | — (deferred V3) | ✅ native |
 | Single-page / paged | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
 | Double-page | ✅ paginated | ⚠️ engine-dependent | — | — | — | — | — |
 | TOC / outline navigation | ✅ publication-provided | ✅ publication-provided | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ derived |

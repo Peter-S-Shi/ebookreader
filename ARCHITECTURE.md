@@ -803,3 +803,7 @@ The following amendments define the durable architectural contracts for EbookRea
 
 ### 21.6 Reflowable EPUB Typography Override Architecture
 - **Deterministic Override Rules**: Reader-controlled typography preferences enforce scoped CSS rules carrying explicit `!important` markers and root-relative `rem` font sizing, preventing publisher stylesheets from locking font size, margins, or line height in reflowable prose.
+
+### 21.7 V2 Reading Modes Architecture
+- **Validated Page-Based Delivery**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB Single page, Double page; PDF Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+

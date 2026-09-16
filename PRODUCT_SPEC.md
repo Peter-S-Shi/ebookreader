@@ -783,3 +783,7 @@ The following amendments constitute the admitted and frozen product/domain seman
 
 ### 20.7 Known Source-PDF Limitations
 - **Source Unicode Integrity Boundary**: Certain PDF documents may render visual glyphs accurately while containing intrinsically corrupted or absent source `ToUnicode` mapping tables. In such cases, text extraction, search, and copying reflect the corrupted source mapping. EbookReader does not heuristically invent or synthesize missing source Unicode in V2.
+
+### 20.8 V2 Reading Modes Contract
+- **Validated Page-Based Modes**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB Single page, Double page; PDF Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+

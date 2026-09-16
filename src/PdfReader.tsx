@@ -5,7 +5,6 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
 import { NotebookPanel } from "./NotebookPanel";
 import { OcrWorkspace } from "./OcrWorkspace";
-import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
@@ -58,7 +57,6 @@ interface PdfReaderProps {
   initialAnchor?: DocumentLocationDTO;
 }
 
-type PdfViewMode = "single" | "continuous";
 type PdfFitMode = "custom" | "page" | "width";
 
 const DEFAULT_PDF_SCALE = 1.2;
@@ -79,44 +77,21 @@ function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
 // SS5/M0-C validated for text/geometry extraction) to a canvas per page.
 // page index is the DocumentLocation primary_anchor, per ARCHITECTURE.md
 // SS5's "candidates to validate: page index; page geometry/bounding box".
-// Two view modes close FORMAT_CAPABILITY_MATRIX.md's required "Continuous
-// scroll" / "Single-page / paged" rows for Text PDF (DESIGN.md SS7's PDF
-// controls share one zoom state across single-page and continuous modes.
-// Double-page spread and very large
-// (100s of pages) documents' rendering performance are later-checkpoint
-// residuals: continuous mode here renders every page eagerly, which is
-// fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Text selection ->
-// Highlight/Excerpt (M4, SS11) is
-// implemented for single-page mode via a pdf.js TextLayer overlaid on the
-// canvas; continuous mode's per-page selection scoping is a follow-up.
-// Whole-page text is also indexed into the M4 search index in the
-// background on open (SS12: "supported book text" is a required
-// Library-wide Search source). M5 (Scanned PDF OCR) begins here: the same
-// background pass that extracts text also detects a scanned PDF (no
-// extractable text on any page) and surfaces SS13.1/SS13.2's truthful
-// degraded state -- visual reading still works, text-dependent features
-// don't pretend to. The OCR pipeline itself (local ONNX inference via the
-// Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) now runs for real
-// via run_ocr_job_command, with SS13.1's full Current Page / Selected Pages
-// / Entire Book scope selection. Real mid-run pause/cancel and incremental
-// per-page progress reporting are not wired (a single command call blocks
-// until every target page is done) -- a genuine residual, not hidden from
-// the user: the button's label says so rather than faking a progress bar.
+// V2 standardizes on validated single-page reading mode for PDF.
+// Continuous Scroll is deferred to V3.
+// Text selection -> Highlight/Excerpt (M4, SS11) is implemented via a
+// pdf.js TextLayer overlaid on the canvas. Whole-page text is also indexed
+// into the M4 search index in the background on open. M5 (Scanned PDF OCR)
+// detects scanned PDFs and surfaces SS13.1/SS13.2's truthful degraded state.
 export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appearanceCanvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const singlePageSurfaceRef = useRef<HTMLDivElement>(null);
-  const continuousContainerRef = useRef<HTMLDivElement>(null);
-  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  const appearanceCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  const pendingContinuousPageRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Loading…");
   const [jumpFailed, setJumpFailed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
-  const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const [zoomScale, setZoomScale] = useState(DEFAULT_PDF_SCALE);
   const [fitMode, setFitMode] = useState<PdfFitMode>("custom");
   const [pageAppearance, setPageAppearance] = useState<PdfPageAppearance>(getPdfPageAppearancePreference);
@@ -299,7 +274,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
   // Single-page mode: render only the current page.
   useEffect(() => {
-    if (viewMode !== "single") return;
     const pdf = pdfDoc || pdfRef.current;
     if (!pdf || !canvasRef.current) return;
     let cancelled = false;
@@ -422,11 +396,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [viewMode, pageNumber, bookId, pdfDoc, zoomScale, isScanLikeDoc]);
+  }, [pageNumber, bookId, pdfDoc, zoomScale, isScanLikeDoc]);
 
   // Reactive Page Appearance update for single-page mode without full PDF canvas re-render
   useEffect(() => {
-    if (viewMode !== "single" || !appearanceCanvasRef.current || !canvasRef.current) return;
+    if (!appearanceCanvasRef.current || !canvasRef.current) return;
     const canvas = appearanceCanvasRef.current;
     const baseCanvas = canvasRef.current;
     if (canvas.width > 0 && canvas.height > 0) {
@@ -440,18 +414,15 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         baseCanvas,
       );
     }
-  }, [pageAppearance, isScanLikeDoc, pageImageRects, viewMode]);
+  }, [pageAppearance, isScanLikeDoc, pageImageRects]);
 
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
-  // Single-page mode only this checkpoint -- continuous mode would need
-  // per-page-div selection scoping across many simultaneously mounted text
-  // layers, a follow-up, not folded in here. Also covers the OCR result
+  // Single-page mode only. Also covers the OCR result
   // paragraph (`ocrTextRef`) once a scanned page has real OCR text -- it is
   // plain selectable DOM text, so the same selectionchange listener applies
   // without a separate pdf.js TextLayer (SS13's "search/excerpt/annotation
   // jump-back usability" for OCR'd pages, not just extractable-text pages).
   useEffect(() => {
-    if (viewMode !== "single") return;
     function handleSelectionChange() {
       const layer = textLayerRef.current;
       const sel = document.getSelection();
@@ -490,7 +461,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [viewMode, pageNumber]);
+  }, [pageNumber]);
 
   async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection) return;
@@ -570,136 +541,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     setNotebookRefreshKey((k) => k + 1);
   }
 
-  // Continuous mode: render every page into a scrollable stack, and jump
-  // to the saved page once on entry.
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const pdf = pdfRef.current;
-    if (!pdf) return;
-    let cancelled = false;
-
-    (async () => {
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelled) return;
-        const canvas = canvasRefs.current[i - 1];
-        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
-        if (!canvas) continue;
-        const page = await pdf.getPage(i);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale: zoomScale });
-        const context = canvas.getContext("2d")!;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-
-        if (appearanceCanvas) {
-          appearanceCanvas.width = viewport.width;
-          appearanceCanvas.height = viewport.height;
-          appearanceCanvas.style.width = `${viewport.width}px`;
-          appearanceCanvas.style.height = `${viewport.height}px`;
-        }
-
-        await page.render({ canvasContext: context, viewport, canvas }).promise.catch(() => {});
-        if (cancelled) return;
-
-        if (appearanceCanvas) {
-          try {
-            if (typeof page.getOperatorList === "function") {
-              const opList = await page.getOperatorList();
-              if (!cancelled && opList) {
-                const imgRects = extractImageRects(opList, viewport);
-                renderAppearanceOverlay(
-                  appearanceCanvas,
-                  viewport.width,
-                  viewport.height,
-                  pageAppearance,
-                  isScanLikeDoc,
-                  imgRects,
-                  canvas,
-                );
-              }
-            }
-          } catch {
-            // ignore
-          }
-        }
-      }
-      if (cancelled) return;
-      setStatus("Ready");
-
-      const target = canvasRefs.current[pageNumber - 1];
-      target?.scrollIntoView({ block: "start" });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [viewMode, bookId, pageCount, zoomScale, isScanLikeDoc]);
-
-  // Reactive Page Appearance update for continuous mode
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const pdf = pdfRef.current;
-    if (!pdf) return;
-    let cancelled = false;
-
-    (async () => {
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelled) return;
-        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
-        const canvas = canvasRefs.current[i - 1];
-        if (!appearanceCanvas || appearanceCanvas.width === 0) continue;
-        const page = await pdf.getPage(i);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale: zoomScale });
-        const opList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
-        const imgRects = opList ? extractImageRects(opList, viewport) : [];
-        if (!cancelled) {
-          renderAppearanceOverlay(
-            appearanceCanvas,
-            viewport.width,
-            viewport.height,
-            pageAppearance,
-            isScanLikeDoc,
-            imgRects,
-            canvas,
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pageAppearance, isScanLikeDoc, viewMode, zoomScale]);
-
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const target = canvasRefs.current[pageNumber - 1];
-    target?.scrollIntoView({ block: "start", behavior: "auto" });
-    const frame = requestAnimationFrame(() => {
-      pendingContinuousPageRef.current = null;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [viewMode, pageNumber]);
-
-  function handleContinuousScroll() {
-    const pdf = pdfRef.current;
-    const container = continuousContainerRef.current;
-    if (!pdf || !container) return;
-    const pendingPage = pendingContinuousPageRef.current;
-    if (pendingPage !== null) {
-      setPageNumber(pendingPage);
-      saveLocation(pendingPage, pdf.numPages);
-      return;
-    }
-    const heights = canvasRefs.current.map((c) => (c ? c.clientHeight + 16 : 0)); // + gap
-    const current = currentPageFromScroll(heights, container.scrollTop);
-    setPageNumber(current);
-    saveLocation(current, pdf.numPages);
-  }
-
   function triggerPageTurnAnimation() {
     const container = canvasRef.current?.parentElement;
     if (container) {
@@ -715,25 +556,18 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   function navigatePage(delta: -1 | 1) {
     const nextPage = Math.min(pageCount || 1, Math.max(1, pageNumber + delta));
     if (nextPage === pageNumber) return;
-    if (viewMode === "continuous") pendingContinuousPageRef.current = nextPage;
     setPageNumber(nextPage);
     playPageTurn();
-    if (viewMode === "single") {
-      triggerPageTurnAnimation();
-    } else if (pageCount > 0) {
-      saveLocation(nextPage, pageCount);
-    }
+    triggerPageTurnAnimation();
   }
 
   // V2-M2: a Contents bookmark's href is the 1-based page number produced
   // by `pdfOutlineToTocItems` -- mirrors NotebookPanel's own `onJumpTo`
-  // page-jump pattern (validate range, switch to single-page view, set the
-  // page directly) rather than routing PDF navigation through any
-  // EPUB-specific path.
+  // page-jump pattern (validate range, set the page directly) rather than
+  // routing PDF navigation through any EPUB-specific path.
   // V2-M2 addendum: keeps the editable page field synced with pageNumber
-  // regardless of which path changed it (Previous/Next, a bookmark jump,
-  // continuous-scroll's own page tracking, ...) -- pageNumber is the one
-  // state every navigation path already funnels through.
+  // regardless of which path changed it (Previous/Next, a bookmark jump, ...) --
+  // pageNumber is the one state every navigation path funnels through.
   useEffect(() => {
     setPageInputText(String(pageNumber));
     setPageJumpInvalid(false);
@@ -755,15 +589,8 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       setPageInputText(String(pageNumber));
       return;
     }
-    if (viewMode === "continuous") {
-      pendingContinuousPageRef.current = result.page;
-    }
     setPageNumber(result.page);
-    if (viewMode === "single") {
-      triggerPageTurnAnimation();
-    } else if (pageCount > 0) {
-      saveLocation(result.page, pageCount);
-    }
+    triggerPageTurnAnimation();
   }
 
   function renderPageJumpField() {
@@ -793,7 +620,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   function handleTocNavigate(href: string) {
     const page = parseInt(href, 10);
     if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return;
-    setViewMode("single");
     setPageNumber(page);
     setTocOpen(false);
   }
@@ -803,16 +629,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const targetPage = target.pageNumber;
       if (targetPage >= 1 && (pageCount === 0 || targetPage <= pageCount)) {
         if (targetPage === pageNumber) return;
-        if (viewMode === "continuous") {
-          pendingContinuousPageRef.current = targetPage;
-        }
         setPageNumber(targetPage);
         playPageTurn();
-        if (viewMode === "single") {
-          triggerPageTurnAnimation();
-        } else if (pageCount > 0) {
-          saveLocation(targetPage, pageCount);
-        }
+        triggerPageTurnAnimation();
       }
     } else if (target.kind === "external") {
       setExternalLinkPromptUrl(target.url);
@@ -830,7 +649,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
   async function applyFit(nextFitMode: Exclude<PdfFitMode, "custom">) {
     const pdf = pdfRef.current;
-    const surface = viewMode === "continuous" ? continuousContainerRef.current : singlePageSurfaceRef.current;
+    const surface = singlePageSurfaceRef.current;
     if (!pdf || !surface) return;
     const page = await pdf.getPage(pageNumber);
     const natural = page.getViewport({ scale: 1 });
@@ -865,12 +684,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pageNumber, pageCount, viewMode, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, externalLinkPromptUrl, selection, soundEnabled]);
-
-  function switchViewMode(next: PdfViewMode) {
-    setFitMode("custom");
-    setViewMode(next);
-  }
+  }, [pageNumber, pageCount, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, externalLinkPromptUrl, selection, soundEnabled]);
 
   return (
     <ReaderShell
@@ -888,18 +702,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                 </button>
               </div>
             )}
-            <div className="pdf-toolbar-group pdf-toolbar-group--view">
-              <label className="pdf-toolbar-select-label">
-                <span className="pdf-toolbar-field-label">View</span>
-                <select
-                  aria-label="View mode"
-                  value={viewMode}
-                  onChange={(e) => switchViewMode(e.target.value as PdfViewMode)}
-                >
-                  <option value="single">Single page</option>
-                  <option value="continuous">Continuous scroll</option>
-                </select>
-              </label>
+            <div className="pdf-toolbar-group pdf-toolbar-group--appearance">
               <label className="pdf-toolbar-select-label">
                 <span className="pdf-toolbar-field-label">Appearance</span>
                 <select
@@ -968,26 +771,21 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           </div>
           <div className="pdf-toolbar-row pdf-toolbar-row--actions">
             <div className="pdf-toolbar-group pdf-toolbar-group--navigation">
-              {viewMode === "single" && (
-                <>
-                  <button
-                    type="button"
-                    disabled={pageNumber <= 1}
-                    onClick={() => navigatePage(-1)}
-                  >
-                    Previous
-                  </button>
-                  {renderPageJumpField()}
-                  <button
-                    type="button"
-                    disabled={pageCount > 0 && pageNumber >= pageCount}
-                    onClick={() => navigatePage(1)}
-                  >
-                    Next
-                  </button>
-                </>
-              )}
-              {viewMode === "continuous" && renderPageJumpField()}
+              <button
+                type="button"
+                disabled={pageNumber <= 1}
+                onClick={() => navigatePage(-1)}
+              >
+                Previous
+              </button>
+              {renderPageJumpField()}
+              <button
+                type="button"
+                disabled={pageCount > 0 && pageNumber >= pageCount}
+                onClick={() => navigatePage(1)}
+              >
+                Next
+              </button>
             </div>
             <div className="pdf-toolbar-group pdf-toolbar-group--tools">
               <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
@@ -1018,7 +816,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               if (!asset.anchor) return false;
               const page = parseInt(asset.anchor.primary_anchor, 10);
               if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return false;
-              setViewMode("single");
               setPageNumber(page);
               return true;
             }}
@@ -1103,7 +900,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           )}
         </div>
       )}
-      {viewMode === "single" && selection && (
+      {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
           <div className="selection-toolbar-colors" aria-label="Highlight color preset palette">
             {HIGHLIGHT_COLORS.map((c) => (
@@ -1135,85 +932,55 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           </button>
         </div>
       )}
-      {viewMode === "single" ? (
-        <div ref={singlePageSurfaceRef} className="reader-surface">
-          <div
-            className="pdf-page"
-            data-appearance={pageAppearance}
-            data-scan-like={isScanLikeDoc ? "true" : "false"}
-          >
-            <canvas ref={canvasRef} />
-            <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
-            <div ref={textLayerRef} className="textLayer pdf-text-layer" />
-            <div className="pdf-link-layer" aria-label="PDF Links">
-              {pageLinks.map((link, idx) => {
-                const label =
-                  link.target.kind === "internal"
-                    ? `Jump to page ${link.target.pageNumber}`
-                    : link.target.kind === "external"
-                    ? `Open external link: ${link.target.url}`
-                    : "Unsupported link";
-                return (
-                  <a
-                    key={idx}
-                    role="link"
-                    tabIndex={0}
-                    aria-label={label}
-                    className="pdf-link-item"
-                    style={{
-                      left: `${link.rect.left}px`,
-                      top: `${link.rect.top}px`,
-                      width: `${link.rect.width}px`,
-                      height: `${link.rect.height}px`,
-                    }}
-                    title={label}
-                    onClick={(e) => {
+      <div ref={singlePageSurfaceRef} className="reader-surface">
+        <div
+          className="pdf-page"
+          data-appearance={pageAppearance}
+          data-scan-like={isScanLikeDoc ? "true" : "false"}
+        >
+          <canvas ref={canvasRef} />
+          <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
+          <div ref={textLayerRef} className="textLayer pdf-text-layer" />
+          <div className="pdf-link-layer" aria-label="PDF Links">
+            {pageLinks.map((link, idx) => {
+              const label =
+                link.target.kind === "internal"
+                  ? `Jump to page ${link.target.pageNumber}`
+                  : link.target.kind === "external"
+                  ? `Open external link: ${link.target.url}`
+                  : "Unsupported link";
+              return (
+                <a
+                  key={idx}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={label}
+                  className="pdf-link-item"
+                  style={{
+                    left: `${link.rect.left}px`,
+                    top: `${link.rect.top}px`,
+                    width: `${link.rect.width}px`,
+                    height: `${link.rect.height}px`,
+                  }}
+                  title={label}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePdfLinkClick(link.target);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       e.stopPropagation();
                       handlePdfLinkClick(link.target);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handlePdfLinkClick(link.target);
-                      }
-                    }}
-                  />
-                );
-              })}
-            </div>
+                    }
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
-      ) : (
-        <div
-          ref={continuousContainerRef}
-          className="reader-surface pdf-continuous"
-          onScroll={handleContinuousScroll}
-        >
-          {Array.from({ length: pageCount }, (_, i) => (
-            <div
-              key={i}
-              className="pdf-page"
-              data-appearance={pageAppearance}
-              data-scan-like={isScanLikeDoc ? "true" : "false"}
-            >
-              <canvas
-                ref={(el) => {
-                  canvasRefs.current[i] = el;
-                }}
-              />
-              <canvas
-                ref={(el) => {
-                  appearanceCanvasRefs.current[i] = el;
-                }}
-                className="pdf-appearance-overlay"
-                aria-hidden="true"
-              />
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
       {externalLinkPromptUrl && (
         <PdfExternalLinkModal
           url={externalLinkPromptUrl}

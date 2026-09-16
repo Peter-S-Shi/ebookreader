@@ -131,6 +131,7 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     expect(screen.getByRole("button", { name: "Fit page" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fit width" })).toBeInTheDocument();
     expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("120%");
+    expect(screen.queryByRole("combobox", { name: "View mode" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("130%"));
@@ -146,10 +147,6 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("200%"));
     fireEvent.click(screen.getByRole("button", { name: "Fit page" }));
     await waitFor(() => expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("100%"));
-
-    fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-    expect(screen.getByRole("button", { name: "Fit page" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByLabelText("PDF zoom")).toHaveTextContent("100%");
   });
 
   it("navigates with unmodified arrow keys but ignores editable controls and modifiers", async () => {
@@ -159,9 +156,9 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(await screen.findByDisplayValue("13")).toBeInTheDocument();
 
-    const mode = screen.getByRole("combobox", { name: "View mode" });
-    mode.focus();
-    fireEvent.keyDown(mode, { key: "ArrowLeft" });
+    const appearance = screen.getByRole("combobox", { name: "Page appearance" });
+    appearance.focus();
+    fireEvent.keyDown(appearance, { key: "ArrowLeft" });
     expect(screen.getByDisplayValue("13")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "ArrowLeft", ctrlKey: true });
@@ -173,20 +170,6 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     fireEvent.keyDown(alertDialog, { key: "ArrowLeft" });
     expect(screen.getByDisplayValue("13")).toBeInTheDocument();
     alertDialog.remove();
-  });
-
-  it("moves continuous mode to the adjacent page with arrow keys", async () => {
-    render(<PdfReader bookId="pdf1" title="PDF continuous keyboard" onBack={vi.fn()} />);
-    await screen.findByDisplayValue("12");
-    fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-
-    fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(await screen.findByDisplayValue("13")).toBeInTheDocument();
-
-    const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 12 * 16 });
-    fireEvent.scroll(continuousSurface);
-    expect(screen.getByDisplayValue("13")).toBeInTheDocument();
   });
 });
 
@@ -591,15 +574,15 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       const toolbar = screen.getByRole("toolbar", { name: "PDF Reader Toolbar" });
       expect(toolbar).toBeInTheDocument();
 
-      // Config row contains Document, View, and Geometry groups
+      // Config row contains Document, Appearance, and Geometry groups
       const configRow = toolbar.querySelector(".pdf-toolbar-row--config");
       expect(configRow).toBeInTheDocument();
       expect(configRow?.querySelector(".pdf-toolbar-group--document")).toBeInTheDocument();
-      expect(configRow?.querySelector(".pdf-toolbar-group--view")).toBeInTheDocument();
+      expect(configRow?.querySelector(".pdf-toolbar-group--appearance")).toBeInTheDocument();
       expect(configRow?.querySelector(".pdf-toolbar-group--geometry")).toBeInTheDocument();
 
-      // View group controls
-      expect(within(configRow as HTMLElement).getByRole("combobox", { name: "View mode" })).toBeInTheDocument();
+      // Appearance group controls (no View mode combobox)
+      expect(within(configRow as HTMLElement).queryByRole("combobox", { name: "View mode" })).not.toBeInTheDocument();
       expect(within(configRow as HTMLElement).getByRole("combobox", { name: "Page appearance" })).toBeInTheDocument();
 
       // Geometry group controls
@@ -631,7 +614,7 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
 
       const toolbar = screen.getByRole("toolbar", { name: "PDF Reader Toolbar" });
       expect(toolbar.querySelector(".pdf-toolbar-group--document")).not.toBeInTheDocument();
-      expect(toolbar.querySelector(".pdf-toolbar-group--view")).toBeInTheDocument();
+      expect(toolbar.querySelector(".pdf-toolbar-group--appearance")).toBeInTheDocument();
       expect(toolbar.querySelector(".pdf-toolbar-group--geometry")).toBeInTheDocument();
     });
   });

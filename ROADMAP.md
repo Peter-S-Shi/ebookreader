@@ -1090,8 +1090,14 @@ A candidate is not merge-ready while macro documents still describe the pre-merg
 
 ---
 
-# Deferred / Future Candidates
+# Deferred / Future Candidates (V3)
 
-Deferred product features are owned by `PRODUCT_SPEC.md`.
+Deferred product features are owned by `PRODUCT_SPEC.md`. Future candidate milestones for subsequent major versions include:
 
-Do not duplicate or redefine that list here.
+### Continuous Reading Mode — EPUB / PDF (V3 Candidate)
+Dedicated future reading-mode enhancement for continuous-scroll reading across reflowable and fixed-layout documents, scoped with its own:
+- **Navigation Contract**: Scroll-driven location tracking, bi-directional smooth scrolling, chapter/page boundary synchronization, and jump-to-location resolution.
+- **Performance Acceptance**: Bounded-memory viewport virtualization, dynamic rendering window management, fast continuous fling/wheel interactions, and resource recycling on long (500+ pages) documents.
+- **Long-Document Validation**: Robust per-page geometry probing for mixed page orientations/dimensions and continuous high-DPI rendering without UI main-thread stalls.
+- **Cross-Format UX Consistency**: Harmonized continuous reading experience across EPUB and PDF surfaces with coherent toolbar, annotation, and highlight interactions.
+

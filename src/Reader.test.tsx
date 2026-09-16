@@ -323,34 +323,29 @@ describe("Reader — paginated reading input (HA-011)", () => {
     );
   });
 
-  it("keeps Continuous Scroll as natural scrolling instead of remapping wheel input to page turns", async () => {
+  it("exposes only Single page and Double page in View mode and applies column count", async () => {
     const fakeView = mockFoliateView();
-    const { container } = render(<Reader bookId="b1" title="Scrolled Book" onBack={vi.fn()} />);
+    const { container } = render(<Reader bookId="b1" title="View Mode Book" onBack={vi.fn()} />);
     await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
 
     const select = container.querySelector("select[aria-label='View mode']") as HTMLSelectElement;
-    select.value = "scrolled";
+    expect(select).toBeInTheDocument();
+
+    const options = Array.from(select.options).map((o) => ({ value: o.value, text: o.text }));
+    expect(options).toEqual([
+      { value: "paginated-single", text: "Single page" },
+      { value: "paginated-double", text: "Double page" },
+    ]);
+
+    select.value = "paginated-single";
     select.dispatchEvent(new Event("change", { bubbles: true }));
-    container.querySelector(".reader")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true }));
+    expect(fakeView.renderer.removeAttribute).toHaveBeenCalledWith("flow");
+    expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-column-count", "1");
 
-    expect(fakeView.next).not.toHaveBeenCalled();
-    expect(fakeView.prev).not.toHaveBeenCalled();
-  });
-
-  it("keeps Continuous Scroll natural for mouse wheel from the rendered EPUB document", async () => {
-    const fakeView = mockFoliateView();
-    const { container } = render(<Reader bookId="b1" title="Scrolled EPUB Book" onBack={vi.fn()} />);
-    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
-    const sectionDoc = makeSectionDocument();
-    fakeView.emitSectionLoad(sectionDoc);
-
-    const select = container.querySelector("select[aria-label='View mode']") as HTMLSelectElement;
-    select.value = "scrolled";
+    select.value = "paginated-double";
     select.dispatchEvent(new Event("change", { bubbles: true }));
-    sectionDoc.querySelector("p")!.dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true, cancelable: true }));
-
-    expect(fakeView.next).not.toHaveBeenCalled();
-    expect(fakeView.prev).not.toHaveBeenCalled();
+    expect(fakeView.renderer.removeAttribute).toHaveBeenCalledWith("flow");
+    expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-column-count", "2");
   });
 
   it("does not hijack EPUB form controls for page turns", async () => {
@@ -411,7 +406,7 @@ describe("Reader — reading position indicator (V2-M3 item 3)", () => {
     expect(await screen.findByLabelText("Reading position")).toHaveTextContent("3 / 7");
   });
 
-  it("hides the indicator entirely when the renderer reports no real pages (e.g. Continuous Scroll mode)", async () => {
+  it("hides the indicator entirely when the renderer reports no real pages", async () => {
     const fakeView = mockFoliateView();
     render(<Reader bookId="b1" title="No Pagination Book" onBack={vi.fn()} />);
     await waitFor(() => expect(fakeView.open).toHaveBeenCalled());

@@ -1,11 +1,11 @@
-// Reflowable-EPUB view mode, per FORMAT_CAPABILITY_MATRIX.md's required
-// "Continuous scroll / Single-page / paged / Double-page" rows and
+// Reflowable-EPUB view mode, per FORMAT_CAPABILITY_MATRIX.md's
+// "Single-page / paged" and "Double-page" rows and
 // DESIGN.md SS7's "view mode where supported" control. foliate-js's
-// <foliate-paginator> exposes this via two real, public HTML attributes:
-// `flow` ("scrolled" for continuous, absent for paginated) and
-// `max-column-count` (1 = single page, 2 = double/spread).
+// <foliate-paginator> exposes column layout via `max-column-count`
+// (1 = single page, 2 = double/spread).
+// Selectable Continuous Scroll is deferred to V3.
 
-export type ViewMode = "paginated-single" | "paginated-double" | "scrolled";
+export type ViewMode = "paginated-single" | "paginated-double";
 
 export interface RendererLike {
   setAttribute(name: string, value: string): void;
@@ -13,12 +13,13 @@ export interface RendererLike {
 }
 
 export function applyViewMode(renderer: RendererLike, mode: ViewMode): void {
-  if (mode === "scrolled") {
-    renderer.setAttribute("flow", "scrolled");
-    return;
-  }
   renderer.removeAttribute("flow");
   renderer.setAttribute("max-column-count", mode === "paginated-double" ? "2" : "1");
+}
+
+export function normalizeViewMode(mode: string | null | undefined): ViewMode {
+  if (mode === "paginated-single" || mode === "paginated-double") return mode;
+  return "paginated-double";
 }
 
 // foliate's paginator owns the actual reflow column geometry and resets the
@@ -33,5 +34,5 @@ export function applyPageWidth(renderer: RendererLike, pageWidthCh: number): voi
 export const VIEW_MODE_LABELS: Record<ViewMode, string> = {
   "paginated-single": "Single page",
   "paginated-double": "Double page",
-  scrolled: "Continuous scroll",
 };
+

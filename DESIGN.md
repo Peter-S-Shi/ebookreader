@@ -764,7 +764,6 @@ The PDF Reader toolbar is structured into three clear semantic rows to avoid hor
 
 - **Row 2 — Reading Configuration**:
   - Contents (TOC) toggle (rendered only when outline/bookmarks exist);
-  - View mode selector (Single Page, Continuous Scroll);
   - Page Appearance selector (`Default`, `Day`, `Eye Care`, `Parchment`, `Night`);
   - Zoom level and page fit controls.
 
@@ -784,3 +783,7 @@ The PDF Reader toolbar is structured into three clear semantic rows to avoid hor
 ### 24.4 Typography Inputs & Position Indicators
 - **Typography Number Fields**: The reader typography panel (`Aa`) features direct numeric input fields alongside increment/decrement controls for precise font size, line height, and page margins.
 - **Reflowed Position Indicator**: Reflowable EPUB and TXT readers offer an optional `K/N` position indicator in the reader footer, responsive to real-time reflowed pagination.
+
+### 24.5 V2 Reading Modes Contract
+- **Validated Page-Based Modes**: V2 standardizes EPUB and PDF reading on validated page-based reading modes. EPUB supports Single page and Double page; PDF supports Single page. Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience.
+
