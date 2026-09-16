@@ -32,6 +32,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { extractPagePdfLinks, type PdfLinkItem, type PdfLinkTarget } from "./pdfLinks";
 import { PdfExternalLinkModal } from "./PdfExternalLinkModal";
 import { createPdfDocumentLoadingParams } from "./pdfDocumentOptions";
+import {
+  classifyPdfDocument,
+  type PdfDocumentClassification,
+  type PageTextSummary,
+} from "./pdfDocumentClassification";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -142,11 +147,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     prefix?: string;
     suffix?: string;
   } | null>(null);
-  // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
-  // any page) must display a truthful degraded state rather than pretend
-  // search/selection/excerpt work -- `null` until the whole-document text
-  // pass below has actually checked every page.
-  const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
+  // V2-M4-U4C: Robust document classification into TEXT, SCAN, or HYBRID.
+  // Replaces naive `anyPageHasText` so sparse watermarks / metadata do not disable OCR on scanned books.
+  const [documentClassification, setDocumentClassification] = useState<PdfDocumentClassification | null>(null);
   // Track OCR availability for the current page to surface a restrained affordance.
   // Full OCR review, run controls, and text corrections live in `OcrWorkspace`.
   const [ocrText, setOcrText] = useState<string | null>(null);
@@ -194,18 +197,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const outline = await pdf.getOutline();
       if (cancelled) return;
       setToc(await pdfOutlineToTocItems(outline, pdf));
-
-      // Check text content of initial target page immediately for text selection state.
-      try {
-        const page1 = await pdf.getPage(startPage);
-        const tc1 = await page1.getTextContent();
-        const hasText = tc1.items.some((item) => "str" in item && (item as { str: string }).str.trim().length > 0);
-        if (hasText && !cancelled) {
-          setHasExtractableText(true);
-        }
-      } catch {
-        // ignore page text check failure
-      }
     })();
     return () => {
       cancelled = true;
@@ -219,7 +210,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     let cancelled = false;
 
     const timer = setTimeout(async () => {
-      let anyPageHasText = false;
+      const pageSummaries: PageTextSummary[] = [];
       const fullDocSamples: PageScanSample[] = [];
 
       for (let i = 1; i <= pdfDoc.numPages; i++) {
@@ -230,16 +221,18 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
         const textCharCount = textContent.items.reduce((acc, item) => acc + ("str" in item ? (item as { str: string }).str.length : 0), 0);
 
+        let maxImageAreaRatio = 0;
         if (fullDocSamples.length < 10) {
           const sOpList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
           const sVp = page.getViewport({ scale: 1.0 });
           const imgRects = sOpList ? extractImageRects(sOpList, sVp) : [];
-          const maxImageAreaRatio = imgRects.length > 0 ? Math.max(...imgRects.map((r) => r.areaRatio)) : 0;
+          maxImageAreaRatio = imgRects.length > 0 ? Math.max(...imgRects.map((r) => r.areaRatio)) : 0;
           fullDocSamples.push({ textCharCount, maxImageAreaRatio });
         }
 
+        pageSummaries.push({ textCharCount, maxImageAreaRatio });
+
         if (pageText.trim()) {
-          anyPageHasText = true;
           const anchor: DocumentLocationDTO = {
             book_id: bookId,
             format: "pdf",
@@ -258,10 +251,10 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         }
       }
       if (!cancelled) {
-        setHasExtractableText(anyPageHasText);
-        if (fullDocSamples.length > 0) {
-          setIsScanLikeDoc(isScanLikeDocument(fullDocSamples));
-        }
+        const isScanLikeVisual = fullDocSamples.length > 0 ? isScanLikeDocument(fullDocSamples) : false;
+        const classification = classifyPdfDocument(pageSummaries, isScanLikeVisual);
+        setDocumentClassification(classification);
+        setIsScanLikeDoc(classification.isScanLike);
       }
     }, 100);
 
@@ -278,7 +271,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   }
 
   useEffect(() => {
-    if (hasExtractableText !== false) return;
+    if (!documentClassification?.ocrEligible) return;
     let cancelled = false;
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber })
       .then((text) => {
@@ -288,7 +281,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [bookId, pageNumber, hasExtractableText]);
+  }, [bookId, pageNumber, documentClassification]);
 
   function saveLocation(page: number, count: number) {
     const fraction = count > 0 ? page / count : 0;
@@ -971,7 +964,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
             Notebook
           </button>
-          {hasExtractableText === false && (
+          {documentClassification?.ocrEligible && (
             <button type="button" onClick={() => setOcrWorkspaceOpen(true)}>
               OCR Workspace
             </button>
@@ -1031,7 +1024,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           Enter a whole page number{pageCount > 0 ? ` between 1 and ${pageCount}` : ""}.
         </p>
       )}
-      {hasExtractableText === false && (
+      {documentClassification?.ocrEligible && (
         <div
           className={`pdf-ocr-notice ${noticeCollapsed ? "pdf-ocr-notice--collapsed" : ""}`}
           role="region"
