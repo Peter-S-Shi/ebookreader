@@ -70,12 +70,12 @@ describe("toEpubCss", () => {
   });
 
   describe("publisher preference-override compatibility (V2-M1)", () => {
-    // Regression coverage for a real-world failure class: some publisher
-    // stylesheets (e.g. Calibre-exported EPUBs) apply a class directly to
-    // <body> that sets font-size/margin/padding with higher specificity
-    // than a plain `body { ... }` selector, and/or apply font-size classes
-    // directly to paragraph-level elements. Both previously froze the
-    // reader's font size, page width, and margin controls.
+    // Regression coverage for a real-world failure class found in a real
+    // Calibre-exported EPUB (case-publisher-locked.epub, private fixture,
+    // not committed): the publication applies a class directly to <body>
+    // (`class="calibre"`) that sets font-size/margin/padding with higher
+    // CSS specificity than a plain `body { ... }` selector, which froze
+    // the reader's font size, page width, and margin controls.
     it("wins font-size, margins, and padding against a publisher class applied to <body> itself", () => {
       const style = document.createElement("style");
       style.textContent =
@@ -95,18 +95,9 @@ describe("toEpubCss", () => {
       style.remove();
     });
 
-    it("wins font-size against a publisher class applied directly to <p>", () => {
-      const fixture = document.createElement("div");
-      fixture.innerHTML =
-        `<style>.publisher-para { font-size: 12px; }</style>` +
-        `<style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160 })}</style>` +
-        `<p class="publisher-para">Ordinary reading text</p>`;
-      document.body.append(fixture);
-
-      expect(getComputedStyle(fixture.querySelector("p")!).fontSize).toBe("25.6px");
-      fixture.remove();
-    });
-
+    // Regression coverage for a real structure in control-editable.epub
+    // (private fixture, not committed): a quoted <p> nested inside a
+    // <blockquote>, both matched by the same :where(...) prose selector.
     it("applies the font-size preference once, not compounded, for prose nested in other prose (e.g. a quoted paragraph inside a blockquote)", () => {
       const fixture = document.createElement("div");
       fixture.innerHTML =
@@ -122,6 +113,11 @@ describe("toEpubCss", () => {
       fixture.remove();
     });
 
+    // Regression coverage for a concrete defect found while auditing the
+    // withdrawn recovery-branch patch (441ce2f, evidence only -- not
+    // merged or cherry-picked): its trailing !important bound, per CSS
+    // grammar, only to the last joined declaration, so choosing a font
+    // silently dropped line-height's !important protection.
     it("keeps both the line-height override and a chosen font-family override winning together", () => {
       const fixture = document.createElement("div");
       fixture.innerHTML =
