@@ -107,4 +107,35 @@ describe("ReaderShell Focus mode", () => {
     expect(screen.getByLabelText("Reading progress: 43%")).toBeInTheDocument();
     expect(screen.getByText("43%")).toBeInTheDocument();
   });
+
+  it("renders stacked toolbarBottom and hides it during Focus mode (V2-M4 Addendum B)", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReaderShell
+        title="PDF Book"
+        onBack={vi.fn()}
+        toolbarBottom={
+          <div data-testid="pdf-toolbar-custom">
+            <button type="button">Fit Page</button>
+            <button type="button">Previous</button>
+          </div>
+        }
+      >
+        <p>PDF Content</p>
+      </ReaderShell>,
+    );
+
+    const toolbar = screen.getByRole("button", { name: "Back to Library" }).closest(".reader-toolbar");
+    expect(toolbar).toHaveClass("reader-toolbar--stacked");
+    expect(screen.getByTestId("pdf-toolbar-custom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fit Page" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Focus" }));
+    expect(screen.queryByTestId("pdf-toolbar-custom")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exit Focus" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Exit Focus" }));
+    expect(screen.getByTestId("pdf-toolbar-custom")).toBeInTheDocument();
+  });
 });

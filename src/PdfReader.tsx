@@ -878,98 +878,132 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       onBack={() => checkpoint.requestBack(onBack)}
       status={status}
       progressPercent={pageCount > 0 ? (pageNumber / pageCount) * 100 : progress?.active_pass_progress}
-      toolbarExtra={
-        <>
-          {toc.length > 0 && (
-            <button type="button" onClick={() => setTocOpen((open) => !open)}>
-              Contents
-            </button>
-          )}
-          <select
-            aria-label="View mode"
-            value={viewMode}
-            onChange={(e) => switchViewMode(e.target.value as PdfViewMode)}
-          >
-            <option value="single">Single page</option>
-            <option value="continuous">Continuous scroll</option>
-          </select>
-          <select
-            aria-label="Page appearance"
-            className="pdf-appearance-select"
-            value={pageAppearance}
-            onChange={(e) => {
-              const next = e.target.value as PdfPageAppearance;
-              setPageAppearance(next);
-              setPdfPageAppearancePreference(next);
-            }}
-          >
-            <option value="default">Default</option>
-            <option value="day">Day</option>
-            <option value="eyecare">Eye Care</option>
-            <option value="parchment">Parchment</option>
-            <option value="night">Night</option>
-          </select>
-          <button
-            type="button"
-            aria-label="Zoom out"
-            disabled={zoomScale <= MIN_PDF_SCALE}
-            onClick={() => {
-              setFitMode("custom");
-              setZoomScale((scale) => clampPdfScale(scale - PDF_ZOOM_STEP));
-            }}
-          >
-            −
-          </button>
-          <span aria-label="PDF zoom">{Math.round(zoomScale * 100)}%</span>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            disabled={zoomScale >= MAX_PDF_SCALE}
-            onClick={() => {
-              setFitMode("custom");
-              setZoomScale((scale) => clampPdfScale(scale + PDF_ZOOM_STEP));
-            }}
-          >
-            +
-          </button>
-          <button type="button" aria-label="Fit page" aria-pressed={fitMode === "page"} onClick={() => void applyFit("page")}>
-            Fit Page
-          </button>
-          <button type="button" aria-label="Fit width" aria-pressed={fitMode === "width"} onClick={() => void applyFit("width")}>
-            Fit Width
-          </button>
-          {viewMode === "single" && (
-            <>
+      toolbarBottom={
+        <div className="pdf-toolbar" role="toolbar" aria-label="PDF Reader Toolbar">
+          <div className="pdf-toolbar-row pdf-toolbar-row--config">
+            {toc.length > 0 && (
+              <div className="pdf-toolbar-group pdf-toolbar-group--document">
+                <button type="button" onClick={() => setTocOpen((open) => !open)}>
+                  Contents
+                </button>
+              </div>
+            )}
+            <div className="pdf-toolbar-group pdf-toolbar-group--view">
+              <label className="pdf-toolbar-select-label">
+                <span className="pdf-toolbar-field-label">View</span>
+                <select
+                  aria-label="View mode"
+                  value={viewMode}
+                  onChange={(e) => switchViewMode(e.target.value as PdfViewMode)}
+                >
+                  <option value="single">Single page</option>
+                  <option value="continuous">Continuous scroll</option>
+                </select>
+              </label>
+              <label className="pdf-toolbar-select-label">
+                <span className="pdf-toolbar-field-label">Appearance</span>
+                <select
+                  aria-label="Page appearance"
+                  className="pdf-appearance-select"
+                  value={pageAppearance}
+                  onChange={(e) => {
+                    const next = e.target.value as PdfPageAppearance;
+                    setPageAppearance(next);
+                    setPdfPageAppearancePreference(next);
+                  }}
+                >
+                  <option value="default">Default</option>
+                  <option value="day">Day</option>
+                  <option value="eyecare">Eye Care</option>
+                  <option value="parchment">Parchment</option>
+                  <option value="night">Night</option>
+                </select>
+              </label>
+            </div>
+            <div className="pdf-toolbar-group pdf-toolbar-group--geometry">
+              <div className="pdf-toolbar-zoom-stepper">
+                <button
+                  type="button"
+                  aria-label="Zoom out"
+                  disabled={zoomScale <= MIN_PDF_SCALE}
+                  onClick={() => {
+                    setFitMode("custom");
+                    setZoomScale((scale) => clampPdfScale(scale - PDF_ZOOM_STEP));
+                  }}
+                >
+                  −
+                </button>
+                <span aria-label="PDF zoom" className="pdf-zoom-value">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  aria-label="Zoom in"
+                  disabled={zoomScale >= MAX_PDF_SCALE}
+                  onClick={() => {
+                    setFitMode("custom");
+                    setZoomScale((scale) => clampPdfScale(scale + PDF_ZOOM_STEP));
+                  }}
+                >
+                  +
+                </button>
+              </div>
               <button
                 type="button"
-                disabled={pageNumber <= 1}
-                onClick={() => navigatePage(-1)}
+                aria-label="Fit page"
+                aria-pressed={fitMode === "page"}
+                onClick={() => void applyFit("page")}
               >
-                Previous
+                Fit Page
               </button>
-              {renderPageJumpField()}
               <button
                 type="button"
-                disabled={pageCount > 0 && pageNumber >= pageCount}
-                onClick={() => navigatePage(1)}
+                aria-label="Fit width"
+                aria-pressed={fitMode === "width"}
+                onClick={() => void applyFit("width")}
               >
-                Next
+                Fit Width
               </button>
-            </>
-          )}
-          {viewMode === "continuous" && renderPageJumpField()}
-          <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
-            {soundEnabled ? "Sound: On" : "Sound: Off"}
-          </button>
-          <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
-            Notebook
-          </button>
-          {documentClassification?.ocrEligible && (
-            <button type="button" onClick={() => setOcrWorkspaceOpen(true)}>
-              OCR Workspace
-            </button>
-          )}
-        </>
+            </div>
+          </div>
+          <div className="pdf-toolbar-row pdf-toolbar-row--actions">
+            <div className="pdf-toolbar-group pdf-toolbar-group--navigation">
+              {viewMode === "single" && (
+                <>
+                  <button
+                    type="button"
+                    disabled={pageNumber <= 1}
+                    onClick={() => navigatePage(-1)}
+                  >
+                    Previous
+                  </button>
+                  {renderPageJumpField()}
+                  <button
+                    type="button"
+                    disabled={pageCount > 0 && pageNumber >= pageCount}
+                    onClick={() => navigatePage(1)}
+                  >
+                    Next
+                  </button>
+                </>
+              )}
+              {viewMode === "continuous" && renderPageJumpField()}
+            </div>
+            <div className="pdf-toolbar-group pdf-toolbar-group--tools">
+              <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
+                Notebook
+              </button>
+              {documentClassification?.ocrEligible && (
+                <button type="button" onClick={() => setOcrWorkspaceOpen(true)}>
+                  OCR Workspace
+                </button>
+              )}
+              <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
+                {soundEnabled ? "Sound: On" : "Sound: Off"}
+              </button>
+            </div>
+          </div>
+        </div>
       }
       overlay={
         tocOpen ? (

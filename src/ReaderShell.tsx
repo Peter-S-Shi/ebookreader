@@ -8,6 +8,8 @@ interface ReaderShellProps {
   progressPercent?: number;
   /** Format-specific toolbar controls (Aa, page navigation, ...). Hidden in Focus mode. */
   toolbarExtra?: ReactNode;
+  /** Grouped secondary toolbar rows (e.g. PDF multi-row layout). Hidden in Focus mode. */
+  toolbarBottom?: ReactNode;
   /** Anything that should render below/beside the toolbar (e.g. an open Typography panel). */
   overlay?: ReactNode;
   children: ReactNode;
@@ -25,6 +27,7 @@ export function ReaderShell({
   status,
   progressPercent,
   toolbarExtra,
+  toolbarBottom,
   overlay,
   children,
 }: ReaderShellProps) {
@@ -33,7 +36,7 @@ export function ReaderShell({
 
   return (
     <div className={`reader${focusMode ? " reader--focus" : ""}`} onWheel={onWheel}>
-      <div className="reader-toolbar">
+      <div className={`reader-toolbar${toolbarBottom ? " reader-toolbar--stacked" : ""}`}>
         {!focusMode && (
           <>
             <button type="button" className="reader-back" onClick={onBack}>
@@ -68,6 +71,11 @@ export function ReaderShell({
         >
           {focusMode ? "Exit Focus" : "Focus"}
         </button>
+        {!focusMode && toolbarBottom && (
+          <div className="reader-toolbar-bottom">
+            {toolbarBottom}
+          </div>
+        )}
       </div>
       {/* HA-003: anchor overlay panels to the toolbar's own actual
           rendered bottom edge, not a guessed fixed `top` offset -- a

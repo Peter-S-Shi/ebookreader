@@ -481,6 +481,117 @@ a:hover {
   font-size: 0.9em;
 }
 
+/* Stacked Reader Toolbar layout (e.g. PDF grouped rows) */
+.reader-toolbar--stacked {
+  row-gap: 0.5em;
+}
+
+.reader-toolbar--stacked .reader-title {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.reader-toolbar--stacked .reader-toolbar-controls {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.reader-toolbar-bottom {
+  flex-basis: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.2));
+}
+
+.pdf-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  width: 100%;
+}
+
+.pdf-toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4em 1em;
+  width: 100%;
+}
+
+.pdf-toolbar-row--actions {
+  justify-content: space-between;
+}
+
+.pdf-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex-wrap: nowrap;
+}
+
+.pdf-toolbar-group--geometry {
+  gap: 0.35em;
+}
+
+.pdf-toolbar-zoom-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.pdf-zoom-value {
+  min-width: 3.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88em;
+  user-select: none;
+}
+
+.pdf-toolbar-select-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.85em;
+  color: var(--muted, #666);
+}
+
+.pdf-toolbar-field-label {
+  font-weight: 500;
+  user-select: none;
+}
+
+.pdf-toolbar-group--navigation {
+  flex-wrap: nowrap;
+  gap: 0.4em;
+}
+
+.pdf-toolbar-group--tools {
+  gap: 0.4em;
+  margin-left: auto;
+}
+
+.pdf-page-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.pdf-page-jump-input {
+  width: 3.6em;
+  text-align: center;
+  padding: 2px 4px;
+  font-size: 0.9em;
+  border-radius: 4px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.4));
+  background: var(--surface);
+  color: var(--text);
+}
+
 .reader-surface {
   flex: 1;
   min-height: 0;

@@ -581,4 +581,58 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       });
     });
   });
+
+  describe("PdfReader — Grouped Toolbar Structure (V2 Addendum B)", () => {
+    it("renders structured toolbar rows and semantic groups without flat clutter", async () => {
+      mockGetOutline.mockResolvedValue([{ title: "Chapter 1", dest: ["ref-1"], items: [] }]);
+      render(<PdfReader bookId="pdf1" title="Structured Toolbar PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const toolbar = screen.getByRole("toolbar", { name: "PDF Reader Toolbar" });
+      expect(toolbar).toBeInTheDocument();
+
+      // Config row contains Document, View, and Geometry groups
+      const configRow = toolbar.querySelector(".pdf-toolbar-row--config");
+      expect(configRow).toBeInTheDocument();
+      expect(configRow?.querySelector(".pdf-toolbar-group--document")).toBeInTheDocument();
+      expect(configRow?.querySelector(".pdf-toolbar-group--view")).toBeInTheDocument();
+      expect(configRow?.querySelector(".pdf-toolbar-group--geometry")).toBeInTheDocument();
+
+      // View group controls
+      expect(within(configRow as HTMLElement).getByRole("combobox", { name: "View mode" })).toBeInTheDocument();
+      expect(within(configRow as HTMLElement).getByRole("combobox", { name: "Page appearance" })).toBeInTheDocument();
+
+      // Geometry group controls
+      expect(within(configRow as HTMLElement).getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+      expect(within(configRow as HTMLElement).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+      expect(within(configRow as HTMLElement).getByRole("button", { name: "Fit page" })).toBeInTheDocument();
+      expect(within(configRow as HTMLElement).getByRole("button", { name: "Fit width" })).toBeInTheDocument();
+
+      // Actions row contains Navigation and Tools groups
+      const actionsRow = toolbar.querySelector(".pdf-toolbar-row--actions");
+      expect(actionsRow).toBeInTheDocument();
+
+      const navGroup = actionsRow?.querySelector(".pdf-toolbar-group--navigation");
+      expect(navGroup).toBeInTheDocument();
+      expect(within(navGroup as HTMLElement).getByRole("button", { name: "Previous" })).toBeInTheDocument();
+      expect(within(navGroup as HTMLElement).getByRole("textbox", { name: "Current page" })).toBeInTheDocument();
+      expect(within(navGroup as HTMLElement).getByRole("button", { name: "Next" })).toBeInTheDocument();
+
+      const toolsGroup = actionsRow?.querySelector(".pdf-toolbar-group--tools");
+      expect(toolsGroup).toBeInTheDocument();
+      expect(within(toolsGroup as HTMLElement).getByRole("button", { name: "Notebook" })).toBeInTheDocument();
+      expect(within(toolsGroup as HTMLElement).getByRole("button", { name: "Toggle page-turn sound" })).toBeInTheDocument();
+    });
+
+    it("omits the document group cleanly when PDF has no outline", async () => {
+      mockGetOutline.mockResolvedValue(null);
+      render(<PdfReader bookId="pdf1" title="No Outline Toolbar PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const toolbar = screen.getByRole("toolbar", { name: "PDF Reader Toolbar" });
+      expect(toolbar.querySelector(".pdf-toolbar-group--document")).not.toBeInTheDocument();
+      expect(toolbar.querySelector(".pdf-toolbar-group--view")).toBeInTheDocument();
+      expect(toolbar.querySelector(".pdf-toolbar-group--geometry")).toBeInTheDocument();
+    });
+  });
 });
