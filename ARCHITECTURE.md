@@ -777,9 +777,9 @@ No feature milestone should begin until M0 exits with an architecture lock and u
 
 The following amendments define the durable architectural contracts for EbookReader V2.
 
-### 21.1 PDF Runtime & Offline WASM Decoders
-- **Local Decoder Closure**: The PDF runtime utilizes local pdf.js builds bundled with local character maps (`/cmaps/`) and local WebAssembly decoders (`/wasm/openjpeg_decoder.wasm`, `/wasm/jbig2_decoder.wasm`, `/wasm/quickjs_eval.wasm`).
-- **Zero Network Dependency**: PDF rendering, font parsing, and image decompression operate with complete offline closure without external network requests.
+### 21.1 PDF Runtime & Offline WASM Assets
+- **Local Runtime Asset Closure**: The local pdf.js runtime uses assets under `/wasm/`, including `jbig2.wasm`, `openjpeg.wasm`, `qcms_bg.wasm`, and `quickjs-eval.wasm`, together with their tracked fallback/license assets where applicable, alongside local character maps (`/cmaps/`).
+- **Zero Network Dependency**: PDF rendering, font parsing, color management, script evaluation, and image decompression operate with complete offline closure without external network requests.
 
 ### 21.2 Text / Render Responsibility Boundary
 - **Separation of Concerns**: Visual glyph rendering fidelity and semantic text extraction are distinct subsystems.

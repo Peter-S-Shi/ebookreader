@@ -10,7 +10,16 @@ Current Lifecycle State: **V2 Feature Freeze / Product Hardening Entry (Branch: 
 > - V2 has **not** been merged into `main` and is **not** yet an RC or release.
 > - **Next Lifecycle Phase**: **V2 Product Hardening**.
 > - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC`.
-> - **Freeze Rule**: No new feature development or redesign is permitted during Freeze/Hardening without explicit human scope reopening. Allowed changes are strictly limited to defect fixes, regression corrections, performance/memory optimizations, packaging/runtime closure fixes, accessibility improvements, and documentation truth corrections.
+> - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted during Freeze/Hardening without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
+>   - defect / correctness fixes
+>   - regression fixes
+>   - evidence-backed compatibility fixes
+>   - performance / memory fixes
+>   - security / privacy fixes
+>   - accessibility fixes
+>   - packaging / runtime-closure fixes
+>   - test / harness corrections
+>   - documentation truth corrections
 
 **Historical V1 Baseline (Archived Record):**
 M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze for V1 remains locked, Milestones 1-10 are COMPLETE, Portfolio Packaging is COMPLETE, and the Local Workspace Slimming Audit is COMPLETE. Maintenance work or further version development requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.

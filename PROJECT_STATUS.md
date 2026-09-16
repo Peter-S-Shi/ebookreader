@@ -103,7 +103,7 @@ Current Phase: **V2 Feature Freeze / Product Hardening Entry**. V1.0.0 remains t
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, and lazy PDF cover thumbnails).
 - **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4) and Addenda (A–C) have passed human acceptance.
-- **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development permitted without explicit human scope reopening.
+- **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development, workflow redesign, new format promises, or unrelated refactors permitted without explicit human scope reopening. Allowed work is limited to hardening fixes (defect/correctness, regression, evidence-backed compatibility, performance/memory, security/privacy, accessibility, packaging/runtime-closure, test/harness, and documentation truth corrections).
 - **RC / Release State**: `v1.0.0` released on `main`; V2 is unmerged, unreleased, and not yet an RC.
 - **Next Action**: **V2 Product Hardening on the frozen long-lived branch.**
 

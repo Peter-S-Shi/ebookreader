@@ -25,10 +25,10 @@ Legend:
 | Library Cover Art | ✅ embedded | ✅ embedded | ✅ Page 1 thumb | ✅ Page 1 thumb | ✅ Page 1 thumb | ✅ Page 1 thumb | ⚠️ format icon |
 | Normal visual reading | ✅ | ✅ | ✅ | ✅ (WASM JBIG2) | ✅ | ✅ | ✅ |
 | Continuous scroll | ✅ | ⚠️ engine-dependent | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Single-page / paged | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Double-page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Single-page / paged | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| Double-page | ✅ paginated | ⚠️ engine-dependent | — | — | — | — | — |
 | TOC / outline navigation | ✅ publication-provided | ✅ publication-provided | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ outline-dependent | ⚠️ derived |
-| Direct page jump (`1..N`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Direct page jump (`1..N`) | — | — | ✅ | ✅ | ✅ | ✅ | — |
 | Internal document hyperlinks | ✅ | ✅ | ✅ | ⚠️ link-annotated | ⚠️ link-annotated | ✅ | — |
 | External HTTP/HTTPS links | ✅ | ✅ | ✅ (confirm prompt) | ✅ (confirm prompt) | ✅ (confirm prompt) | ✅ (confirm prompt) | — |
 | Page Appearance modes | — (uses theme) | — | ✅ (5 modes + mask) | ✅ (Night un-inverted) | ✅ | ✅ | — (uses theme) |
@@ -37,7 +37,7 @@ Legend:
 | User font-family override | ✅ | — | — | — | — | — | ✅ |
 | Typography overrides (size/margin) | ✅ (!important) | — | — | — | — | — | ✅ |
 | Free numeric typography inputs | ✅ | — | — | — | — | — | ✅ |
-| Position indicator (`K/N`) | ✅ reflowed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ reflowed |
+| Position indicator (`K/N`) | ✅ reflowed | — | — | — | — | — | ✅ reflowed |
 | Text selection | ✅ | ⚠️ publication-dependent | ✅ (healthy Unicode) | — | ✅ | ⚠️ page-dependent | ✅ |
 | In-book text search | ✅ | ⚠️ text-dependent | ✅ (healthy Unicode) | — | ✅ | ⚠️ page-dependent | ✅ |
 | Library-wide text indexing | ✅ | ⚠️ text-dependent | ✅ (healthy Unicode) | — | ✅ | ⚠️ page-dependent | ✅ |

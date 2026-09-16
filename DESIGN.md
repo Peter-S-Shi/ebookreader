@@ -764,7 +764,7 @@ The PDF Reader toolbar is structured into three clear semantic rows to avoid hor
 
 - **Row 2 — Reading Configuration**:
   - Contents (TOC) toggle (rendered only when outline/bookmarks exist);
-  - View mode selector (Single Page, Two Pages, Continuous Scroll);
+  - View mode selector (Single Page, Continuous Scroll);
   - Page Appearance selector (`Default`, `Day`, `Eye Care`, `Parchment`, `Night`);
   - Zoom level and page fit controls.
 
