@@ -36,6 +36,8 @@ export const DEFAULT_IMPORT_MODE_KEY = "files.default_import_mode";
 // ReadingProgress truth.
 export const LIBRARY_PROGRESS_DISPLAY_KEY = "library.progress_display_mode";
 export const COMPLETED_READ_MARK_KEY = "library.completed_read_mark_mode";
+// V2-M3 item 3: EPUB/TXT K/N reading-position indicator, optional and On by default.
+export const READING_POSITION_INDICATOR_ENABLED_KEY = "reading_position_indicator.enabled";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -59,6 +61,8 @@ export const DEFAULT_REDUCED_MOTION = false;
 // persistence to verify, but every ticket description and DESIGN.md's
 // bare mention agree it starts Off.
 export const DEFAULT_READING_CHECKPOINT_ENABLED = false;
+// V2-M3 item 3: defaults On per the spec.
+export const DEFAULT_READING_POSITION_INDICATOR_ENABLED = true;
 export type ImportMode = "reference" | "managed_copy";
 // PRODUCT_SPEC.md "Default V1 import mode: Reference."
 export const DEFAULT_IMPORT_MODE: ImportMode = "reference";

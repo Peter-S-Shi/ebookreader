@@ -12,6 +12,7 @@ import {
   DEFAULT_PAUSE_ON_BACKGROUND,
   DEFAULT_PROGRESS_DISPLAY_MODE,
   DEFAULT_READING_CHECKPOINT_ENABLED,
+  DEFAULT_READING_POSITION_INDICATOR_ENABLED,
   DEFAULT_THEME_MODE,
   DEFAULT_TRACK_ACTUAL_READING_TIME,
   DEFAULT_UPDATE_CHECK_ON_STARTUP,
@@ -28,6 +29,7 @@ import {
   loadUpdateCheckOnStartupPreference,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
+  READING_POSITION_INDICATOR_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   saveBooleanSetting,
   saveCompletedReadMarkMode,
@@ -65,6 +67,9 @@ export function Settings() {
   const [soundPageTurnEnabled, setSoundPageTurnEnabled] = useState(DEFAULT_SOUND_PAGE_TURN_ENABLED);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_REDUCED_MOTION);
   const [readingCheckpointEnabled, setReadingCheckpointEnabled] = useState(DEFAULT_READING_CHECKPOINT_ENABLED);
+  const [readingPositionIndicatorEnabled, setReadingPositionIndicatorEnabled] = useState(
+    DEFAULT_READING_POSITION_INDICATOR_ENABLED,
+  );
   const [defaultImportMode, setDefaultImportMode] = useState<ImportMode>(DEFAULT_IMPORT_MODE);
   const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
   const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
@@ -84,6 +89,7 @@ export function Settings() {
       loadBooleanSetting(SOUND_PAGE_TURN_ENABLED_KEY, DEFAULT_SOUND_PAGE_TURN_ENABLED),
       loadAndApplyMotionPreference(),
       loadBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, DEFAULT_READING_CHECKPOINT_ENABLED),
+      loadBooleanSetting(READING_POSITION_INDICATOR_ENABLED_KEY, DEFAULT_READING_POSITION_INDICATOR_ENABLED),
       loadDefaultImportMode(),
       loadLibraryProgressDisplayMode(),
       loadCompletedReadMarkMode(),
@@ -99,6 +105,7 @@ export function Settings() {
         soundEnabled,
         motionReduced,
         checkpointEnabled,
+        positionIndicatorEnabled,
         importMode,
         progressDisplay,
         completedReadMark,
@@ -114,6 +121,7 @@ export function Settings() {
         setSoundPageTurnEnabled(soundEnabled);
         setReducedMotion(motionReduced);
         setReadingCheckpointEnabled(checkpointEnabled);
+        setReadingPositionIndicatorEnabled(positionIndicatorEnabled);
         setDefaultImportMode(importMode);
         setProgressDisplayMode(progressDisplay);
         setCompletedReadMarkMode(completedReadMark);
@@ -178,6 +186,11 @@ export function Settings() {
   async function updateReadingCheckpointEnabled(next: boolean) {
     setReadingCheckpointEnabled(next);
     await saveBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, next);
+  }
+
+  async function updateReadingPositionIndicatorEnabled(next: boolean) {
+    setReadingPositionIndicatorEnabled(next);
+    await saveBooleanSetting(READING_POSITION_INDICATOR_ENABLED_KEY, next);
   }
 
   async function updateDefaultImportMode(next: ImportMode) {
@@ -437,6 +450,20 @@ export function Settings() {
                   aria-label="Prompt for a reflection when leaving a Reader session"
                   checked={readingCheckpointEnabled}
                   onChange={(e) => updateReadingCheckpointEnabled(e.target.checked)}
+                />
+              </label>
+            </div>
+            <div className="settingRow">
+              <div>
+                <b>Reading Position Indicator</b>
+                <div className="desc">Show your current page within the chapter (EPUB) or document (TXT).</div>
+              </div>
+              <label className="settings-field">
+                <input
+                  type="checkbox"
+                  aria-label="Reading Position Indicator"
+                  checked={readingPositionIndicatorEnabled}
+                  onChange={(e) => updateReadingPositionIndicatorEnabled(e.target.checked)}
                 />
               </label>
             </div>

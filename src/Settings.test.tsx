@@ -9,6 +9,7 @@ import {
   DEFAULT_IMPORT_MODE_KEY,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
+  READING_POSITION_INDICATOR_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
@@ -277,6 +278,41 @@ describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: READING_CHECKPOINT_ENABLED_KEY, value: "true" }),
+    );
+  });
+});
+
+describe("Settings — Reading Position Indicator (V2-M3 item 3)", () => {
+  it("defaults to On when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Reading Position Indicator" })).toBeChecked();
+  });
+
+  it("loads a persisted Off preference", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === READING_POSITION_INDICATOR_ENABLED_KEY) return "false";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Reading Position Indicator" })).not.toBeChecked();
+  });
+
+  it("persists turning the preference off", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Reading Position Indicator" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: READING_POSITION_INDICATOR_ENABLED_KEY,
+        value: "false",
+      }),
     );
   });
 });

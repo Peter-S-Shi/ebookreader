@@ -394,3 +394,28 @@ describe("Reader — Highlight Management", () => {
     await waitFor(() => expect(document.querySelector(".highlight-swatch--clear")).not.toBeNull());
   });
 });
+
+describe("Reader — reading position indicator (V2-M3 item 3)", () => {
+  it("shows K/N derived from the renderer's page/pages, stripping foliate-js's phantom padding", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="Position Indicator Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+
+    Object.assign(fakeView.renderer, { page: 3, pages: 9 });
+    fakeView.dispatchEvent(new CustomEvent("relocate", { detail: { cfi: "epubcfi(/6/4!/2)", fraction: 0.25 } }));
+
+    expect(await screen.findByLabelText("Reading position")).toHaveTextContent("2 / 8");
+  });
+
+  it("hides the indicator entirely when the renderer reports no real pages (e.g. Continuous Scroll mode)", async () => {
+    const fakeView = mockFoliateView();
+    render(<Reader bookId="b1" title="No Pagination Book" onBack={vi.fn()} />);
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+
+    Object.assign(fakeView.renderer, { page: 0, pages: 0 });
+    fakeView.dispatchEvent(new CustomEvent("relocate", { detail: { cfi: "epubcfi(/6/4!/2)", fraction: 0.25 } }));
+
+    await waitFor(() => expect(fakeView.open).toHaveBeenCalled());
+    expect(screen.queryByLabelText("Reading position")).not.toBeInTheDocument();
+  });
+});
