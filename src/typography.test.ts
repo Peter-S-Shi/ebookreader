@@ -41,7 +41,10 @@ describe("toEpubCss", () => {
     const css = toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8 });
 
     expect(css).toMatch(/:where\([^)]*p[^)]*\)\s*\{[^}]*line-height:\s*1\.8\s*!important/);
-    expect(css).not.toMatch(/(?:ruby|rt|rp|sup|sub|table|pre|code)[^{]*\{[^}]*line-height:/);
+    // Word-bounded: V2-M1 added several more `!important` declarations to
+    // the body rule, and unbounded "rt"/"pre" alternatives here would
+    // false-match inside words like "important" and "padding-right".
+    expect(css).not.toMatch(/\b(?:ruby|rt|rp|sup|sub|table|pre|code)\b[^{]*\{[^}]*line-height:/);
     expect(css).not.toContain("* { line-height:");
   });
 
@@ -64,6 +67,74 @@ describe("toEpubCss", () => {
     expect(getComputedStyle(fixture.querySelector("sup")!).lineHeight).toBe("0.7");
     expect(getComputedStyle(fixture.querySelector("code")!).lineHeight).toBe("1.2");
     fixture.remove();
+  });
+
+  describe("publisher preference-override compatibility (V2-M1)", () => {
+    // Regression coverage for a real-world failure class: some publisher
+    // stylesheets (e.g. Calibre-exported EPUBs) apply a class directly to
+    // <body> that sets font-size/margin/padding with higher specificity
+    // than a plain `body { ... }` selector, and/or apply font-size classes
+    // directly to paragraph-level elements. Both previously froze the
+    // reader's font size, page width, and margin controls.
+    it("wins font-size, margins, and padding against a publisher class applied to <body> itself", () => {
+      const style = document.createElement("style");
+      style.textContent =
+        `.publisher-body { font-size: 1em; padding-left: 0; padding-right: 0; margin: 0 5pt; }\n` +
+        toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160, marginPercent: 12 });
+      document.head.append(style);
+      document.body.classList.add("publisher-body");
+
+      const bodyStyle = getComputedStyle(document.body);
+      expect(bodyStyle.fontSize).toBe("25.6px"); // 160% of the 16px UA default
+      expect(bodyStyle.paddingLeft).toBe("12%");
+      expect(bodyStyle.paddingRight).toBe("12%");
+      expect(bodyStyle.marginLeft).toBe("auto");
+      expect(bodyStyle.marginRight).toBe("auto");
+
+      document.body.classList.remove("publisher-body");
+      style.remove();
+    });
+
+    it("wins font-size against a publisher class applied directly to <p>", () => {
+      const fixture = document.createElement("div");
+      fixture.innerHTML =
+        `<style>.publisher-para { font-size: 12px; }</style>` +
+        `<style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160 })}</style>` +
+        `<p class="publisher-para">Ordinary reading text</p>`;
+      document.body.append(fixture);
+
+      expect(getComputedStyle(fixture.querySelector("p")!).fontSize).toBe("25.6px");
+      fixture.remove();
+    });
+
+    it("applies the font-size preference once, not compounded, for prose nested in other prose (e.g. a quoted paragraph inside a blockquote)", () => {
+      const fixture = document.createElement("div");
+      fixture.innerHTML =
+        `<style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160 })}</style>` +
+        `<blockquote><p>Quoted reading text</p></blockquote>` +
+        `<p>Ordinary reading text</p>`;
+      document.body.append(fixture);
+
+      const nestedParagraphSize = getComputedStyle(fixture.querySelector("blockquote > p")!).fontSize;
+      const loneParagraphSize = getComputedStyle(fixture.querySelectorAll("p")[1]).fontSize;
+      expect(nestedParagraphSize).toBe(loneParagraphSize);
+      expect(nestedParagraphSize).toBe("25.6px");
+      fixture.remove();
+    });
+
+    it("keeps both the line-height override and a chosen font-family override winning together", () => {
+      const fixture = document.createElement("div");
+      fixture.innerHTML =
+        `<style>p { line-height: 1.05; }</style>` +
+        `<style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8, font: { source: "SYSTEM", family: "Georgia" } })}</style>` +
+        `<p>Ordinary reading text</p>`;
+      document.body.append(fixture);
+
+      const computed = getComputedStyle(fixture.querySelector("p")!);
+      expect(computed.lineHeight).toBe("1.8");
+      expect(computed.fontFamily).toContain("Georgia");
+      fixture.remove();
+    });
   });
 
   it("adds a CJK override after the primary family without replacing Latin/body font", () => {

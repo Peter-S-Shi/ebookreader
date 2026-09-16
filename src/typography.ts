@@ -123,30 +123,66 @@ const DARK_MODE_BACKGROUND = "#1a1a1a";
 /// the caller) forces a readable foreground/background on the rendered
 /// section regardless of font source -- see HA-007 above.
 export function toEpubCss(settings: TypographySettings, darkMode = false): string {
-  const rules: string[] = [
-    `font-size: ${settings.fontSizePercent}%`,
-    `line-height: ${settings.lineHeight}`,
-    `max-width: ${settings.pageWidthCh}ch`,
-    "margin-left: auto",
-    "margin-right: auto",
-    `padding-left: ${settings.marginPercent}%`,
-    `padding-right: ${settings.marginPercent}%`,
+  const stack = familyStack(settings);
+  // V2-M1 (EPUB Reader Preference Override Compatibility): a publication
+  // frequently applies its own class directly to `<body>` (Calibre-exported
+  // EPUBs commonly emit `<body class="calibre">` with `font-size`, `margin`,
+  // and `padding` declarations) with higher specificity than this plain
+  // `body { ... }` selector, which silently froze the reader's font size,
+  // page width, and margin controls -- the publication's class won the
+  // cascade regardless of declaration order. Every reader-controlled
+  // property here needs `!important` for the same reason color already
+  // does below (HA-007): correctness must not depend on the publication's
+  // CSS never targeting `body` with a competing selector.
+  const bodyDeclarations = [
+    `font-size: ${settings.fontSizePercent}% !important`,
+    `line-height: ${settings.lineHeight} !important`,
+    `max-width: ${settings.pageWidthCh}ch !important`,
+    "margin-left: auto !important",
+    "margin-right: auto !important",
+    `padding-left: ${settings.marginPercent}% !important`,
+    `padding-right: ${settings.marginPercent}% !important`,
   ];
   if (darkMode) {
-    rules.push("color-scheme: dark");
+    bodyDeclarations.push("color-scheme: dark");
   }
-  const stack = familyStack(settings);
   if (stack) {
-    rules.push(`font-family: ${stack}`);
+    bodyDeclarations.push(`font-family: ${stack} !important`);
   }
   const faces = [fontFace(settings.font), settings.cjkFont ? fontFace(settings.cjkFont) : null].filter(Boolean);
-  const bodyRule = `body { ${rules.join("; ")}; }`;
-  // Publisher styles commonly assign line-height directly to paragraphs
-  // and list content, which prevents an inherited body value from taking
-  // effect. Apply the reader preference to ordinary reflowable prose only.
-  // Deliberately exclude ruby, super/subscript, tables, and preformatted or
-  // code structures whose internal metrics carry semantic layout.
-  const proseLineHeightRule = `:where(p, li, dd, dt, blockquote) { line-height: ${settings.lineHeight} !important; }`;
+  const bodyRule = `body { ${bodyDeclarations.join("; ")}; }`;
+  // Publisher styles commonly assign font-size/line-height/font-family
+  // directly to paragraphs and list content (either explicitly, or via a
+  // class on the paragraph itself), which prevents an inherited body value
+  // from taking effect. Apply the reader preference to ordinary reflowable
+  // prose only. Deliberately exclude ruby, super/subscript, tables, and
+  // preformatted or code structures whose internal metrics carry semantic
+  // layout.
+  //
+  // font-size is expressed in `rem` (root-relative), not `%`
+  // (parent-relative): prose elements can themselves nest (e.g. a quoted
+  // `<p>` inside a `<blockquote>`, both matched by this same selector), and
+  // a percentage recompounds at every matched ancestor level -- a `160%`
+  // rule would compute to `160% * 160%` for such a nested paragraph. `rem`
+  // always resolves against the root element's font-size, so every matched
+  // element gets the same absolute size regardless of nesting depth.
+  //
+  // Each declaration needs its own `!important` -- V2-M1 root-cause audit
+  // of the withdrawn recovery patch (commit 441ce2f) found that appending a
+  // single trailing `!important` after a joined declaration list only
+  // binds, per CSS grammar, to the last declaration in that list. That
+  // silently left `font-size` completely unprotected, and dropped
+  // `line-height`'s protection whenever a font was also chosen (font-family
+  // became the trailing declaration instead).
+  const proseSelector = ":where(p, li, dd, dt, blockquote)";
+  const proseDeclarations = [
+    `font-size: ${settings.fontSizePercent / 100}rem !important`,
+    `line-height: ${settings.lineHeight} !important`,
+  ];
+  if (stack) {
+    proseDeclarations.push(`font-family: ${stack} !important`);
+  }
+  const proseTypographyRule = `${proseSelector} { ${proseDeclarations.join("; ")}; }`;
   // `!important` because a Book's own embedded stylesheet frequently sets
   // `color`/`background-color` on `body` (or `html`) with higher
   // specificity than this single element selector -- without it, dark
@@ -179,7 +215,7 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
     ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }` +
       `\nhtml *, body * { color: ${DARK_MODE_FOREGROUND} !important; }`
     : "";
-  return [...faces, bodyRule, proseLineHeightRule, colorOverride, highlightCss].filter(Boolean).join("\n");
+  return [...faces, bodyRule, proseTypographyRule, colorOverride, highlightCss].filter(Boolean).join("\n");
 }
 
 export function toTextStyle(settings: TypographySettings): Record<string, string | number | undefined> {
