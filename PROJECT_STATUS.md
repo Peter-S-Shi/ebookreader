@@ -83,7 +83,7 @@ Current Phase: **V2 Feature Freeze / Product Hardening Entry**. V1.0.0 remains t
 
 **Pre-Freeze UX Addenda (Complete — Human Acceptance PASS):**
 - **Addendum A — Library Sorting & Duplicate Import Clarity**: Added compact `Sort by:` dropdown supporting 6 sort modes (`Title A → Z`, `Title Z → A`, `Recently Imported newest/oldest`, `Recently Opened newest/oldest`). Implemented deterministic multilingual sorting with numeric natural sort, English collation, and Simplified Chinese pinyin collation (`zh-CN-u-co-pinyin`) with leading punctuation normalization (`《》`, quotes, brackets). Duplicate import dialog clearly surfaces the current Library title.
-- **Addendum B — PDF Reader Toolbar Re-layout**: Reorganized PDF Reader chrome into clear header identity (Row 1), reading configuration (Row 2: Document, View, Geometry), and actions/tools (Row 3: Navigation, Tools) with responsive group wrapping.
+- **Addendum B — PDF Reader Toolbar Re-layout**: Reorganized PDF Reader chrome into clear header identity (Row 1), reading configuration (Row 2: Document, Appearance, Geometry), and actions/tools (Row 3: Navigation, Tools) with responsive group wrapping.
 - **Addendum C — PDF Page 1 Cover Thumbnails in Library**: Extended `BookCover` to render Page 1 PDF thumbnails using offscreen canvas and session-memory caching. Features `IntersectionObserver` visibility-gated lazy loading, bounded concurrency queue (`MAX_CONCURRENT_PDF_COVERS = 2`), in-flight deduplication, and format placeholder fallback.
 
 **V2-M5 Hardening Product Scope Decision (Complete):**
