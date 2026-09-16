@@ -291,6 +291,14 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+
+      const pageDiv = canvas.parentElement;
+      if (pageDiv && pageDiv.classList.contains("pdf-page")) {
+        pageDiv.style.width = `${viewport.width}px`;
+        pageDiv.style.height = `${viewport.height}px`;
+      }
 
       renderTask = page.render({ canvasContext: context, viewport, canvas });
       await renderTask.promise.catch(() => {});

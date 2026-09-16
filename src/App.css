@@ -487,6 +487,8 @@ a:hover {
   overflow: auto;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
 }
 
 .pdf-continuous {
@@ -1033,6 +1035,13 @@ a:hover {
    so DOM character geometry precisely matches the rendered canvas. */
 .pdf-page {
   position: relative;
+  display: inline-block;
+  line-height: 0;
+  margin: auto;
+}
+
+.pdf-page canvas {
+  display: block;
 }
 
 .textLayer,
