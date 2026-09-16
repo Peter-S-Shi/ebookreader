@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { currentPageFromScroll } from "./pdfContinuous";
+import {
+  computeActivePageRange,
+  computeActivePagesFromScroll,
+  currentPageFromScroll,
+  diffActivePages,
+  estimatePageDimensions,
+} from "./pdfContinuous";
 
 describe("currentPageFromScroll", () => {
   const heights = [100, 200, 150]; // page 1: 0-100, page 2: 100-300, page 3: 300-450
@@ -22,5 +28,68 @@ describe("currentPageFromScroll", () => {
 
   it("returns 1 for an empty page list", () => {
     expect(currentPageFromScroll([], 50)).toBe(1);
+  });
+});
+
+describe("computeActivePageRange", () => {
+  it("bounds the active range around the current page with overscan", () => {
+    expect(computeActivePageRange(1, 100, 2)).toEqual({ startPage: 1, endPage: 3 });
+    expect(computeActivePageRange(50, 100, 2)).toEqual({ startPage: 48, endPage: 52 });
+    expect(computeActivePageRange(100, 100, 2)).toEqual({ startPage: 98, endPage: 100 });
+  });
+
+  it("handles small documents where total pages is less than window", () => {
+    expect(computeActivePageRange(1, 2, 2)).toEqual({ startPage: 1, endPage: 2 });
+    expect(computeActivePageRange(2, 2, 2)).toEqual({ startPage: 1, endPage: 2 });
+  });
+
+  it("clamps invalid page inputs gracefully", () => {
+    expect(computeActivePageRange(0, 10, 2)).toEqual({ startPage: 1, endPage: 3 });
+    expect(computeActivePageRange(50, 10, 2)).toEqual({ startPage: 8, endPage: 10 });
+  });
+});
+
+describe("computeActivePagesFromScroll", () => {
+  const heights = [500, 500, 500, 500, 500, 500, 500, 500, 500, 500]; // 10 pages, 500px each
+
+  it("determines intersecting pages plus overscan", () => {
+    // Viewport height 800 at scrollTop 1200 -> covers y in [1200, 2000]
+    // Directly visible: page 3 (1000-1500), page 4 (1500-2000)
+    // Overscan = 1 page: includes page 2 (before) and page 5 (after)
+    const active = computeActivePagesFromScroll(heights, 1200, 800, 1);
+    expect(active).toEqual([2, 3, 4, 5]);
+  });
+
+  it("handles top of document without underflowing below page 1", () => {
+    const active = computeActivePagesFromScroll(heights, 0, 600, 1);
+    expect(active).toEqual([1, 2, 3]);
+  });
+
+  it("handles bottom of document without overflowing total pages", () => {
+    const active = computeActivePagesFromScroll(heights, 4500, 600, 1);
+    expect(active).toEqual([9, 10]);
+  });
+});
+
+describe("estimatePageDimensions", () => {
+  it("scales page 1 unscaled dimensions by zoomScale", () => {
+    const dims = estimatePageDimensions({ width: 600, height: 800 }, 1.5);
+    expect(dims).toEqual({ width: 900, height: 1200 });
+  });
+
+  it("uses sensible standard document default if unscaled viewport is not provided", () => {
+    const dims = estimatePageDimensions(null, 1.0);
+    expect(dims.width).toBeGreaterThan(500);
+    expect(dims.height).toBeGreaterThan(700);
+  });
+});
+
+describe("diffActivePages", () => {
+  it("determines pages to mount/render and pages to evict/clean", () => {
+    const previous = new Set([1, 2, 3]);
+    const next = new Set([2, 3, 4, 5]);
+    const { toRender, toEvict } = diffActivePages(previous, next);
+    expect(toRender).toEqual([4, 5]);
+    expect(toEvict).toEqual([1]);
   });
 });
