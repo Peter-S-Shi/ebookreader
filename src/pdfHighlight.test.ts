@@ -185,4 +185,32 @@ describe("pdfHighlight module", () => {
     expect(highlight?.parentElement?.tagName.toLowerCase()).toBe("span");
     expect(container.textContent).toBe("Hello world of PDF text");
   });
+
+  it("matches cross-span selections with spaces/newlines when DOM spans lack whitespace (CJK text flow)", () => {
+    container.className = "textLayer pdf-text-layer";
+    container.innerHTML = `
+      <span>○王天兵：提起电影，电影发烧友可能首先会想</span>
+      <span>到……艺术。可是，一提起类型片，大家马上会想</span>
+      <span>起格式化的情节、程式化的人物和正义战胜邪恶的</span>
+      <span>主题，像007系列和成龙电影等，也就是娱乐产</span>
+      <span>品。</span>
+    `;
+
+    // Query text extracted by browser selection with spaces between lines
+    const annotation: PdfAnnotationItem = {
+      id: "ann-cjk-multiline",
+      text: "王天兵：提起电影，电影发烧友可能首先会想 到……艺术。可是，一提起类型片，大家马上会想 起格式化的情节、程式化的人物和正义战胜邪恶的 主题，像007系列和成龙电影等，也就是娱乐产 品。",
+      color: "green",
+    };
+
+    applyPdfHighlights(container, [annotation]);
+
+    const highlights = container.querySelectorAll(".reader-highlight");
+    expect(highlights.length).toBe(5);
+    expect(highlights[0].textContent).toBe("王天兵：提起电影，电影发烧友可能首先会想");
+    expect(highlights[1].textContent).toBe("到……艺术。可是，一提起类型片，大家马上会想");
+    expect(highlights[2].textContent).toBe("起格式化的情节、程式化的人物和正义战胜邪恶的");
+    expect(highlights[3].textContent).toBe("主题，像007系列和成龙电影等，也就是娱乐产");
+    expect(highlights[4].textContent).toBe("品。");
+  });
 });

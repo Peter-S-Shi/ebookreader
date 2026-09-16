@@ -52,6 +52,7 @@ function collectTextNodes(container: HTMLElement): { entries: TextNodeEntry[]; f
 
 /**
  * Finds the best match offset range for `query` in `fullText`, using prefix/suffix context if available.
+ * Handles whitespace differences, newlines, and cross-span line breaks robustly.
  */
 function findMatchRange(
   fullText: string,
@@ -64,14 +65,36 @@ function findMatchRange(
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return null;
 
-  // Search all candidate occurrences of normalizedQuery (case-insensitive)
-  const candidateIndices: number[] = [];
-  const lowerFull = fullText.toLowerCase();
-  const lowerQuery = normalizedQuery.toLowerCase();
+  // Build mapping of non-whitespace characters from fullText to raw character offsets
+  const fullChars: { char: string; rawIndex: number }[] = [];
+  for (let i = 0; i < fullText.length; i++) {
+    const ch = fullText[i];
+    if (!/\s/.test(ch)) {
+      fullChars.push({ char: ch.toLowerCase(), rawIndex: i });
+    }
+  }
 
+  // Extract non-whitespace characters from query
+  const queryChars: string[] = [];
+  for (let i = 0; i < normalizedQuery.length; i++) {
+    const ch = normalizedQuery[i];
+    if (!/\s/.test(ch)) {
+      queryChars.push(ch.toLowerCase());
+    }
+  }
+
+  if (queryChars.length === 0 || fullChars.length === 0) {
+    return null;
+  }
+
+  const normFullStr = fullChars.map((c) => c.char).join("");
+  const normQueryStr = queryChars.join("");
+
+  // Search all candidate occurrences of normQueryStr in normFullStr
+  const candidateIndices: number[] = [];
   let searchFrom = 0;
-  while (searchFrom < lowerFull.length) {
-    const idx = lowerFull.indexOf(lowerQuery, searchFrom);
+  while (searchFrom < normFullStr.length) {
+    const idx = normFullStr.indexOf(normQueryStr, searchFrom);
     if (idx === -1) break;
     candidateIndices.push(idx);
     searchFrom = idx + 1;
@@ -81,39 +104,40 @@ function findMatchRange(
     return null;
   }
 
-  if (candidateIndices.length === 1 || (!contextPrefix && !contextSuffix)) {
-    const start = candidateIndices[0];
-    return { start, end: start + normalizedQuery.length };
-  }
-
-  // Score candidate occurrences by context overlap
-  const prefix = (contextPrefix || "").trim().toLowerCase();
-  const suffix = (contextSuffix || "").trim().toLowerCase();
+  const prefixChars = (contextPrefix || "").replace(/\s/g, "").toLowerCase();
+  const suffixChars = (contextSuffix || "").replace(/\s/g, "").toLowerCase();
 
   let bestIdx = candidateIndices[0];
   let bestScore = -1;
 
-  for (const idx of candidateIndices) {
-    let score = 0;
-    if (prefix) {
-      const beforeText = lowerFull.slice(Math.max(0, idx - prefix.length - 20), idx);
-      if (beforeText.endsWith(prefix) || beforeText.includes(prefix)) {
-        score += 10;
+  if (candidateIndices.length === 1 || (!prefixChars && !suffixChars)) {
+    bestIdx = candidateIndices[0];
+  } else {
+    for (const idx of candidateIndices) {
+      let score = 0;
+      if (prefixChars) {
+        const beforeText = normFullStr.slice(Math.max(0, idx - prefixChars.length - 20), idx);
+        if (beforeText.endsWith(prefixChars) || beforeText.includes(prefixChars)) {
+          score += 10;
+        }
       }
-    }
-    if (suffix) {
-      const afterText = lowerFull.slice(idx + lowerQuery.length, idx + lowerQuery.length + suffix.length + 20);
-      if (afterText.startsWith(suffix) || afterText.includes(suffix)) {
-        score += 10;
+      if (suffixChars) {
+        const afterText = normFullStr.slice(idx + normQueryStr.length, idx + normQueryStr.length + suffixChars.length + 20);
+        if (afterText.startsWith(suffixChars) || afterText.includes(suffixChars)) {
+          score += 10;
+        }
       }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      bestIdx = idx;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
     }
   }
 
-  return { start: bestIdx, end: bestIdx + normalizedQuery.length };
+  const rawStart = fullChars[bestIdx].rawIndex;
+  const rawEnd = fullChars[bestIdx + normQueryStr.length - 1].rawIndex + 1;
+
+  return { start: rawStart, end: rawEnd };
 }
 
 /**
@@ -151,6 +175,10 @@ export function applyPdfHighlights(
       const beforeText = entry.text.slice(0, localStart);
       const matchedText = entry.text.slice(localStart, localEnd);
       const afterText = entry.text.slice(localEnd);
+
+      if (entry.parentSpan === null && !matchedText.trim()) {
+        continue;
+      }
 
       const highlightSpan = document.createElement("span");
       highlightSpan.className = "reader-highlight";
