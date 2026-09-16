@@ -714,6 +714,57 @@ describe("Library grid progress display (V2-M3 item 2)", () => {
     expect(within(continueReadingCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
     expect(within(bookCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
   });
+
+  it("reflects a Progress Display change made in Settings after navigating back to the Library (orphan-settings correction)", async () => {
+    // Bug report: toggling Progress Display / Completed Read Mark in
+    // Settings has zero visible effect on the Library. Root cause: App's
+    // own `progressDisplayMode`/`completedReadMarkMode` state is loaded
+    // once at mount (`useEffect(..., [])`) and Settings keeps a completely
+    // separate copy of the same two settings -- App is never told the
+    // setting changed, in-process or via navigation, so it keeps rendering
+    // whatever it read at startup no matter how many times Settings saves
+    // a new value.
+    const user = userEvent.setup();
+    const settingsStore: Record<string, string> = {};
+    const books = [
+      {
+        book_id: "active",
+        title: "Active Book",
+        path: "C:/books/active.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-09-09T01:00:00Z",
+      },
+    ];
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string; key?: string; value?: string }) => {
+      if (cmd === "list_library_command") return [...books];
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") {
+        return { completed_read_count: 1, active_read_in_progress: true, active_pass_progress: 31 };
+      }
+      if (cmd === "set_setting_command" && args?.key !== undefined) {
+        settingsStore[args.key] = args.value as string;
+        return undefined;
+      }
+      return undefined;
+    });
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command") return settingsStore[args?.key ?? ""] ?? null;
+      return null;
+    });
+
+    render(<App />);
+    // completed_read_count(1) * 100 + active_pass_progress(31) = 131 (cumulative, the default).
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("131%")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const currentRadio = await screen.findByRole("radio", { name: "Current Read Progress" });
+    await user.click(currentRadio);
+    await waitFor(() => expect(currentRadio).toBeChecked());
+
+    await user.click(screen.getByRole("button", { name: "Library" }));
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("31%")).toBeInTheDocument());
+  });
 });
 
 describe("Startup Update Awareness check (PRODUCT_SPEC.md SS17; FC-C08)", () => {

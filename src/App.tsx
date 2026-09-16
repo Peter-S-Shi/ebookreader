@@ -199,10 +199,17 @@ function App() {
   const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
   const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
 
+  // Orphan-settings correction: Settings owns its own copy of these two
+  // settings and saves them straight to the backend store; it has no way
+  // to tell App's copy changed, and App otherwise never re-reads them
+  // after its initial mount. Re-reading whenever the Library view becomes
+  // current (covers both "Settings -> Library" and "any other destination
+  // -> Library" navigation) picks up whatever was last saved.
   useEffect(() => {
+    if (destination !== "library") return;
     loadLibraryProgressDisplayMode().then(setProgressDisplayMode);
     loadCompletedReadMarkMode().then(setCompletedReadMarkMode);
-  }, []);
+  }, [destination]);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
