@@ -1,14 +1,20 @@
 //! Progress, Completion, and Re-reading (`PRODUCT_SPEC.md` SS8).
 //!
-//! Frozen V1 algorithm: `Cumulative Reading % = completed_read_count × 100
-//! + active_pass_progress` (`active_pass_progress = 0` when no active read
-//! exists). Reaching the final page (SS8.1) increments the completed-read
-//! count and closes the active read; the user is then prompted to start
-//! the next read or stay at 100%. SS8.2 "No rereading inference":
-//! backtracking/chapter-jumping/search-jumping must never increase
-//! cumulative reading percentage -- enforced here by tracking the
-//! *furthest* point reached in the active pass, monotonically, rather
-//! than the current navigation position.
+//! Formula (unchanged since V1): `Cumulative Reading % = completed_read_count
+//! × 100 + active_pass_progress` (`active_pass_progress = 0` when no active
+//! read exists). Reaching the final page (SS8.1) increments the
+//! completed-read count and closes the active read; the user is then
+//! prompted to start the next read or stay at the completed value.
+//! `completed_read_count × 100` is permanent, irreversible historical
+//! credit -- ordinary navigation never decreases it.
+//!
+//! V2-M3 current-position semantics (supersedes V1's SS8.2 "no rereading
+//! inference"): while a read is active, `active_pass_progress` is the
+//! user's *current* position, not the furthest point ever reached, so it
+//! can move both forward and backward through ordinary navigation
+//! (Previous/Next, TOC/search jumps, etc.). V1 instead tracked the
+//! furthest point monotonically via a `.max()` comparison, so backtracking
+//! could never reduce it; that comparison has been removed.
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub struct ReadingProgress {
@@ -49,16 +55,19 @@ impl ReadingProgress {
         self.completed_read_count as f64 * 100.0 + progress_for_calc
     }
 
-    /// SS8.2: forward progress within the active read only. Takes the max
-    /// of the current and new value, so backtracking/chapter-jumping/
-    /// search-jumping to an earlier point in the book can never move this
-    /// backwards or otherwise "infer" a new read. A no-op if no read is
-    /// currently active (SS8.1 "If No: no new active read exists").
+    /// V2-M3: current-position semantics within the active read. Sets the
+    /// active-read progress to wherever the user currently is -- forward
+    /// or backward -- via Previous/Next, TOC/search jumps, or any other
+    /// navigation. Superseded V1 behavior (`.max()` against the furthest
+    /// point ever reached, so backtracking could never move this value
+    /// down) per an explicit product decision to replace "furthest point
+    /// reached" with "current position." A no-op if no read is currently
+    /// active (SS8.1 "If No: no new active read exists").
     pub fn advance_active_progress(&mut self, progress: f64) {
         if !self.active_read_in_progress {
             return;
         }
-        self.active_pass_progress = self.active_pass_progress.max(progress.clamp(0.0, 100.0));
+        self.active_pass_progress = progress.clamp(0.0, 100.0);
     }
 
     /// SS8.1: reaching the final page. Increments completed_read_count and
@@ -115,16 +124,22 @@ mod tests {
     }
 
     #[test]
-    fn backtracking_to_an_earlier_point_does_not_reduce_progress_ss8_2_no_rereading_inference() {
+    fn backtracking_to_an_earlier_point_reduces_active_progress_v2_m3_current_position_semantics() {
+        // V2-M3 replaces V1's monotonic "furthest point reached" semantics
+        // (the prior test this replaces asserted the opposite) with
+        // current-position semantics: active-read progress is wherever the
+        // user currently is, and may move backward, per the spec example
+        // "first read reaches 68%, user returns to 31%, exits -> 31%."
         let mut progress = ReadingProgress::new();
-        progress.advance_active_progress(60.0);
-        progress.advance_active_progress(20.0); // user jumped back to an earlier chapter
+        progress.advance_active_progress(68.0);
+        progress.advance_active_progress(31.0); // user navigated back to an earlier point
 
         assert_eq!(
             progress.active_pass_progress(),
-            60.0,
-            "furthest point reached must be retained, not overwritten by backtracking"
+            31.0,
+            "active-read progress reflects the current position, not the furthest point ever reached"
         );
+        assert_eq!(progress.cumulative_percent(), 31.0);
     }
 
     #[test]
