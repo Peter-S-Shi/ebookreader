@@ -625,6 +625,51 @@ describe("Library grid progress display (V2-M3 item 2)", () => {
 
     expect(screen.queryByText(/^Read \d+ times?$/)).not.toBeInTheDocument();
   });
+
+  it("refetches Library progress after returning from the Reader, so an in-session backtrack is not shown stale", async () => {
+    // V2-M3 human-acceptance correction: the Library-progress fetch effect
+    // only re-runs when `books` itself changes reference, which finishing
+    // a reading session alone never triggered -- so the card kept showing
+    // whatever value was fetched before the session started, even after
+    // the user backtracked to an earlier (lower) position and left the
+    // Reader. `onBack` must force a re-fetch.
+    const user = userEvent.setup();
+    let activeProgress = { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 60 };
+    const books = [
+      {
+        book_id: "active",
+        title: "Active Book",
+        path: "C:/books/active.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-09-09T01:00:00Z",
+      },
+    ];
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string }) => {
+      // A real Tauri IPC round trip always deserializes a fresh array (even
+      // with byte-identical content), so return a new array each call --
+      // matching that, not React state's `Object.is` bailout on the exact
+      // same JS reference the test happened to hold onto.
+      if (cmd === "list_library_command") return [...books];
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") return activeProgress;
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("Active Book");
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("60%")).toBeInTheDocument());
+
+    // Backend now reports a lower position -- as if the user paged forward
+    // then back during the just-finished session.
+    activeProgress = { ...activeProgress, active_pass_progress: 25 };
+
+    await user.click(within(bookCard("Active Book")).getByRole("button", { name: "Active Book" }));
+    await screen.findByText(/Reading: Active Book/);
+    await user.click(screen.getByRole("button", { name: "Back to Library" }));
+
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("25%")).toBeInTheDocument());
+  });
 });
 
 describe("Startup Update Awareness check (PRODUCT_SPEC.md SS17; FC-C08)", () => {
@@ -1268,9 +1313,14 @@ describe("Opening a book", () => {
 
   it("returns to the Library when the Reader's Back to Library is clicked", async () => {
     const user = userEvent.setup();
-    invokeMock.mockResolvedValueOnce([
+    const library = [
       { book_id: "epub-1", title: "Openable EPUB", path: "C:/books/openable.epub", format: "epub", ownership_mode: "reference", available: true },
-    ]);
+    ];
+    invokeMock.mockResolvedValueOnce(library);
+    // V2-M3 human-acceptance correction: leaving the Reader now refetches
+    // the Library (so progress isn't shown stale) -- a second
+    // `list_library_command` call.
+    invokeMock.mockResolvedValueOnce(library);
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Openable EPUB" }));
     await screen.findByText(/Reading: Openable EPUB/);

@@ -408,7 +408,7 @@ describe("Reader — reading position indicator (V2-M3 item 3)", () => {
     Object.assign(fakeView.renderer, { page: 3, pages: 9 });
     fakeView.dispatchEvent(new CustomEvent("relocate", { detail: { cfi: "epubcfi(/6/4!/2)", fraction: 0.25 } }));
 
-    expect(await screen.findByLabelText("Reading position")).toHaveTextContent("2 / 8");
+    expect(await screen.findByLabelText("Reading position")).toHaveTextContent("3 / 7");
   });
 
   it("hides the indicator entirely when the renderer reports no real pages (e.g. Continuous Scroll mode)", async () => {

@@ -619,6 +619,14 @@ function App() {
     const onBack = () => {
       setOpenBook(null);
       setPendingAnchor(null);
+      // V2-M3 human-acceptance correction: the Library grid's progress
+      // display (and Continue Reading) only refetch when `books` itself
+      // changes reference, which a reading session alone never triggers --
+      // so backtracking within a session and then leaving the Reader used
+      // to show the stale value fetched before the session started.
+      // `refreshLibrary()` always installs a fresh `books` array from the
+      // backend, which re-arms that fetch effect.
+      refreshLibrary();
     };
     const props = {
       bookId: openBook.book_id,
