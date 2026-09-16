@@ -42,11 +42,13 @@ const mockPdfDocument = {
   getPageIndex: mockGetPageIndex,
 };
 
+const mockGetDocument = vi.fn((_params?: any) => ({
+  promise: Promise.resolve(mockPdfDocument),
+}));
+
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
-  getDocument: () => ({
-    promise: Promise.resolve(mockPdfDocument),
-  }),
+  getDocument: (params: any) => mockGetDocument(params),
   TextLayer: class {
     render() {
       return Promise.resolve();
@@ -67,6 +69,7 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   invokeMock.mockReset();
   openUrlMock.mockReset();
+  mockGetDocument.mockClear();
   mockGetPage.mockClear();
   viewportScales.length = 0;
   mockRenderTask.cancel.mockClear();
@@ -101,6 +104,20 @@ beforeEach(() => {
       return { state: "active", total_excluded_ms: 0, total_note_taking_ms: 0 };
     }
     return null;
+  });
+});
+
+describe("PdfReader — Document loading configuration", () => {
+  it("initializes pdfjs getDocument with static cMapUrl, cMapPacked, and wasmUrl paths", async () => {
+    render(<PdfReader bookId="pdf1" title="PDF Document Loading" onBack={vi.fn()} />);
+    await screen.findByDisplayValue("12");
+
+    expect(mockGetDocument).toHaveBeenCalledTimes(1);
+    const callArgs = mockGetDocument.mock.calls[0][0];
+    expect(callArgs.cMapUrl).toBe("/cmaps/");
+    expect(callArgs.cMapPacked).toBe(true);
+    expect(callArgs.wasmUrl).toBe("/wasm/");
+    expect(callArgs.data).toBeInstanceOf(Uint8Array);
   });
 });
 

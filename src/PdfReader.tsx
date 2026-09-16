@@ -31,6 +31,7 @@ import {
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { extractPagePdfLinks, type PdfLinkItem, type PdfLinkTarget } from "./pdfLinks";
 import { PdfExternalLinkModal } from "./PdfExternalLinkModal";
+import { createPdfDocumentLoadingParams } from "./pdfDocumentOptions";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -165,12 +166,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     (async () => {
       const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
-      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
-      const pdf = await pdfjsLib.getDocument({
-        data: uint8Bytes,
-        cMapUrl: "/cmaps/",
-        cMapPacked: true,
-      }).promise;
+      const pdf = await pdfjsLib.getDocument(createPdfDocumentLoadingParams(rawBytes)).promise;
       if (cancelled) return;
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
       // An anchor that fails to parse to a valid in-range page is reported
