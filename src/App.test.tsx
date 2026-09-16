@@ -279,9 +279,12 @@ describe("Library", () => {
     expect(screen.getByText("Keep Book")).toBeInTheDocument();
   });
 
-  it("deletes reading data through an explicitly labeled destructive action while keeping file semantics separate", async () => {
+  it("deletes reading data only after confirming via the in-app dialog", async () => {
+    // Same defect class as single-book Remove (V2-M2): window.confirm() does
+    // not reliably show a native dialog in this Tauri/WebView2 setup, so
+    // Delete Reading Data must use the same in-app dialog pattern, not a
+    // mocked browser primitive that can silently no-op in production.
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
@@ -294,10 +297,32 @@ describe("Library", () => {
     await screen.findByText("Data Book");
 
     await user.click(screen.getByRole("button", { name: "Delete Reading Data" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete Reading Data" });
+    expect(within(dialog).getByText(/The Book file stays in place/)).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
 
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Book file stays in place"));
+    await user.click(within(dialog).getByRole("button", { name: "Delete Reading Data" }));
+
     expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "data-book" });
     expect(await screen.findByText("Data Book")).toBeInTheDocument();
+  });
+
+  it("does not delete reading data when the confirmation dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    await screen.findByText("Data Book");
+
+    await user.click(screen.getByRole("button", { name: "Delete Reading Data" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete Reading Data" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Delete Reading Data" })).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
   });
 
   it("offers Managed-Copy file deletion only for managed-copy books", async () => {
@@ -1029,6 +1054,36 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
       await user.click(within(removeDialog).getByRole("button", { name: "Remove from Library" }));
       expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "b1" });
       expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "b2" });
+    });
+
+    it("bulk deletes reading data for selected books, after confirming via an in-app dialog", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") {
+          return [
+            { book_id: "b1", title: "Book One", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+            { book_id: "b2", title: "Book Two", path: "C:/books/b2.epub", format: "epub", ownership_mode: "reference", available: true },
+          ];
+        }
+        return undefined;
+      });
+
+      render(<App />);
+      await screen.findByText("Book One");
+
+      await user.click(screen.getByRole("button", { name: "Select Books" }));
+      await user.click(screen.getByRole("button", { name: "Select All" }));
+      expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+      const bulkBar = screen.getByRole("toolbar", { name: "Bulk actions" });
+      await user.click(within(bulkBar).getByRole("button", { name: "Delete Reading Data" }));
+      const dialog = screen.getByRole("dialog", { name: "Delete Reading Data for Selected Books" });
+      expect(within(dialog).getByText(/selected Book\(s\)/)).toBeInTheDocument();
+      expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
+
+      await user.click(within(dialog).getByRole("button", { name: "Delete Reading Data" }));
+      expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "b1" });
+      expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "b2" });
     });
 
     it("bulk adds selected books to a Collection", async () => {

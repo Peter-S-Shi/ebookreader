@@ -169,6 +169,10 @@ function App() {
   // book instantly with no prompt), so single-book Remove uses the same
   // in-app dialog pattern as bulk Remove instead.
   const [removeConfirmBookId, setRemoveConfirmBookId] = useState<string | null>(null);
+  // Same defect class, same fix: single-book Delete Reading Data also used
+  // window.confirm(), which does not reliably show a native dialog here.
+  const [deleteReadingDataConfirmBookId, setDeleteReadingDataConfirmBookId] = useState<string | null>(null);
+  const [bulkDeleteReadingDataConfirmOpen, setBulkDeleteReadingDataConfirmOpen] = useState(false);
 
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
@@ -461,13 +465,28 @@ function App() {
     await refreshLibrary();
   }
 
-  async function deleteReadingData(bookId: string) {
-    const confirmed = window.confirm(
-      "Delete this Book's reading data? Notes, progress, OCR corrections, Book Hours, and alignment data for this Book will be removed. The Book file stays in place.",
-    );
-    if (!confirmed) return;
+  async function confirmDeleteReadingData() {
+    const bookId = deleteReadingDataConfirmBookId;
+    if (!bookId) return;
+    setDeleteReadingDataConfirmBookId(null);
     await invoke("delete_reading_data_command", { bookId });
     await refreshLibrary();
+  }
+
+  async function handleBulkDeleteReadingData() {
+    if (selectedBookIds.size === 0) return;
+    setBulkError(null);
+    try {
+      for (const bookId of selectedBookIds) {
+        await invoke("delete_reading_data_command", { bookId });
+      }
+      setBulkDeleteReadingDataConfirmOpen(false);
+      setSelectedBookIds(new Set());
+      setSelectMode(false);
+      await refreshLibrary();
+    } catch (e) {
+      setBulkError(String(e));
+    }
   }
 
   async function deleteManagedCopyFile(bookId: string) {
@@ -1123,7 +1142,11 @@ function App() {
                                   >
                                     Remove from Library
                                   </button>
-                                  <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
+                                  <button
+                                    type="button"
+                                    className="btn-sm danger"
+                                    onClick={() => setDeleteReadingDataConfirmBookId(book.book_id)}
+                                  >
                                     Delete Reading Data
                                   </button>
                                   {book.ownership_mode === "managed_copy" && (
@@ -1170,6 +1193,14 @@ function App() {
                       disabled={selectedBookIds.size === 0}
                     >
                       Remove from Library
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm danger"
+                      onClick={() => setBulkDeleteReadingDataConfirmOpen(true)}
+                      disabled={selectedBookIds.size === 0}
+                    >
+                      Delete Reading Data
                     </button>
                     <button type="button" className="btn-sm" onClick={toggleSelectMode}>
                       Exit Selection
@@ -1358,6 +1389,28 @@ function App() {
         </div>
       )}
 
+      {deleteReadingDataConfirmBookId && (
+        <div className="overlay open" role="dialog" aria-label="Delete Reading Data">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Delete Reading Data</h2>
+            </div>
+            <p>
+              Delete this Book's reading data? Notes, progress, OCR corrections, Book Hours, and alignment data for
+              this Book will be removed. The Book file stays in place.
+            </p>
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={confirmDeleteReadingData}>
+                Delete Reading Data
+              </button>
+              <button type="button" className="btn" onClick={() => setDeleteReadingDataConfirmBookId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bulkRemoveConfirmOpen && (
         <div className="overlay open" role="dialog" aria-label="Remove Selected Books from Library">
           <div className="modal" style={{ maxWidth: "460px" }}>
@@ -1380,6 +1433,36 @@ function App() {
                 className="btn"
                 onClick={() => {
                   setBulkRemoveConfirmOpen(false);
+                  setBulkError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteReadingDataConfirmOpen && (
+        <div className="overlay open" role="dialog" aria-label="Delete Reading Data for Selected Books">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Delete Reading Data</h2>
+            </div>
+            <p>
+              Delete reading data for <strong>{selectedBookIds.size}</strong> selected Book(s)? Notes, progress, OCR
+              corrections, Book Hours, and alignment data will be removed. Book files stay in place.
+            </p>
+            {bulkError && <p role="alert" className="notice warn">{bulkError}</p>}
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={handleBulkDeleteReadingData}>
+                Delete Reading Data
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setBulkDeleteReadingDataConfirmOpen(false);
                   setBulkError(null);
                 }}
               >
