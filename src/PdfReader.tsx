@@ -892,7 +892,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         <div ref={singlePageSurfaceRef} className="reader-surface">
           <div className="pdf-page">
             <canvas ref={canvasRef} />
-            <div ref={textLayerRef} className="pdf-text-layer" />
+            <div ref={textLayerRef} className="textLayer pdf-text-layer" />
           </div>
         </div>
       ) : (

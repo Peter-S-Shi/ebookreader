@@ -166,4 +166,23 @@ describe("pdfHighlight module", () => {
     expect(container.querySelectorAll(".reader-highlight").length).toBe(0);
     expect(container.textContent).toBe("Before highlight after");
   });
+
+  it("preserves span nesting and text flow inside pdf.js textLayer structure", () => {
+    container.className = "textLayer pdf-text-layer";
+    container.innerHTML = `<span style="left: 10%; top: 20%; --font-height: 16px; --scale-x: 1;">Hello world of PDF text</span>`;
+
+    const annotation: PdfAnnotationItem = {
+      id: "ann-flow",
+      text: "world of",
+      color: "yellow",
+    };
+
+    applyPdfHighlights(container, [annotation]);
+
+    const highlight = container.querySelector(".reader-highlight");
+    expect(highlight).not.toBeNull();
+    expect(highlight?.textContent).toBe("world of");
+    expect(highlight?.parentElement?.tagName.toLowerCase()).toBe("span");
+    expect(container.textContent).toBe("Hello world of PDF text");
+  });
 });

@@ -1027,39 +1027,98 @@ a:hover {
   }
 }
 
-/* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
-   a minimal hand-ported subset of pdfjs-dist's own .textLayer rules
-   (node_modules/pdfjs-dist/web/pdf_viewer.css) -- just enough to make
-   pdfjs-dist's TextLayer output invisible-but-selectable and correctly
-   positioned; the full pdf_viewer.css ships ~6000 unrelated lines (its own
-   toolbar/dialog/XFA-form chrome) this app's minimal custom UI does not
-   want (DESIGN.md's own non-goal: don't grow developer-console-style
-   chrome). PRODUCT_SPEC.md SS11 "text selection exposes lightweight
-   Highlight / Excerpt / Note actions". */
+/* Single-page mode's canvas + selectable text overlay.
+   Applies the standard pdf.js v4+ TextLayer layout rules (supporting
+   --total-scale-factor, --text-scale-factor, --font-height, scaleX, etc.)
+   so DOM character geometry precisely matches the rendered canvas. */
 .pdf-page {
   position: relative;
 }
 
+.textLayer,
 .pdf-text-layer {
+  color-scheme: only light;
   position: absolute;
+  text-align: initial;
   inset: 0;
   overflow: clip;
+  opacity: 1;
   line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
   transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
-.pdf-text-layer span,
-.pdf-text-layer br {
+.textLayer.highlighting,
+.pdf-text-layer.highlighting {
+  touch-action: none;
+}
+
+.textLayer :is(span, br),
+.pdf-text-layer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  -moz-user-select: text;
   user-select: text;
 }
 
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent),
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent,
+.pdf-text-layer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role="img"],
+.pdf-text-layer span[role="img"] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+.textLayer ::selection,
 .pdf-text-layer ::selection {
   background: rgba(0, 100, 255, 0.3);
+}
+
+.textLayer span.reader-highlight,
+.pdf-text-layer span.reader-highlight {
+  position: static !important;
+  display: inline !important;
+  color: transparent !important;
+  cursor: pointer !important;
+  transform: none !important;
+  border-radius: 2px;
+  padding: 0 !important;
+  box-shadow: none !important;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
 }
 
 /* Focus Reading (DESIGN.md SS6): minimal reader chrome, subtle surface
