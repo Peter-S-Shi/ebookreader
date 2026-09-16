@@ -2824,6 +2824,23 @@ a:hover {
   overflow: hidden;
 }
 
+.resume .cover.has-cover,
+.book .cover.has-cover {
+  padding: 0;
+  background: var(--bg-card, rgba(0, 0, 0, 0.04));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+  display: block;
+}
+
 .book-card-body {
   display: flex;
   flex-direction: column;

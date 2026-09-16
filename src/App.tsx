@@ -10,6 +10,7 @@ import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
 import { BookHoursPlanning } from "./BookHoursPlanning";
+import { BookCover } from "./BookCover";
 import {
   DEFAULT_COMPLETED_READ_MARK_MODE,
   DEFAULT_PROGRESS_DISPLAY_MODE,
@@ -944,9 +945,7 @@ function App() {
                   return (
                     <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
                       {markText && <span className="book-completed-read-badge">{markText}</span>}
-                      <div className="cover" aria-hidden="true">
-                        <span className="cover-format">{book.format.toUpperCase()}</span>
-                      </div>
+                      <BookCover bookId={book.book_id} format={book.format} title={book.title} />
                       <div className="resume-body">
                         <h3>
                           <button
@@ -1054,17 +1053,16 @@ function App() {
                               {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode)}
                             </span>
                           )}
-                        <div
-                          className="cover"
-                          aria-hidden="true"
+                        <BookCover
+                          bookId={book.book_id}
+                          format={book.format}
+                          title={book.title}
                           onClick={() => {
                             if (!selectMode && canOpen) {
                               setOpenBook(book);
                             }
                           }}
-                        >
-                          <span className="cover-format">{book.format.toUpperCase()}</span>
-                        </div>
+                        />
                         <div className="book-card-body">
                           {renamingBookId === book.book_id ? (
                             <span className="rename-book-form" onClick={(e) => e.stopPropagation()}>

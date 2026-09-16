@@ -2,15 +2,11 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { clearEpubCoverCache } from "./epubCover";
 
-const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock } = vi.hoisted(() => ({
+const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock, bookFileMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   openMock: vi.fn(),
-  // FC-A01: App now fetches Collections on every mount alongside the
-  // Library listing. Routing these commands to their own mock (with sane
-  // defaults set in beforeEach) keeps every pre-existing test's
-  // invokeMock.mockResolvedValueOnce(...) call sequence -- written before
-  // Collections existed -- valid without editing each of them.
   collectionsMock: vi.fn(),
   COLLECTIONS_COMMANDS: new Set([
     "list_collections_command",
@@ -25,16 +21,8 @@ const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheck
     "remove_tag_from_book_command",
     "list_tags_for_book_command",
   ]),
-  // FC-C08 / FC-A09: App also reads these settings on every mount
-  // (whether to run the startup Update Awareness check; the Reduced
-  // Motion preference). Routed separately (keyed on the
-  // `get_setting_command` call's specific `key` argument, not the whole
-  // command, since Settings-destination tests already exercise
-  // `get_setting_command` for other keys through invokeMock) and
-  // defaulted in beforeEach so pre-existing tests never trigger a real
-  // `fetch` via `checkForUpdate` and never see an extra queue-shifting
-  // call for a setting they don't know about.
   updateCheckPrefMock: vi.fn(),
+  bookFileMock: vi.fn(),
 }));
 
 // FC-A15: `importBook()` also reads this setting (not at mount, but on
@@ -56,6 +44,9 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: [string, ...unknown[]]) => {
     const [cmd, callArgs] = args;
+    if (cmd === "read_book_file_command") {
+      return bookFileMock(...args);
+    }
     if (cmd === "get_setting_command" && MOUNT_TIME_SETTING_KEYS.has((callArgs as { key?: string } | undefined)?.key ?? "")) {
       return updateCheckPrefMock(...args);
     }
@@ -110,6 +101,9 @@ beforeEach(() => {
   openMock.mockReset();
   collectionsMock.mockReset();
   updateCheckPrefMock.mockReset();
+  bookFileMock.mockReset();
+  bookFileMock.mockRejectedValue(new Error("no cover"));
+  clearEpubCoverCache();
   vi.restoreAllMocks();
   collectionsMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
