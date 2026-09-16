@@ -55,6 +55,19 @@ describe("toEpubCss", () => {
     fixture.remove();
   });
 
+  it("applies the chosen font size to prose when publisher CSS sets a paragraph size", () => {
+    const fixture = document.createElement("div");
+    fixture.innerHTML = `<style>p { font-size: 12px; }</style><style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160 })}</style><p>Ordinary reading text</p>`;
+    document.body.append(fixture);
+
+    // jsdom does not resolve percentage font sizes to a computed pixel value,
+    // but it does expose the cascade rule that the real EPUB document uses.
+    expect(toEpubCss({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 160 })).toMatch(
+      /:where\([^)]*p[^)]*\)\s*\{[^}]*font-size:\s*160%[^}]*!important/,
+    );
+    fixture.remove();
+  });
+
   it("preserves publisher metrics on special structures nested in ordinary prose", () => {
     const fixture = document.createElement("div");
     fixture.innerHTML = `<style>ruby { line-height: 1; } sup { line-height: 0.7; } code { line-height: 1.2; }</style><style>${toEpubCss({ ...DEFAULT_TYPOGRAPHY, lineHeight: 1.8 })}</style><p><ruby>reading<rt>text</rt></ruby><sup>2</sup><code>inline</code></p>`;

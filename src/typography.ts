@@ -146,7 +146,13 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
   // effect. Apply the reader preference to ordinary reflowable prose only.
   // Deliberately exclude ruby, super/subscript, tables, and preformatted or
   // code structures whose internal metrics carry semantic layout.
-  const proseLineHeightRule = `:where(p, li, dd, dt, blockquote) { line-height: ${settings.lineHeight} !important; }`;
+  const proseSelector = ":where(p, li, dd, dt, blockquote)";
+  const proseTypographyRules = [
+    `font-size: ${settings.fontSizePercent}%`,
+    `line-height: ${settings.lineHeight}`,
+    ...(stack ? [`font-family: ${stack}`] : []),
+  ].join("; ");
+  const proseTypographyRule = `${proseSelector} { ${proseTypographyRules} !important; }`;
   // `!important` because a Book's own embedded stylesheet frequently sets
   // `color`/`background-color` on `body` (or `html`) with higher
   // specificity than this single element selector -- without it, dark
@@ -179,7 +185,7 @@ export function toEpubCss(settings: TypographySettings, darkMode = false): strin
     ? `\nhtml, body { color: ${DARK_MODE_FOREGROUND} !important; background-color: ${DARK_MODE_BACKGROUND} !important; }` +
       `\nhtml *, body * { color: ${DARK_MODE_FOREGROUND} !important; }`
     : "";
-  return [...faces, bodyRule, proseLineHeightRule, colorOverride, highlightCss].filter(Boolean).join("\n");
+  return [...faces, bodyRule, proseTypographyRule, colorOverride, highlightCss].filter(Boolean).join("\n");
 }
 
 export function toTextStyle(settings: TypographySettings): Record<string, string | number | undefined> {
