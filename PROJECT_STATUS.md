@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2 Feature Complete — Feature Freeze / Product Hardening Entry on long-lived V2 branch)
+Last Updated: 2026-09-16 (V2 Product Hardening Complete — Entering Regression / Manual Acceptance on long-lived V2 branch)
 
-Current Phase: **V2 Feature Freeze / Product Hardening Entry**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M4 and Pre-Freeze UX Addenda A, B, and C are now fully complete and human-accepted on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2 is Feature Complete and its product scope is **Frozen**. Nothing V2 has been merged into `main` yet, and V2 is not yet an RC or released version. The next lifecycle phase is **Product Hardening**.
+Current Phase: **V2 Product Hardening Complete — Entering Regression / Manual Acceptance**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M4, Pre-Freeze UX Addenda A, B, and C, and V2-M5 Product Hardening (H3 Exit Gate PASS) are now fully complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2 is Feature Complete and its product scope is **Frozen**. Nothing V2 has been merged into `main` yet, and V2 is not yet an RC or released version. The next lifecycle phase is **Regression / Manual Acceptance**.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -91,24 +91,26 @@ Current Phase: **V2 Feature Freeze / Product Hardening Entry**. V1.0.0 remains t
 - **Production Cleanup**: Removed selectable continuous reading mode from EPUB (`scrolled`) and PDF (`continuous`), cleaned up obsolete toolbar selectors, and added backward-compatible fallback normalization for legacy persisted modes.
 
 **Automated Verification State (on Frozen V2 Branch):**
-- Frontend unit & integration tests `npm test`: 54 test files, 497 passed; 0 failed.
+- Frontend unit & integration tests `npm test`: 54 test files, 495 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
+- Production frontend build `npm run build`: Succeeded.
 - Rust workspace tests `cargo test --workspace`: 216 passed; 0 failed.
-- Full verification passed on the updated working tree.
+- Full automated gate passed on the final H3 candidate.
 
 ---
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, Hardening Scope Decision Complete.
-- **Current Checkpoint**: `V2_FEATURE_COMPLETE_FROZEN_HARDENING_ENTRY`.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete (H3 Gate: PASS).
+- **Current Checkpoint**: `V2_HARDENING_COMPLETE_REGRESSION_ENTRY`.
 - **Current Branch / PR**: `v2-m1/epub-preference-override-compat` (long-lived V2 branch; unmerged; no open PR).
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, and standardized page-based reading modes).
 - **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), and Hardening scope corrections have been executed.
 - **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development, workflow redesign, new format promises, or unrelated refactors permitted without explicit human scope reopening. Allowed work is limited to hardening fixes (defect/correctness, regression, evidence-backed compatibility, performance/memory, security/privacy, accessibility, packaging/runtime-closure, test/harness, and documentation truth corrections).
+- **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **RC / Release State**: `v1.0.0` released on `main`; V2 is unmerged, unreleased, and not yet an RC.
-- **Next Action**: **V2 Product Hardening exit work on the frozen long-lived branch.**
+- **Next Action**: **V2 Regression / Manual Acceptance on the frozen long-lived branch.**
 
 
