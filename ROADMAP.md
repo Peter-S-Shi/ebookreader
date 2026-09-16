@@ -1,7 +1,19 @@
-# EbookReader V1 Roadmap
+# EbookReader Roadmap
 
-Status: **Lifecycle Archived / Maintenance Mode (v1.0.0 Released; M1-M10 Complete; Portfolio Packaging Complete; Local Workspace Slimming Audit Complete)**
-M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze remains approved, V1 scope remains locked, Milestones 1-10 are COMPLETE, Portfolio Packaging is COMPLETE, and the Local Workspace Slimming Audit is COMPLETE. No development milestone is active. Maintenance work or further version development requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
+Current Lifecycle State: **V2 Feature Freeze / Product Hardening Entry (Branch: `v2-m1/epub-preference-override-compat`)**
+
+> **V2 Lifecycle Summary**:
+> - V1 roadmap remains the archived historical baseline (`v1.0.0` released on `main`).
+> - V2 development was explicitly authorized by the user.
+> - V2-M1, V2-M2, V2-M3, V2-M4, and Pre-Freeze UX Addenda A, B, and C are **Complete** and human-accepted on the long-lived branch `v2-m1/epub-preference-override-compat`.
+> - **V2 is Feature Complete and its product scope is FROZEN.**
+> - V2 has **not** been merged into `main` and is **not** yet an RC or release.
+> - **Next Lifecycle Phase**: **V2 Product Hardening**.
+> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC`.
+> - **Freeze Rule**: No new feature development or redesign is permitted during Freeze/Hardening without explicit human scope reopening. Allowed changes are strictly limited to defect fixes, regression corrections, performance/memory optimizations, packaging/runtime closure fixes, accessibility improvements, and documentation truth corrections.
+
+**Historical V1 Baseline (Archived Record):**
+M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze for V1 remains locked, Milestones 1-10 are COMPLETE, Portfolio Packaging is COMPLETE, and the Local Workspace Slimming Audit is COMPLETE. Maintenance work or further version development requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
