@@ -2,13 +2,35 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { clearEpubCoverCache } from "./epubCover";
+import { clearPdfCoverCache } from "./pdfCover";
 
-const { invokeMock, openMock, collectionsMock, makeBookMock } = vi.hoisted(() => ({
-  invokeMock: vi.fn(),
-  openMock: vi.fn(),
-  collectionsMock: vi.fn(),
-  makeBookMock: vi.fn(),
-}));
+const { invokeMock, openMock, collectionsMock, makeBookMock, mockGetDocument, mockGetPage } = vi.hoisted(() => {
+  const getPage = vi.fn().mockImplementation(async () => ({
+    getViewport: ({ scale }: { scale?: number } = {}) => ({
+      width: 600 * (scale ?? 1.0),
+      height: 800 * (scale ?? 1.0),
+    }),
+    render: () => ({ promise: Promise.resolve() }),
+    cleanup: vi.fn(),
+  }));
+  const pdfDoc = {
+    numPages: 5,
+    getPage,
+    destroy: vi.fn().mockResolvedValue(undefined),
+  };
+  const getDocument = vi.fn((_params?: any) => ({
+    promise: Promise.resolve(pdfDoc),
+  }));
+
+  return {
+    invokeMock: vi.fn(),
+    openMock: vi.fn(),
+    collectionsMock: vi.fn(),
+    makeBookMock: vi.fn(),
+    mockGetDocument: getDocument,
+    mockGetPage: getPage,
+  };
+});
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => {
@@ -29,17 +51,39 @@ vi.mock("foliate-js/view.js", () => ({
   makeBook: (...args: unknown[]) => makeBookMock(...args),
 }));
 
-describe("App EPUB Embedded Cover Integration", () => {
+vi.mock("pdfjs-dist", () => ({
+  GlobalWorkerOptions: { workerSrc: "" },
+  getDocument: (params: any) => mockGetDocument(params),
+}));
+
+describe("App Library Cover Integration (EPUB + PDF)", () => {
   beforeEach(() => {
     clearEpubCoverCache();
+    clearPdfCoverCache();
     invokeMock.mockReset();
     openMock.mockReset();
     collectionsMock.mockReset();
     makeBookMock.mockReset();
+    mockGetDocument.mockClear();
+    mockGetPage.mockClear();
     vi.restoreAllMocks();
+
+    let urlCounter = 0;
+    vi.spyOn(URL, "createObjectURL").mockImplementation(() => {
+      return `blob:http://localhost/mock-cover-${++urlCounter}`;
+    });
+
+    HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+    }) as any;
+
+    HTMLCanvasElement.prototype.toBlob = vi.fn().mockImplementation((callback: (blob: Blob | null) => void) => {
+      callback(new Blob(["mock-canvas-bytes"], { type: "image/jpeg" }));
+    });
   });
 
-  it("renders cover image for EPUB with a declared cover and placeholder for PDF/TXT", async () => {
+  it("renders cover images for EPUB and PDF books with declared covers, and placeholder for TXT", async () => {
     const mockBooks = [
       {
         book_id: "epub-with-cover",
@@ -55,6 +99,15 @@ describe("App EPUB Embedded Cover Integration", () => {
         title: "PDF Book",
         path: "C:/books/doc.pdf",
         format: "pdf",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: null,
+      },
+      {
+        book_id: "txt-book",
+        title: "TXT Book",
+        path: "C:/books/doc.txt",
+        format: "txt",
         ownership_mode: "reference",
         available: true,
         last_opened_at: null,
@@ -93,18 +146,18 @@ describe("App EPUB Embedded Cover Integration", () => {
     // Wait for library to render
     await screen.findByText("EPUB With Cover");
     await screen.findByText("PDF Book");
+    await screen.findByText("TXT Book");
 
-    // Both continue reading and library grid render the EPUB cover with the shared URL
+    // EPUB (2 instances: continue reading + library grid) and PDF (1 instance in library grid) render cover images
     await waitFor(() => {
       const coverImgs = container.querySelectorAll("img.cover-img");
-      expect(coverImgs.length).toBe(2);
-      expect(coverImgs[0].getAttribute("src")).toBe(coverImgs[1].getAttribute("src"));
+      expect(coverImgs.length).toBe(3);
     });
 
-    // PDF book still displays the format text placeholder
-    expect(screen.getByText("PDF")).toBeInTheDocument();
+    // TXT book displays the text format placeholder
+    expect(screen.getByText("TXT")).toBeInTheDocument();
 
-    // Completed Read badge and progress remain intact in both places
+    // Completed Read badge and progress remain intact
     expect(screen.getAllByText("Read 1x").length).toBe(2);
     expect(screen.getAllByText("142%").length).toBe(2);
   });
