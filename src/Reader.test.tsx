@@ -181,8 +181,12 @@ describe("Reader — reflowable page width", () => {
     await waitFor(() => expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-inline-size", "720px"));
 
     fireEvent.click(screen.getByRole("button", { name: "Aa" }));
+    // V2-M3 item 4: free numeric input, deferred commit (blur/Enter) --
+    // not a live-per-keystroke range slider anymore.
     const pageWidthLabel = screen.getByText("Page Width").closest("label")!;
-    fireEvent.change(pageWidthLabel.querySelector("input")!, { target: { value: "40" } });
+    const pageWidthInput = pageWidthLabel.querySelector("input")!;
+    fireEvent.change(pageWidthInput, { target: { value: "40" } });
+    fireEvent.blur(pageWidthInput);
 
     expect(fakeView.renderer.setAttribute).toHaveBeenCalledWith("max-inline-size", "411px");
   });

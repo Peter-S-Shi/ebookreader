@@ -35,8 +35,94 @@ describe("TypographyPanel", () => {
       cjkFont: { source: "SYSTEM", family: "Microsoft YaHei" },
     });
 
-    fireEvent.change(screen.getByLabelText("Margins"), { target: { value: "10" } });
+    // V2-M3 item 4: free numeric input, deferred commit (blur/Enter) --
+    // not a live-per-keystroke range slider anymore.
+    const marginsInput = screen.getByLabelText("Margins");
+    fireEvent.change(marginsInput, { target: { value: "10" } });
+    fireEvent.blur(marginsInput);
     expect(onChange).toHaveBeenLastCalledWith({ ...settings, marginPercent: 10 });
+  });
+
+  describe("free numeric inputs (V2-M3 item 4)", () => {
+    it("accepts a decimal value with no arbitrary upper cap, and applies it on blur", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={DEFAULT_TYPOGRAPHY} onChange={onChange} onClose={vi.fn()} />);
+      const sizeInput = await screen.findByLabelText("Size");
+
+      fireEvent.change(sizeInput, { target: { value: "9999.5" } });
+      fireEvent.blur(sizeInput);
+
+      expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 9999.5 });
+    });
+
+    it("rejects a non-positive Font Size with inline feedback, and does not apply it", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={DEFAULT_TYPOGRAPHY} onChange={onChange} onClose={vi.fn()} />);
+      const sizeInput = await screen.findByLabelText("Size");
+
+      fireEvent.change(sizeInput, { target: { value: "0" } });
+      fireEvent.blur(sizeInput);
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("rejects letters/symbols/NaN/Infinity with inline feedback, and does not apply them", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={DEFAULT_TYPOGRAPHY} onChange={onChange} onClose={vi.fn()} />);
+      const lineHeightInput = await screen.findByLabelText("Line Height");
+
+      for (const bad of ["abc", "NaN", "Infinity", "#2"]) {
+        fireEvent.change(lineHeightInput, { target: { value: bad } });
+        fireEvent.blur(lineHeightInput);
+        expect(await screen.findByRole("alert")).toBeInTheDocument();
+      }
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("allows a temporary empty state while editing, and restores the previous valid value on empty submission", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={{ ...DEFAULT_TYPOGRAPHY, pageWidthCh: 64 }} onChange={onChange} onClose={vi.fn()} />);
+      const pageWidthInput = (await screen.findByLabelText("Page Width")) as HTMLInputElement;
+
+      fireEvent.change(pageWidthInput, { target: { value: "" } });
+      expect(pageWidthInput.value).toBe("");
+
+      fireEvent.blur(pageWidthInput);
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(pageWidthInput.value).toBe("64");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("accepts zero for Margins (>= 0 is valid), unlike the other three fields (> 0)", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={{ ...DEFAULT_TYPOGRAPHY, marginPercent: 6 }} onChange={onChange} onClose={vi.fn()} />);
+      const marginsInput = screen.getByLabelText("Margins");
+
+      fireEvent.change(marginsInput, { target: { value: "0" } });
+      fireEvent.blur(marginsInput);
+
+      expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_TYPOGRAPHY, marginPercent: 0 });
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("commits on Enter as well as on blur", async () => {
+      invokeMock.mockResolvedValueOnce([]);
+      const onChange = vi.fn();
+      render(<TypographyPanel settings={DEFAULT_TYPOGRAPHY} onChange={onChange} onClose={vi.fn()} />);
+      const sizeInput = await screen.findByLabelText("Size");
+
+      fireEvent.change(sizeInput, { target: { value: "175" } });
+      fireEvent.keyDown(sizeInput, { key: "Enter" });
+
+      expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_TYPOGRAPHY, fontSizePercent: 175 });
+    });
   });
 
   it("imports a custom local font as CUSTOM without copying it into built-in assets", async () => {

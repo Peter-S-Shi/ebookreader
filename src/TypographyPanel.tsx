@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { BUILT_IN_FONTS, type TypographyFont, type TypographySettings } from "./typography";
+import { parseTypographyNumericInput } from "./typographyNumericInput";
 
 type SelectableTypographyFont = Exclude<TypographyFont, { source: "PUBLISHER" }>;
 
@@ -32,6 +33,79 @@ function parseOption(value: string, systemFonts: string[], customFonts: Selectab
 function familyFromPath(path: string): string {
   const file = path.split(/[\\/]/).pop() ?? "Custom Font";
   return file.replace(/\.[^.]+$/, "") || "Custom Font";
+}
+
+// V2-M3 item 4: replaces the prior bounded range-slider model. The
+// numeric input is authoritative -- no arbitrary upper cap -- with the
+// only real constraint being each field's own minimum (Font Size/Line
+// Height/Page Width: > 0; Margins: >= 0). Commits on blur or Enter, not
+// per keystroke, so a temporary empty state while editing doesn't
+// immediately wipe out the setting.
+function NumericTypographyField({
+  label,
+  ariaLabel,
+  value,
+  min,
+  minInclusive,
+  suffix,
+  onCommit,
+}: {
+  label: string;
+  ariaLabel?: string;
+  value: number;
+  min: number;
+  minInclusive: boolean;
+  suffix: string;
+  onCommit: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [invalid, setInvalid] = useState(false);
+
+  useEffect(() => {
+    setText(String(value));
+    setInvalid(false);
+  }, [value]);
+
+  function commit() {
+    const result = parseTypographyNumericInput(text, min, minInclusive);
+    if (result.kind === "empty") {
+      setText(String(value));
+      setInvalid(false);
+      return;
+    }
+    if (result.kind === "invalid") {
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    if (result.value !== value) onCommit(result.value);
+  }
+
+  return (
+    <label>
+      {label}
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={ariaLabel ?? label}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+      <span>{suffix}</span>
+      {invalid && (
+        <p role="alert">
+          Enter a number {minInclusive ? "≥" : ">"} {min}.
+        </p>
+      )}
+    </label>
+  );
 }
 
 export function TypographyPanel({ settings, onChange, onClose, showHeader = true }: TypographyPanelProps) {
@@ -151,58 +225,41 @@ export function TypographyPanel({ settings, onChange, onClose, showHeader = true
         </select>
       </label>
 
-      <label>
-        Size
-        <input
-          type="range"
-          min={70}
-          max={200}
-          step={10}
-          value={settings.fontSizePercent}
-          onChange={(e) => onChange({ ...settings, fontSizePercent: Number(e.target.value) })}
-        />
-        <span>{settings.fontSizePercent}%</span>
-      </label>
+      <NumericTypographyField
+        label="Size"
+        value={settings.fontSizePercent}
+        min={0}
+        minInclusive={false}
+        suffix="%"
+        onCommit={(fontSizePercent) => onChange({ ...settings, fontSizePercent })}
+      />
 
-      <label>
-        Line Height
-        <input
-          type="range"
-          min={1}
-          max={2.5}
-          step={0.1}
-          value={settings.lineHeight}
-          onChange={(e) => onChange({ ...settings, lineHeight: Number(e.target.value) })}
-        />
-        <span>{settings.lineHeight.toFixed(1)}</span>
-      </label>
+      <NumericTypographyField
+        label="Line Height"
+        value={settings.lineHeight}
+        min={0}
+        minInclusive={false}
+        suffix=""
+        onCommit={(lineHeight) => onChange({ ...settings, lineHeight })}
+      />
 
-      <label>
-        Page Width
-        <input
-          type="range"
-          min={40}
-          max={100}
-          step={5}
-          value={settings.pageWidthCh}
-          onChange={(e) => onChange({ ...settings, pageWidthCh: Number(e.target.value) })}
-        />
-        <span>{settings.pageWidthCh}ch</span>
-      </label>
+      <NumericTypographyField
+        label="Page Width"
+        value={settings.pageWidthCh}
+        min={0}
+        minInclusive={false}
+        suffix="ch"
+        onCommit={(pageWidthCh) => onChange({ ...settings, pageWidthCh })}
+      />
 
-      <label>
-        Margins
-        <input
-          aria-label="Margins"
-          type="range"
-          min={0}
-          max={20}
-          step={1}
-          value={settings.marginPercent}
-          onChange={(e) => onChange({ ...settings, marginPercent: Number(e.target.value) })}
-        />
-        <span>{settings.marginPercent}%</span>
-      </label>
+      <NumericTypographyField
+        label="Margins"
+        value={settings.marginPercent}
+        min={0}
+        minInclusive={true}
+        suffix="%"
+        onCommit={(marginPercent) => onChange({ ...settings, marginPercent })}
+      />
     </div>
   );
 }
