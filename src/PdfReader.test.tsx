@@ -709,6 +709,67 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       expect(renderedPageNumbers).not.toContain(50);
     });
 
+    it("does not cancel in-flight page render when active-page state changes while page remains active", async () => {
+      let resolvePage12: () => void = () => {};
+      const deferredPage12Promise = new Promise<void>((resolve) => {
+        resolvePage12 = resolve;
+      });
+      const page12CancelSpy = vi.fn();
+      let isContinuousMode = false;
+
+      mockGetPage.mockImplementation(async (pageNo: number) => ({
+        pageNo,
+        getViewport: ({ scale }: { scale?: number } = {}) => ({
+          width: 600 * (scale ?? 1.2),
+          height: 800 * (scale ?? 1.2),
+          scale: scale ?? 1.2,
+          convertToViewportPoint: (x: number, y: number) => [x * (scale ?? 1.2), y * (scale ?? 1.2)],
+        }),
+        render: vi.fn().mockImplementation(() => {
+          renderedPageNumbers.push(pageNo);
+          if (pageNo === 12 && isContinuousMode) {
+            return { promise: deferredPage12Promise, cancel: page12CancelSpy };
+          }
+          return mockRenderTask;
+        }),
+        getTextContent: async () => ({ items: [] }),
+        streamTextContent: async () => ({ items: [] }),
+        getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
+        getAnnotations: mockGetAnnotations,
+      }));
+
+      render(<PdfReader bookId="pdf1" title="In-flight Render Test PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      renderedPageNumbers.length = 0;
+      isContinuousMode = true;
+
+      // Switch to continuous mode
+      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+
+      // Page 12 render is started in flight
+      await waitFor(() => expect(renderedPageNumbers).toContain(12));
+
+      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
+      expect(continuousSurface).toBeInTheDocument();
+
+      // Scroll slightly (page 12 is still within viewport / active window)
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 11 * 976 + 100 });
+      fireEvent.scroll(continuousSurface);
+
+      // In-flight render for page 12 MUST NOT be cancelled because page 12 remains active
+      expect(page12CancelSpy).not.toHaveBeenCalled();
+
+      // Resolve the in-flight render
+      resolvePage12();
+
+      await waitFor(() => {
+        const page12Canvas = document.querySelector<HTMLCanvasElement>('[data-page="12"] canvas');
+        expect(page12Canvas).toBeInTheDocument();
+        expect(page12Canvas?.width).toBeGreaterThan(0);
+      });
+    });
+
     it("preserves per-page geometry for mixed page heights and landscape/rotated pages without uniform cropping", async () => {
       // Mock 10 pages with mixed sizes:
       // Page 1: 600x800 (Portrait)
