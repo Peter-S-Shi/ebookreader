@@ -11,10 +11,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: openUrlMock }));
 
 const mockRenderTask = { promise: Promise.resolve(), cancel: vi.fn() };
 const viewportScales: number[] = [];
-const renderedPageNumbers: number[] = [];
 const mockGetAnnotations = vi.fn(async () => [] as unknown[]);
-const defaultMockGetPage = async (pageNo: number) => ({
-  pageNo,
+const mockGetPage = vi.fn().mockImplementation(async (_pageNo: number) => ({
   getViewport: ({ scale }: { scale?: number } = {}) => {
     const resolvedScale = scale ?? 1.2;
     viewportScales.push(resolvedScale);
@@ -25,17 +23,12 @@ const defaultMockGetPage = async (pageNo: number) => ({
       convertToViewportPoint: (x: number, y: number) => [x * resolvedScale, y * resolvedScale],
     };
   },
-  render: vi.fn().mockImplementation(() => {
-    renderedPageNumbers.push(pageNo);
-    return mockRenderTask;
-  }),
+  render: () => mockRenderTask,
   getTextContent: async () => ({ items: [] }), // No text items -> scanned PDF
   streamTextContent: async () => ({ items: [] }),
   getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
   getAnnotations: mockGetAnnotations,
-});
-
-const mockGetPage = vi.fn().mockImplementation(defaultMockGetPage);
+}));
 
 const mockGetOutline = vi.fn(async () => null as unknown[] | null);
 const mockGetDestination = vi.fn(async () => null as unknown[] | null);
@@ -77,9 +70,8 @@ beforeEach(() => {
   invokeMock.mockReset();
   openUrlMock.mockReset();
   mockGetDocument.mockClear();
-  mockGetPage.mockReset().mockImplementation(defaultMockGetPage);
+  mockGetPage.mockClear();
   viewportScales.length = 0;
-  renderedPageNumbers.length = 0;
   mockRenderTask.cancel.mockClear();
   mockGetOutline.mockReset().mockResolvedValue(null);
   mockGetDestination.mockReset().mockResolvedValue(null);
@@ -192,7 +184,7 @@ describe("PdfReader — Zoom and keyboard navigation", () => {
     expect(await screen.findByDisplayValue("13")).toBeInTheDocument();
 
     const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 12 * 976 });
+    Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 12 * 16 });
     fireEvent.scroll(continuousSurface);
     expect(screen.getByDisplayValue("13")).toBeInTheDocument();
   });
@@ -643,294 +635,4 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       expect(toolbar.querySelector(".pdf-toolbar-group--geometry")).toBeInTheDocument();
     });
   });
-
-  describe("PdfReader — Bounded Continuous Mode Rendering (H2)", () => {
-    it("bounds continuous rendering to the active window around the current page", async () => {
-      render(<PdfReader bookId="pdf1" title="Bounded Continuous Test PDF" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      renderedPageNumbers.length = 0;
-
-      // Switch to continuous mode
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-
-      await waitFor(() => {
-        // Page 12 (active target) should be rendered
-        expect(renderedPageNumbers).toContain(12);
-      });
-
-      // Distant pages (e.g. 1, 50) should NOT have render() called
-      expect(renderedPageNumbers).toContain(12);
-      expect(renderedPageNumbers).not.toContain(1);
-      expect(renderedPageNumbers).not.toContain(50);
-      expect(renderedPageNumbers.length).toBeLessThanOrEqual(5);
-    });
-
-    it("renders newly visible pages when scrolled in continuous mode", async () => {
-      render(<PdfReader bookId="pdf1" title="Continuous Scroll Render Test" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-      await waitFor(() => expect(renderedPageNumbers).toContain(12));
-
-      renderedPageNumbers.length = 0;
-
-      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-      expect(continuousSurface).toBeInTheDocument();
-
-      // Scroll to page 30: at 120% scale (height 960 + 16px margin = 976px per page),
-      // page 30 begins at 29 * 976px
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 29 * 976 });
-      fireEvent.scroll(continuousSurface);
-
-      await waitFor(() => {
-        expect(renderedPageNumbers).toContain(30);
-      });
-    });
-
-    it("updates appearance for active pages only when Page Appearance changes in continuous mode", async () => {
-      render(<PdfReader bookId="pdf1" title="Continuous Appearance Test" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-      await waitFor(() => expect(renderedPageNumbers).toContain(12));
-
-      renderedPageNumbers.length = 0;
-
-      // Change appearance to Eye Care
-      fireEvent.change(screen.getByRole("combobox", { name: "Page appearance" }), { target: { value: "eyecare" } });
-
-      await waitFor(() => {
-        // Active window page is maintained and updated
-        expect(screen.getByRole("combobox", { name: "Page appearance" })).toHaveValue("eyecare");
-      });
-
-      // Distant pages should NOT have render() called
-      expect(renderedPageNumbers).not.toContain(50);
-    });
-
-    it("does not cancel in-flight page render when active-page state changes while page remains active", async () => {
-      let resolvePage12: () => void = () => {};
-      const deferredPage12Promise = new Promise<void>((resolve) => {
-        resolvePage12 = resolve;
-      });
-      const page12CancelSpy = vi.fn();
-      let isContinuousMode = false;
-
-      mockGetPage.mockImplementation(async (pageNo: number) => ({
-        pageNo,
-        getViewport: ({ scale }: { scale?: number } = {}) => ({
-          width: 600 * (scale ?? 1.2),
-          height: 800 * (scale ?? 1.2),
-          scale: scale ?? 1.2,
-          convertToViewportPoint: (x: number, y: number) => [x * (scale ?? 1.2), y * (scale ?? 1.2)],
-        }),
-        render: vi.fn().mockImplementation(() => {
-          renderedPageNumbers.push(pageNo);
-          if (pageNo === 12 && isContinuousMode) {
-            return { promise: deferredPage12Promise, cancel: page12CancelSpy };
-          }
-          return mockRenderTask;
-        }),
-        getTextContent: async () => ({ items: [] }),
-        streamTextContent: async () => ({ items: [] }),
-        getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
-        getAnnotations: mockGetAnnotations,
-      }));
-
-      render(<PdfReader bookId="pdf1" title="In-flight Render Test PDF" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      renderedPageNumbers.length = 0;
-      isContinuousMode = true;
-
-      // Switch to continuous mode
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-
-      // Page 12 render is started in flight
-      await waitFor(() => expect(renderedPageNumbers).toContain(12));
-
-      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-      expect(continuousSurface).toBeInTheDocument();
-
-      // Scroll slightly (page 12 is still within viewport / active window)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 11 * 976 + 100 });
-      fireEvent.scroll(continuousSurface);
-
-      // In-flight render for page 12 MUST NOT be cancelled because page 12 remains active
-      expect(page12CancelSpy).not.toHaveBeenCalled();
-
-      // Resolve the in-flight render
-      resolvePage12();
-
-      await waitFor(() => {
-        const page12Canvas = document.querySelector<HTMLCanvasElement>('[data-page="12"] canvas');
-        expect(page12Canvas).toBeInTheDocument();
-        expect(page12Canvas?.width).toBeGreaterThan(0);
-      });
-    });
-
-    it("preserves per-page geometry for mixed page heights and landscape/rotated pages without uniform cropping", async () => {
-      // Mock 10 pages with mixed sizes:
-      // Page 1: 600x800 (Portrait)
-      // Page 2: 900x600 (Landscape / rotated)
-      // Page 3: 600x1200 (Tall foldout)
-      // Pages 4..10: 600x800
-      mockGetPage.mockImplementation(async (pageNo: number) => {
-        let width = 600;
-        let height = 800;
-        if (pageNo === 2) {
-          width = 900;
-          height = 600;
-        } else if (pageNo === 3) {
-          width = 600;
-          height = 1200;
-        }
-        return {
-          pageNo,
-          getViewport: ({ scale }: { scale?: number } = {}) => {
-            const resolvedScale = scale ?? 1.0;
-            return {
-              width: width * resolvedScale,
-              height: height * resolvedScale,
-              scale: resolvedScale,
-              convertToViewportPoint: (x: number, y: number) => [x * resolvedScale, y * resolvedScale],
-            };
-          },
-          render: vi.fn().mockImplementation(() => {
-            renderedPageNumbers.push(pageNo);
-            return mockRenderTask;
-          }),
-          getTextContent: async () => ({ items: [] }),
-          streamTextContent: async () => ({ items: [] }),
-          getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
-          getAnnotations: mockGetAnnotations,
-        };
-      });
-
-      invokeMock.mockImplementation(async (cmd: string) => {
-        if (cmd === "read_book_file_command") return new Uint8Array([37, 80, 68, 70, 45]);
-        if (cmd === "load_reading_location_command") {
-          return {
-            book_id: "pdf1",
-            format: "pdf",
-            progression_hint: 0.1,
-            primary_anchor: "1",
-            fallback_anchors: [],
-            context_selector: null,
-          };
-        }
-        if (cmd === "list_reading_assets_command") return [];
-        if (cmd === "reading_session_status_command") {
-          return { state: "active", total_excluded_ms: 0, total_note_taking_ms: 0 };
-        }
-        return null;
-      });
-
-      render(<PdfReader bookId="pdf1" title="Mixed Page Sizes PDF" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("1");
-
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-
-      await waitFor(() => {
-        const page1El = document.querySelector<HTMLElement>('[data-page="1"]');
-        const page2El = document.querySelector<HTMLElement>('[data-page="2"]');
-        const page3El = document.querySelector<HTMLElement>('[data-page="3"]');
-
-        expect(page1El).toBeInTheDocument();
-        expect(page2El).toBeInTheDocument();
-        expect(page3El).toBeInTheDocument();
-
-        // At zoom 1.2:
-        // Page 1: 600*1.2 = 720w, 800*1.2 = 960h
-        expect(page1El?.style.width).toBe("720px");
-        expect(page1El?.style.height).toBe("960px");
-
-        // Page 2 (landscape): 900*1.2 = 1080w, 600*1.2 = 720h
-        expect(page2El?.style.width).toBe("1080px");
-        expect(page2El?.style.height).toBe("720px");
-
-        // Page 3 (tall): 600*1.2 = 720w, 1200*1.2 = 1440h
-        expect(page3El?.style.width).toBe("720px");
-        expect(page3El?.style.height).toBe("1440px");
-      });
-
-      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-
-      // Scroll to Page 2 start (Page 1 height 960 + 16 = 976px)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 976 });
-      fireEvent.scroll(continuousSurface);
-      expect(screen.getByDisplayValue("2")).toBeInTheDocument();
-
-      // Scroll to Page 3 start (976 + 720 + 16 = 1712px)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 1712 });
-      fireEvent.scroll(continuousSurface);
-      expect(screen.getByDisplayValue("3")).toBeInTheDocument();
-
-      // Distant page jump to Page 8
-      const pageInput = screen.getByRole("textbox", { name: "Current page" });
-      fireEvent.change(pageInput, { target: { value: "8" } });
-      fireEvent.keyDown(pageInput, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue("8")).toBeInTheDocument();
-      });
-
-      // Bounded rendering: distant page 50 was not rendered
-      expect(renderedPageNumbers).not.toContain(50);
-    });
-
-    it("jumps to a distant page in continuous mode without resetting to page 1 during scroll events", async () => {
-      render(<PdfReader bookId="pdf1" title="Distant Jump Test PDF" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-      await waitFor(() => expect(renderedPageNumbers).toContain(12));
-
-      renderedPageNumbers.length = 0;
-
-      // Jump to page 45
-      const pageInput = screen.getByRole("textbox", { name: "Current page" });
-      fireEvent.change(pageInput, { target: { value: "45" } });
-      fireEvent.keyDown(pageInput, { key: "Enter" });
-
-      // Simulate intermediate scroll event from browser before position settles
-      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-      fireEvent.scroll(continuousSurface);
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue("45")).toBeInTheDocument();
-      });
-
-      // Assert page 45 was scheduled and rendered, and not reset to 1
-      await waitFor(() => {
-        expect(renderedPageNumbers).toContain(45);
-      });
-      expect(screen.queryByDisplayValue("1")).not.toBeInTheDocument();
-    });
-
-    it("retains nearby rendered pages in retention buffer during rapid continuous scroll without blanking out", async () => {
-      render(<PdfReader bookId="pdf1" title="Retention Buffer Test PDF" onBack={vi.fn()} />);
-      await screen.findByDisplayValue("12");
-
-      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
-      await waitFor(() => expect(renderedPageNumbers).toContain(12));
-
-      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
-
-      // Scroll to page 13
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 12 * 976 });
-      fireEvent.scroll(continuousSurface);
-
-      await waitFor(() => {
-        expect(screen.getByDisplayValue("13")).toBeInTheDocument();
-      });
-
-      // Page 12 canvas must still be retained with positive dimensions (not wiped to 0)
-      const page12Canvas = document.querySelector<HTMLCanvasElement>('[data-page="12"] canvas');
-      expect(page12Canvas).toBeInTheDocument();
-      expect(page12Canvas?.width).toBeGreaterThan(0);
-    });
-  });
 });
-

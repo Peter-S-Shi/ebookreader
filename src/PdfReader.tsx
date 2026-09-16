@@ -5,15 +5,7 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
 import { NotebookPanel } from "./NotebookPanel";
 import { OcrWorkspace } from "./OcrWorkspace";
-import {
-  currentPageFromScroll,
-  computeActivePageRange,
-  computeActivePagesFromScroll,
-  computePageHeights,
-  getPageTopOffset,
-  resolvePageDimension,
-  type PdfPageDimension,
-} from "./pdfContinuous";
+import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
@@ -61,7 +53,9 @@ interface PdfReaderProps {
   bookId: string;
   title: string;
   onBack: () => void;
-  initialAnchor?: DocumentLocationDTO | null;
+  // FC-C01/FC-C02: a source location (from a Search hit or a Notebook
+  // asset) to open directly to, instead of resuming the last page.
+  initialAnchor?: DocumentLocationDTO;
 }
 
 type PdfViewMode = "single" | "continuous";
@@ -81,20 +75,23 @@ function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
   return Boolean(target.closest("input, select, textarea, button, [contenteditable='true'], [role='dialog'], [role='alertdialog']"));
 }
 
-function isSamePageList(a: number[], b: number[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-// FORMAT_CAPABILITY_MATRIX.md: PDF is a FIXED-LAYOUT / PAGED format.
-// Page Appearance (Day / Eye Care / Parchment / Night) is applied via
-// canvas overlay with image-region cutout protection and scanned-PDF detection.
-// Continuous Scroll (V2-M4): rendered as a vertical stack of canvases.
-// Whole-book search index is built asynchronously on first open (M3
+// PDF reading surface: renders via pdf.js (the engine ARCHITECTURE.md
+// SS5/M0-C validated for text/geometry extraction) to a canvas per page.
+// page index is the DocumentLocation primary_anchor, per ARCHITECTURE.md
+// SS5's "candidates to validate: page index; page geometry/bounding box".
+// Two view modes close FORMAT_CAPABILITY_MATRIX.md's required "Continuous
+// scroll" / "Single-page / paged" rows for Text PDF (DESIGN.md SS7's PDF
+// controls share one zoom state across single-page and continuous modes.
+// Double-page spread and very large
+// (100s of pages) documents' rendering performance are later-checkpoint
+// residuals: continuous mode here renders every page eagerly, which is
+// fine at the scale M0 validated (a 15-page document) but would need
+// virtualization for much longer documents. Text selection ->
+// Highlight/Excerpt (M4, SS11) is
+// implemented for single-page mode via a pdf.js TextLayer overlaid on the
+// canvas; continuous mode's per-page selection scoping is a follow-up.
+// Whole-page text is also indexed into the M4 search index in the
+// background on open (SS12: "supported book text" is a required
 // Library-wide Search source). M5 (Scanned PDF OCR) begins here: the same
 // background pass that extracts text also detects a scanned PDF (no
 // extractable text on any page) and surfaces SS13.1/SS13.2's truthful
@@ -114,14 +111,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const appearanceCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  const page1ViewportRef = useRef<{ width: number; height: number } | null>(null);
-  const pageDimensionsRef = useRef<(PdfPageDimension | null)[]>([]);
-  const [, setPageDimensionsVersion] = useState(0);
   const pendingContinuousPageRef = useRef<number | null>(null);
-  const continuousRenderTasksRef = useRef<Map<number, pdfjsLib.RenderTask>>(new Map());
-  const inFlightContinuousPagesRef = useRef<Set<number>>(new Set());
-  const renderedContinuousPagesRef = useRef<Set<number>>(new Set());
-  const [activeContinuousPages, setActiveContinuousPages] = useState<number[]>([]);
   const [status, setStatus] = useState("Loading…");
   const [jumpFailed, setJumpFailed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
@@ -199,30 +189,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       }
 
       if (cancelled) return;
-      try {
-        const page1 = await pdf.getPage(1);
-        if (!cancelled) {
-          const vp1 = page1.getViewport({ scale: 1.0 });
-          page1ViewportRef.current = { width: vp1.width, height: vp1.height };
-        }
-      } catch {
-        // Fallback to default
-      }
-      if (cancelled) return;
-
       pdfRef.current = pdf;
-      pageDimensionsRef.current = new Array(pdf.numPages).fill(null);
-      if (page1ViewportRef.current) {
-        pageDimensionsRef.current[0] = { ...page1ViewportRef.current };
-      }
       setPageCount(pdf.numPages);
       setPageNumber(startPage);
-      const initialActiveRange = computeActivePageRange(startPage, pdf.numPages, 2);
-      const initialActiveList: number[] = [];
-      for (let p = initialActiveRange.startPage; p <= initialActiveRange.endPage; p++) {
-        initialActiveList.push(p);
-      }
-      setActiveContinuousPages(initialActiveList);
       setPdfDoc(pdf);
 
       const outline = await pdf.getOutline();
@@ -233,38 +202,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
     };
   }, [bookId]);
-
-  // When continuous mode is active, ensure lightweight unscaled viewport metadata is probed for all pages
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const pdf = pdfDoc || pdfRef.current;
-    if (!pdf) return;
-    let cancelled = false;
-
-    (async () => {
-      let anyNew = false;
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelled) return;
-        if (pageDimensionsRef.current[i - 1]) continue;
-        try {
-          const p = await pdf.getPage(i);
-          if (cancelled) return;
-          const vp = p.getViewport({ scale: 1.0 });
-          pageDimensionsRef.current[i - 1] = { width: vp.width, height: vp.height };
-          anyNew = true;
-        } catch {
-          // ignore
-        }
-      }
-      if (!cancelled && anyNew) {
-        setPageDimensionsVersion((v) => v + 1);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [viewMode, pdfDoc]);
 
   // Deferred whole-book text extraction into search index and scanned-PDF detection.
   // Runs asynchronously after Reader reaches Ready state to avoid competing with Page 1 paint.
@@ -372,8 +309,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const page = await pdf.getPage(pageNumber);
       if (cancelled) return;
       const viewport = page.getViewport({ scale: zoomScale });
-      const naturalVp = page.getViewport({ scale: 1.0 });
-      pageDimensionsRef.current[pageNumber - 1] = { width: naturalVp.width, height: naturalVp.height };
       const canvas = canvasRef.current!;
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
@@ -635,197 +570,45 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     setNotebookRefreshKey((k) => k + 1);
   }
 
-  const activeContinuousPagesRef = useRef<Set<number>>(new Set());
-  const renderedContinuousScaleRef = useRef<number>(zoomScale);
-
-  // Continuous mode: observe visible / near-visible pages to bound rendering
-  // and memory to the active viewport neighborhood with overscan buffer.
+  // Continuous mode: render every page into a scrollable stack, and jump
+  // to the saved page once on entry.
   useEffect(() => {
-    if (viewMode !== "continuous" || !continuousContainerRef.current) return;
-    const container = continuousContainerRef.current;
-
-    const initialRange = computeActivePageRange(pageNumber, pageCount, 2);
-    const initialList: number[] = [];
-    for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
-      initialList.push(p);
-    }
-    setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
-
-    if (typeof IntersectionObserver === "undefined") return;
-
-    const intersectingPages = new Set<number>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        let changed = false;
-        for (const entry of entries) {
-          const pAttr = entry.target.getAttribute("data-page");
-          if (!pAttr) continue;
-          const pNum = parseInt(pAttr, 10);
-          if (entry.isIntersecting) {
-            if (!intersectingPages.has(pNum)) {
-              intersectingPages.add(pNum);
-              changed = true;
-            }
-          } else {
-            if (intersectingPages.has(pNum)) {
-              intersectingPages.delete(pNum);
-              changed = true;
-            }
-          }
-        }
-
-        if (changed && intersectingPages.size > 0) {
-          const sorted = Array.from(intersectingPages).sort((a, b) => a - b);
-          const minP = Math.max(1, sorted[0] - 1);
-          const maxP = Math.min(pageCount, sorted[sorted.length - 1] + 1);
-          const nextActive: number[] = [];
-          for (let p = minP; p <= maxP; p++) {
-            nextActive.push(p);
-          }
-          setActiveContinuousPages((prev) => (isSamePageList(prev, nextActive) ? prev : nextActive));
-        }
-      },
-      {
-        root: container,
-        rootMargin: "600px 0px",
-      },
-    );
-
-    const pageDivs = container.querySelectorAll(".pdf-page.continuous-page");
-    pageDivs.forEach((div) => observer.observe(div));
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [viewMode, pageCount, zoomScale]);
-
-  // Continuous mode: render active window pages and cancel/release distant pages
-  useEffect(() => {
-    if (viewMode !== "continuous") {
-      for (const task of continuousRenderTasksRef.current.values()) {
-        task.cancel();
-      }
-      continuousRenderTasksRef.current.clear();
-      inFlightContinuousPagesRef.current.clear();
-      renderedContinuousPagesRef.current.clear();
-      return;
-    }
-
-    const pdf = pdfDoc || pdfRef.current;
+    if (viewMode !== "continuous") return;
+    const pdf = pdfRef.current;
     if (!pdf) return;
+    let cancelled = false;
 
-    // Zoom change invalidates rendered scale
-    if (renderedContinuousScaleRef.current !== zoomScale) {
-      for (const task of continuousRenderTasksRef.current.values()) {
-        task.cancel();
-      }
-      continuousRenderTasksRef.current.clear();
-      inFlightContinuousPagesRef.current.clear();
-      renderedContinuousPagesRef.current.clear();
-      renderedContinuousScaleRef.current = zoomScale;
-    }
+    (async () => {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (cancelled) return;
+        const canvas = canvasRefs.current[i - 1];
+        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
+        if (!canvas) continue;
+        const page = await pdf.getPage(i);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: zoomScale });
+        const context = canvas.getContext("2d")!;
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
 
-    const currentActiveSet = new Set(activeContinuousPages);
-    activeContinuousPagesRef.current = currentActiveSet;
-
-    // Retain rendered pages in the active window + retention neighborhood (4 pages)
-    const retentionRange = computeActivePageRange(pageNumber, pageCount, 4);
-    const retentionSet = new Set<number>(activeContinuousPages);
-    for (let p = retentionRange.startPage; p <= retentionRange.endPage; p++) {
-      retentionSet.add(p);
-    }
-
-    // Evict distant rendered pages beyond retention window: release canvas backing memory
-    for (const pageNum of Array.from(renderedContinuousPagesRef.current)) {
-      if (!retentionSet.has(pageNum)) {
-        renderedContinuousPagesRef.current.delete(pageNum);
-        const c = canvasRefs.current[pageNum - 1];
-        if (c) {
-          c.width = 0;
-          c.height = 0;
+        if (appearanceCanvas) {
+          appearanceCanvas.width = viewport.width;
+          appearanceCanvas.height = viewport.height;
+          appearanceCanvas.style.width = `${viewport.width}px`;
+          appearanceCanvas.style.height = `${viewport.height}px`;
         }
-        const ac = appearanceCanvasRefs.current[pageNum - 1];
-        if (ac) {
-          ac.width = 0;
-          ac.height = 0;
-        }
-      }
-    }
 
-    // Cancel in-flight tasks ONLY for pages that left the active window
-    for (const [pageNum, task] of Array.from(continuousRenderTasksRef.current.entries())) {
-      if (!currentActiveSet.has(pageNum)) {
-        task.cancel();
-        continuousRenderTasksRef.current.delete(pageNum);
-        inFlightContinuousPagesRef.current.delete(pageNum);
-      }
-    }
+        await page.render({ canvasContext: context, viewport, canvas }).promise.catch(() => {});
+        if (cancelled) return;
 
-    // Schedule render for active pages not yet rendered or in-flight
-    for (const pageNum of activeContinuousPages) {
-      if (
-        renderedContinuousPagesRef.current.has(pageNum) ||
-        inFlightContinuousPagesRef.current.has(pageNum) ||
-        continuousRenderTasksRef.current.has(pageNum)
-      ) {
-        continue;
-      }
-
-      const canvas = canvasRefs.current[pageNum - 1];
-      const appearanceCanvas = appearanceCanvasRefs.current[pageNum - 1];
-      if (!canvas) continue;
-
-      inFlightContinuousPagesRef.current.add(pageNum);
-
-      (async () => {
-        try {
-          const page = await pdf.getPage(pageNum);
-          if (!activeContinuousPagesRef.current.has(pageNum) || viewMode !== "continuous") {
-            inFlightContinuousPagesRef.current.delete(pageNum);
-            return;
-          }
-
-          const viewport = page.getViewport({ scale: zoomScale });
-          const naturalVp = page.getViewport({ scale: 1.0 });
-          pageDimensionsRef.current[pageNum - 1] = { width: naturalVp.width, height: naturalVp.height };
-          const context = canvas.getContext("2d")!;
-
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          canvas.style.width = `${viewport.width}px`;
-          canvas.style.height = `${viewport.height}px`;
-
-          if (appearanceCanvas) {
-            appearanceCanvas.width = viewport.width;
-            appearanceCanvas.height = viewport.height;
-            appearanceCanvas.style.width = `${viewport.width}px`;
-            appearanceCanvas.style.height = `${viewport.height}px`;
-          }
-
-          const renderTask = page.render({ canvasContext: context, viewport, canvas });
-          continuousRenderTasksRef.current.set(pageNum, renderTask);
-
-          await renderTask.promise;
-          continuousRenderTasksRef.current.delete(pageNum);
-          inFlightContinuousPagesRef.current.delete(pageNum);
-
-          if (!activeContinuousPagesRef.current.has(pageNum) || viewMode !== "continuous") {
-            canvas.width = 0;
-            canvas.height = 0;
-            if (appearanceCanvas) {
-              appearanceCanvas.width = 0;
-              appearanceCanvas.height = 0;
-            }
-            return;
-          }
-
-          renderedContinuousPagesRef.current.add(pageNum);
-
-          if (appearanceCanvas) {
-            try {
-              const opList = typeof page.getOperatorList === "function" ? await page.getOperatorList() : null;
-              if (activeContinuousPagesRef.current.has(pageNum) && viewMode === "continuous" && appearanceCanvas.width > 0) {
-                const imgRects = opList ? extractImageRects(opList, viewport) : [];
+        if (appearanceCanvas) {
+          try {
+            if (typeof page.getOperatorList === "function") {
+              const opList = await page.getOperatorList();
+              if (!cancelled && opList) {
+                const imgRects = extractImageRects(opList, viewport);
                 renderAppearanceOverlay(
                   appearanceCanvas,
                   viewport.width,
@@ -836,53 +619,52 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                   canvas,
                 );
               }
-            } catch {
-              // ignore opList error
             }
+          } catch {
+            // ignore
           }
-
-          setStatus("Ready");
-        } catch {
-          continuousRenderTasksRef.current.delete(pageNum);
-          inFlightContinuousPagesRef.current.delete(pageNum);
         }
-      })();
-    }
-  }, [viewMode, activeContinuousPages, zoomScale, pageAppearance, isScanLikeDoc, pdfDoc]);
+      }
+      if (cancelled) return;
+      setStatus("Ready");
 
-  // Reactive Page Appearance update for continuous mode (Active pages only)
+      const target = canvasRefs.current[pageNumber - 1];
+      target?.scrollIntoView({ block: "start" });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, bookId, pageCount, zoomScale, isScanLikeDoc]);
+
+  // Reactive Page Appearance update for continuous mode
   useEffect(() => {
     if (viewMode !== "continuous") return;
-    const pdf = pdfDoc || pdfRef.current;
+    const pdf = pdfRef.current;
     if (!pdf) return;
     let cancelled = false;
 
     (async () => {
-      for (const pageNum of activeContinuousPages) {
+      for (let i = 1; i <= pdf.numPages; i++) {
         if (cancelled) return;
-        const appearanceCanvas = appearanceCanvasRefs.current[pageNum - 1];
-        const canvas = canvasRefs.current[pageNum - 1];
-        if (!appearanceCanvas || appearanceCanvas.width === 0 || !canvas || canvas.width === 0) continue;
-
-        try {
-          const page = await pdf.getPage(pageNum);
-          if (cancelled) return;
-          const viewport = page.getViewport({ scale: zoomScale });
-          const opList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
-          const imgRects = opList ? extractImageRects(opList, viewport) : [];
-          if (!cancelled && appearanceCanvas.width > 0) {
-            renderAppearanceOverlay(
-              appearanceCanvas,
-              viewport.width,
-              viewport.height,
-              pageAppearance,
-              isScanLikeDoc,
-              imgRects,
-              canvas,
-            );
-          }
-        } catch {
-          // ignore
+        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
+        const canvas = canvasRefs.current[i - 1];
+        if (!appearanceCanvas || appearanceCanvas.width === 0) continue;
+        const page = await pdf.getPage(i);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: zoomScale });
+        const opList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
+        const imgRects = opList ? extractImageRects(opList, viewport) : [];
+        if (!cancelled) {
+          renderAppearanceOverlay(
+            appearanceCanvas,
+            viewport.width,
+            viewport.height,
+            pageAppearance,
+            isScanLikeDoc,
+            imgRects,
+            canvas,
+          );
         }
       }
     })();
@@ -890,47 +672,32 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [pageAppearance, isScanLikeDoc, activeContinuousPages, viewMode, zoomScale]);
+  }, [pageAppearance, isScanLikeDoc, viewMode, zoomScale]);
 
   useEffect(() => {
     if (viewMode !== "continuous") return;
-    const pending = pendingContinuousPageRef.current;
-    if (pending === null) return;
-    const container = continuousContainerRef.current;
-    if (!container) return;
-    const target = container.querySelector<HTMLElement>(`[data-page="${pending}"]`);
-    if (target) {
-      target.scrollIntoView({ block: "start", behavior: "auto" });
-    }
-    const pageHeights = computePageHeights(pageDimensionsRef.current, page1ViewportRef.current, zoomScale, 16);
-    const topOffset = target && target.offsetTop > 0 ? target.offsetTop : getPageTopOffset(pageHeights, pending);
-    try {
-      container.scrollTop = topOffset;
-    } catch {
-      // ignore read-only property in mock environments
-    }
-    pendingContinuousPageRef.current = null;
+    const target = canvasRefs.current[pageNumber - 1];
+    target?.scrollIntoView({ block: "start", behavior: "auto" });
+    const frame = requestAnimationFrame(() => {
+      pendingContinuousPageRef.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [viewMode, pageNumber]);
 
   function handleContinuousScroll() {
     const pdf = pdfRef.current;
     const container = continuousContainerRef.current;
     if (!pdf || !container) return;
-    if (pendingContinuousPageRef.current !== null) {
+    const pendingPage = pendingContinuousPageRef.current;
+    if (pendingPage !== null) {
+      setPageNumber(pendingPage);
+      saveLocation(pendingPage, pdf.numPages);
       return;
     }
-    const pageHeights = computePageHeights(pageDimensionsRef.current, page1ViewportRef.current, zoomScale, 16);
-    const current = currentPageFromScroll(pageHeights, container.scrollTop);
+    const heights = canvasRefs.current.map((c) => (c ? c.clientHeight + 16 : 0)); // + gap
+    const current = currentPageFromScroll(heights, container.scrollTop);
     setPageNumber(current);
     saveLocation(current, pdf.numPages);
-
-    const visiblePages = computeActivePagesFromScroll(
-      pageHeights,
-      container.scrollTop,
-      container.clientHeight || 800,
-      2,
-    );
-    setActiveContinuousPages((prev) => (isSamePageList(prev, visiblePages) ? prev : visiblePages));
   }
 
   function triggerPageTurnAnimation() {
@@ -948,15 +715,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   function navigatePage(delta: -1 | 1) {
     const nextPage = Math.min(pageCount || 1, Math.max(1, pageNumber + delta));
     if (nextPage === pageNumber) return;
-    if (viewMode === "continuous") {
-      pendingContinuousPageRef.current = nextPage;
-      const initialRange = computeActivePageRange(nextPage, pageCount, 2);
-      const initialList: number[] = [];
-      for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
-        initialList.push(p);
-      }
-      setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
-    }
+    if (viewMode === "continuous") pendingContinuousPageRef.current = nextPage;
     setPageNumber(nextPage);
     playPageTurn();
     if (viewMode === "single") {
@@ -998,12 +757,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     if (viewMode === "continuous") {
       pendingContinuousPageRef.current = result.page;
-      const initialRange = computeActivePageRange(result.page, pageCount, 2);
-      const initialList: number[] = [];
-      for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
-        initialList.push(p);
-      }
-      setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
     }
     setPageNumber(result.page);
     if (viewMode === "single") {
@@ -1052,12 +805,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         if (targetPage === pageNumber) return;
         if (viewMode === "continuous") {
           pendingContinuousPageRef.current = targetPage;
-          const initialRange = computeActivePageRange(targetPage, pageCount, 2);
-          const initialList: number[] = [];
-          for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
-            initialList.push(p);
-          }
-          setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
         }
         setPageNumber(targetPage);
         playPageTurn();
@@ -1122,15 +869,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
   function switchViewMode(next: PdfViewMode) {
     setFitMode("custom");
-    if (next === "continuous") {
-      pendingContinuousPageRef.current = pageNumber;
-      const initialRange = computeActivePageRange(pageNumber, pageCount, 2);
-      const initialList: number[] = [];
-      for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
-        initialList.push(p);
-      }
-      setActiveContinuousPages(initialList);
-    }
     setViewMode(next);
   }
 
@@ -1453,38 +1191,27 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           className="reader-surface pdf-continuous"
           onScroll={handleContinuousScroll}
         >
-          {Array.from({ length: pageCount }, (_, i) => {
-            const pNum = i + 1;
-            const unscaled = pageDimensionsRef.current[i] || page1ViewportRef.current;
-            const continuousPageDims = resolvePageDimension(unscaled, page1ViewportRef.current, zoomScale);
-            return (
-              <div
-                key={i}
-                className="pdf-page continuous-page"
-                data-page={pNum}
-                data-appearance={pageAppearance}
-                data-scan-like={isScanLikeDoc ? "true" : "false"}
-                style={{
-                  width: `${continuousPageDims.width}px`,
-                  height: `${continuousPageDims.height}px`,
-                  minHeight: `${continuousPageDims.height}px`,
+          {Array.from({ length: pageCount }, (_, i) => (
+            <div
+              key={i}
+              className="pdf-page"
+              data-appearance={pageAppearance}
+              data-scan-like={isScanLikeDoc ? "true" : "false"}
+            >
+              <canvas
+                ref={(el) => {
+                  canvasRefs.current[i] = el;
                 }}
-              >
-                <canvas
-                  ref={(el) => {
-                    canvasRefs.current[i] = el;
-                  }}
-                />
-                <canvas
-                  ref={(el) => {
-                    appearanceCanvasRefs.current[i] = el;
-                  }}
-                  className="pdf-appearance-overlay"
-                  aria-hidden="true"
-                />
-              </div>
-            );
-          })}
+              />
+              <canvas
+                ref={(el) => {
+                  appearanceCanvasRefs.current[i] = el;
+                }}
+                className="pdf-appearance-overlay"
+                aria-hidden="true"
+              />
+            </div>
+          ))}
         </div>
       )}
       {externalLinkPromptUrl && (
