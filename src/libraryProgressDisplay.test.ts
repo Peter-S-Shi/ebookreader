@@ -48,13 +48,9 @@ describe("computeCompletedReadMarkText", () => {
     expect(computeCompletedReadMarkText(p, "show")).toBeNull();
   });
 
-  it("reports the singular count", () => {
-    const p = progress({ completed_read_count: 1 });
-    expect(computeCompletedReadMarkText(p, "show")).toBe("Read 1 time");
-  });
-
-  it("reports the plural count", () => {
-    const p = progress({ completed_read_count: 2 });
-    expect(computeCompletedReadMarkText(p, "show")).toBe("Read 2 times");
+  it("reports the count in the compact badge format (V2-M3 final corrective: 'Read Nx', not 'Read N times')", () => {
+    expect(computeCompletedReadMarkText(progress({ completed_read_count: 1 }), "show")).toBe("Read 1x");
+    expect(computeCompletedReadMarkText(progress({ completed_read_count: 2 }), "show")).toBe("Read 2x");
+    expect(computeCompletedReadMarkText(progress({ completed_read_count: 7 }), "show")).toBe("Read 7x");
   });
 });

@@ -588,13 +588,13 @@ describe("Library grid progress display (V2-M3 item 2)", () => {
     await screen.findByText("Never Opened");
     await waitFor(() => expect(within(bookCard("Never Opened")).getByText("0%")).toBeInTheDocument());
 
-    expect(within(bookCard("Never Opened")).queryByText(/^Read \d+ times?$/)).not.toBeInTheDocument();
+    expect(within(bookCard("Never Opened")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
 
     expect(within(bookCard("Active Second Read")).getByText("131%")).toBeInTheDocument();
-    expect(within(bookCard("Active Second Read")).getByText("Read 1 time")).toBeInTheDocument();
+    expect(within(bookCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument();
 
     expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument();
-    expect(within(bookCard("Twice Completed")).getByText("Read 2 times")).toBeInTheDocument();
+    expect(within(bookCard("Twice Completed")).getByText("Read 2x")).toBeInTheDocument();
   });
 
   it("Current Read Progress mode shows the active position, 100% for completed-with-no-active-read, and 0% for never-started", async () => {
@@ -623,7 +623,7 @@ describe("Library grid progress display (V2-M3 item 2)", () => {
     await screen.findByText("Never Opened");
     await waitFor(() => expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument());
 
-    expect(screen.queryByText(/^Read \d+ times?$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
   });
 
   it("refetches Library progress after returning from the Reader, so an in-session backtrack is not shown stale", async () => {
@@ -669,6 +669,50 @@ describe("Library grid progress display (V2-M3 item 2)", () => {
     await user.click(screen.getByRole("button", { name: "Back to Library" }));
 
     await waitFor(() => expect(within(bookCard("Active Book")).getByText("25%")).toBeInTheDocument());
+  });
+
+  function continueReadingCard(title: string) {
+    const section = screen.getByRole("region", { name: "Continue Reading" });
+    return within(section).getByText(title).closest("li")!;
+  }
+
+  it("Continue Reading respects the Library Progress Display setting instead of always showing cumulative (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      return null;
+    });
+
+    render(<App />);
+    // "Active Second Read": completed_read_count 1, active_pass_progress 31
+    // -> cumulative would read 131%, current-read mode must read 31%.
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("31%")).toBeInTheDocument());
+    expect(within(continueReadingCard("Active Second Read")).queryByText("131%")).not.toBeInTheDocument();
+
+    // The main grid must show the same value -- both surfaces driven by
+    // the one setting, not diverging.
+    expect(within(bookCard("Active Second Read")).getByText("31%")).toBeInTheDocument();
+  });
+
+  it("Continue Reading shows the Completed Read Mark badge (Show, the default), matching the main grid (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    render(<App />);
+
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument());
+    expect(within(bookCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument();
+  });
+
+  it("Continue Reading honors Completed Read Mark = Hide, matching the main grid (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+
+    render(<App />);
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("131%")).toBeInTheDocument());
+    expect(within(continueReadingCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
+    expect(within(bookCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
   });
 });
 

@@ -2624,6 +2624,7 @@ a:hover {
 }
 
 .resume {
+  position: relative;
   max-width: 900px;
   display: grid;
   grid-template-columns: 90px 1fr auto;
@@ -2865,13 +2866,18 @@ a:hover {
   color: var(--muted, inherit);
 }
 
-/* V2-M3 human-acceptance correction: a compact pill badge, visually
-   distinct from the plain percent text next to it, not concatenated
-   inline text. Fixed height/padding keeps the card from growing. */
-.book-completed-read-mark {
+/* V2-M3 final corrective: a small top-right corner badge/ribbon, fully
+   independent of the progress percent text -- not inline metadata, and
+   positioned via the card's own `position: relative` (`.book` / `.resume`)
+   so it doesn't add to card layout flow or grow the card. */
+.book-completed-read-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: var(--accent);
   color: white;
@@ -2879,6 +2885,8 @@ a:hover {
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
 }
 
 .book-actions {

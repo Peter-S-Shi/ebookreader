@@ -23,9 +23,11 @@ export function computeLibraryDisplayPercent(progress: ReadingProgressDTO, mode:
 }
 
 /** `null` when the mark should not render at all: hidden by setting, or
- * nothing has been completed yet regardless of setting. */
+ * nothing has been completed yet regardless of setting. V2-M3 final
+ * corrective: compact badge text ("Read Nx"), not body-text prose ("Read N
+ * times"), since this now renders as a corner badge, not inline metadata. */
 export function computeCompletedReadMarkText(progress: ReadingProgressDTO, markMode: CompletedReadMarkMode): string | null {
   if (markMode === "hide") return null;
   if (progress.completed_read_count < 1) return null;
-  return `Read ${progress.completed_read_count} time${progress.completed_read_count === 1 ? "" : "s"}`;
+  return `Read ${progress.completed_read_count}x`;
 }

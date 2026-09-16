@@ -187,7 +187,7 @@ function App() {
   // most recently opened Books that still have an active read in
   // progress, ranked by real recorded recency (`last_opened_at`), not
   // import order. Recomputed whenever the Library list changes.
-  const [continueReading, setContinueReading] = useState<{ book: BookSummary; percent: number }[]>([]);
+  const [continueReading, setContinueReading] = useState<{ book: BookSummary; progress: ReadingProgressDTO }[]>([]);
   // V2-M3 item 2: every Book's ReadingProgress, for the main Library
   // grid's per-card presentation (Progress Display / Completed Read Mark
   // settings below). Shares this same fetch with Continue Reading above
@@ -229,10 +229,7 @@ function App() {
         results
           .filter((r) => r.progress.active_read_in_progress)
           .slice(0, 3)
-          .map((r) => ({
-            book: r.book,
-            percent: r.progress.completed_read_count * 100 + r.progress.active_pass_progress,
-          })),
+          .map((r) => ({ book: r.book, progress: r.progress })),
       );
       const progressMap: Record<string, ReadingProgressDTO> = {};
       for (const book of books) progressMap[book.book_id] = NEVER_OPENED_PROGRESS;
@@ -915,37 +912,42 @@ function App() {
                 <span className="hint">Pick up where you left off.</span>
               </div>
               <ul className="continue-reading-list resume-grid">
-                {continueReading.map(({ book, percent }) => (
-                  <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
-                    <div className="cover" aria-hidden="true">
-                      <span className="cover-format">{book.format.toUpperCase()}</span>
-                    </div>
-                    <div className="resume-body">
-                      <h3>
-                        <button
-                          type="button"
-                          className="resume-title-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenBook(book);
-                          }}
-                        >
-                          {book.title}
-                        </button>
-                      </h3>
-                      <div className="meta">
-                        {book.format.toUpperCase()} · {book.ownership_mode}
+                {continueReading.map(({ book, progress }) => {
+                  const percent = computeLibraryDisplayPercent(progress, progressDisplayMode);
+                  const markText = computeCompletedReadMarkText(progress, completedReadMarkMode);
+                  return (
+                    <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
+                      {markText && <span className="book-completed-read-badge">{markText}</span>}
+                      <div className="cover" aria-hidden="true">
+                        <span className="cover-format">{book.format.toUpperCase()}</span>
                       </div>
-                      <div className="bar">
-                        <i style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                      <div className="resume-body">
+                        <h3>
+                          <button
+                            type="button"
+                            className="resume-title-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenBook(book);
+                            }}
+                          >
+                            {book.title}
+                          </button>
+                        </h3>
+                        <div className="meta">
+                          {book.format.toUpperCase()} · {book.ownership_mode}
+                        </div>
+                        <div className="bar">
+                          <i style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                        </div>
+                        <div className="meta">{percent.toFixed(0)}%</div>
                       </div>
-                      <div className="meta">{percent.toFixed(0)}%</div>
-                    </div>
-                    <div className="resume-action" style={{ color: "var(--accent)", fontWeight: 650 }}>
-                      Continue →
-                    </div>
-                  </li>
-                ))}
+                      <div className="resume-action" style={{ color: "var(--accent)", fontWeight: 650 }}>
+                        Continue →
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}
@@ -1020,6 +1022,12 @@ function App() {
                             aria-label={`Select ${book.title}`}
                           />
                         )}
+                        {libraryProgress[book.book_id] &&
+                          computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode) && (
+                            <span className="book-completed-read-badge">
+                              {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode)}
+                            </span>
+                          )}
                         <div
                           className="cover"
                           aria-hidden="true"
@@ -1069,11 +1077,6 @@ function App() {
                                   <span className="book-progress-percent">
                                     {Math.round(computeLibraryDisplayPercent(libraryProgress[book.book_id], progressDisplayMode))}%
                                   </span>
-                                  {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode) && (
-                                    <span className="book-completed-read-mark">
-                                      {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode)}
-                                    </span>
-                                  )}
                                 </div>
                               )}
                               {!selectMode && (
