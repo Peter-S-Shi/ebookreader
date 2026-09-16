@@ -10,6 +10,7 @@ import {
   computeActivePageRange,
   computeActivePagesFromScroll,
   computePageHeights,
+  getPageTopOffset,
   resolvePageDimension,
   type PdfPageDimension,
 } from "./pdfContinuous";
@@ -727,9 +728,16 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     const currentActiveSet = new Set(activeContinuousPages);
     activeContinuousPagesRef.current = currentActiveSet;
 
-    // Evict distant rendered pages: release canvas backing memory
+    // Retain rendered pages in the active window + retention neighborhood (4 pages)
+    const retentionRange = computeActivePageRange(pageNumber, pageCount, 4);
+    const retentionSet = new Set<number>(activeContinuousPages);
+    for (let p = retentionRange.startPage; p <= retentionRange.endPage; p++) {
+      retentionSet.add(p);
+    }
+
+    // Evict distant rendered pages beyond retention window: release canvas backing memory
     for (const pageNum of Array.from(renderedContinuousPagesRef.current)) {
-      if (!currentActiveSet.has(pageNum)) {
+      if (!retentionSet.has(pageNum)) {
         renderedContinuousPagesRef.current.delete(pageNum);
         const c = canvasRefs.current[pageNum - 1];
         if (c) {
@@ -888,8 +896,19 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     if (viewMode !== "continuous") return;
     const pending = pendingContinuousPageRef.current;
     if (pending === null) return;
-    const target = continuousContainerRef.current?.querySelector<HTMLElement>(`[data-page="${pending}"]`);
-    target?.scrollIntoView({ block: "start", behavior: "auto" });
+    const container = continuousContainerRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLElement>(`[data-page="${pending}"]`);
+    if (target) {
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+    }
+    const pageHeights = computePageHeights(pageDimensionsRef.current, page1ViewportRef.current, zoomScale, 16);
+    const topOffset = target && target.offsetTop > 0 ? target.offsetTop : getPageTopOffset(pageHeights, pending);
+    try {
+      container.scrollTop = topOffset;
+    } catch {
+      // ignore read-only property in mock environments
+    }
     pendingContinuousPageRef.current = null;
   }, [viewMode, pageNumber]);
 
@@ -897,10 +916,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     const pdf = pdfRef.current;
     const container = continuousContainerRef.current;
     if (!pdf || !container) return;
-    const pendingPage = pendingContinuousPageRef.current;
-    if (pendingPage !== null) {
-      setPageNumber(pendingPage);
-      saveLocation(pendingPage, pdf.numPages);
+    if (pendingContinuousPageRef.current !== null) {
       return;
     }
     const pageHeights = computePageHeights(pageDimensionsRef.current, page1ViewportRef.current, zoomScale, 16);
@@ -912,9 +928,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       pageHeights,
       container.scrollTop,
       container.clientHeight || 800,
-      1,
+      2,
     );
-    setActiveContinuousPages(visiblePages);
+    setActiveContinuousPages((prev) => (isSamePageList(prev, visiblePages) ? prev : visiblePages));
   }
 
   function triggerPageTurnAnimation() {
@@ -932,7 +948,15 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   function navigatePage(delta: -1 | 1) {
     const nextPage = Math.min(pageCount || 1, Math.max(1, pageNumber + delta));
     if (nextPage === pageNumber) return;
-    if (viewMode === "continuous") pendingContinuousPageRef.current = nextPage;
+    if (viewMode === "continuous") {
+      pendingContinuousPageRef.current = nextPage;
+      const initialRange = computeActivePageRange(nextPage, pageCount, 2);
+      const initialList: number[] = [];
+      for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
+        initialList.push(p);
+      }
+      setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
+    }
     setPageNumber(nextPage);
     playPageTurn();
     if (viewMode === "single") {
@@ -974,6 +998,12 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     if (viewMode === "continuous") {
       pendingContinuousPageRef.current = result.page;
+      const initialRange = computeActivePageRange(result.page, pageCount, 2);
+      const initialList: number[] = [];
+      for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
+        initialList.push(p);
+      }
+      setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
     }
     setPageNumber(result.page);
     if (viewMode === "single") {
@@ -1022,6 +1052,12 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         if (targetPage === pageNumber) return;
         if (viewMode === "continuous") {
           pendingContinuousPageRef.current = targetPage;
+          const initialRange = computeActivePageRange(targetPage, pageCount, 2);
+          const initialList: number[] = [];
+          for (let p = initialRange.startPage; p <= initialRange.endPage; p++) {
+            initialList.push(p);
+          }
+          setActiveContinuousPages((prev) => (isSamePageList(prev, initialList) ? prev : initialList));
         }
         setPageNumber(targetPage);
         playPageTurn();
@@ -1432,7 +1468,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                   width: `${continuousPageDims.width}px`,
                   height: `${continuousPageDims.height}px`,
                   minHeight: `${continuousPageDims.height}px`,
-                  marginBottom: "16px",
                 }}
               >
                 <canvas

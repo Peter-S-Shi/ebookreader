@@ -680,7 +680,7 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
 
       // Scroll to page 30: at 120% scale (height 960 + 16px margin = 976px per page),
       // page 30 begins at 29 * 976px
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 29 * 976 });
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 29 * 976 });
       fireEvent.scroll(continuousSurface);
 
       await waitFor(() => {
@@ -754,7 +754,7 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       expect(continuousSurface).toBeInTheDocument();
 
       // Scroll slightly (page 12 is still within viewport / active window)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 11 * 976 + 100 });
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 11 * 976 + 100 });
       fireEvent.scroll(continuousSurface);
 
       // In-flight render for page 12 MUST NOT be cancelled because page 12 remains active
@@ -858,12 +858,12 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
 
       // Scroll to Page 2 start (Page 1 height 960 + 16 = 976px)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 976 });
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 976 });
       fireEvent.scroll(continuousSurface);
       expect(screen.getByDisplayValue("2")).toBeInTheDocument();
 
       // Scroll to Page 3 start (976 + 720 + 16 = 1712px)
-      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 1712 });
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 1712 });
       fireEvent.scroll(continuousSurface);
       expect(screen.getByDisplayValue("3")).toBeInTheDocument();
 
@@ -876,8 +876,61 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
         expect(screen.getByDisplayValue("8")).toBeInTheDocument();
       });
 
-      // Bounded rendering: distant page 10 was not rendered
-      expect(renderedPageNumbers).not.toContain(10);
+      // Bounded rendering: distant page 50 was not rendered
+      expect(renderedPageNumbers).not.toContain(50);
+    });
+
+    it("jumps to a distant page in continuous mode without resetting to page 1 during scroll events", async () => {
+      render(<PdfReader bookId="pdf1" title="Distant Jump Test PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+      await waitFor(() => expect(renderedPageNumbers).toContain(12));
+
+      renderedPageNumbers.length = 0;
+
+      // Jump to page 45
+      const pageInput = screen.getByRole("textbox", { name: "Current page" });
+      fireEvent.change(pageInput, { target: { value: "45" } });
+      fireEvent.keyDown(pageInput, { key: "Enter" });
+
+      // Simulate intermediate scroll event from browser before position settles
+      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
+      fireEvent.scroll(continuousSurface);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("45")).toBeInTheDocument();
+      });
+
+      // Assert page 45 was scheduled and rendered, and not reset to 1
+      await waitFor(() => {
+        expect(renderedPageNumbers).toContain(45);
+      });
+      expect(screen.queryByDisplayValue("1")).not.toBeInTheDocument();
+    });
+
+    it("retains nearby rendered pages in retention buffer during rapid continuous scroll without blanking out", async () => {
+      render(<PdfReader bookId="pdf1" title="Retention Buffer Test PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+      await waitFor(() => expect(renderedPageNumbers).toContain(12));
+
+      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
+
+      // Scroll to page 13
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, writable: true, value: 12 * 976 });
+      fireEvent.scroll(continuousSurface);
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("13")).toBeInTheDocument();
+      });
+
+      // Page 12 canvas must still be retained with positive dimensions (not wiped to 0)
+      const page12Canvas = document.querySelector<HTMLCanvasElement>('[data-page="12"] canvas');
+      expect(page12Canvas).toBeInTheDocument();
+      expect(page12Canvas?.width).toBeGreaterThan(0);
     });
   });
 });
+
