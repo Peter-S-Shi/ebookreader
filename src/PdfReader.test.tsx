@@ -347,7 +347,7 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
   });
 
   describe("Page Appearance controls", () => {
-    it("renders the Page Appearance select with Default, Day, Eye Care, and Parchment options", async () => {
+    it("renders the Page Appearance select with Default, Day, Eye Care, Parchment, and Night options", async () => {
       render(<PdfReader bookId="pdf1" title="Appearance PDF" onBack={vi.fn()} />);
       await screen.findByDisplayValue("12");
 
@@ -356,19 +356,20 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       expect(select.value).toBe("default");
 
       const options = Array.from(select.options).map((o) => o.value);
-      expect(options).toEqual(["default", "day", "eyecare", "parchment"]);
+      expect(options).toEqual(["default", "day", "eyecare", "parchment", "night"]);
     });
 
-    it("changes appearance mode and updates overlay canvas", async () => {
+    it("changes appearance mode to night and updates data-appearance on pdf-page", async () => {
       render(<PdfReader bookId="pdf1" title="Appearance PDF" onBack={vi.fn()} />);
       await screen.findByDisplayValue("12");
 
       const select = screen.getByLabelText("Page appearance") as HTMLSelectElement;
-      fireEvent.change(select, { target: { value: "eyecare" } });
-      expect(select.value).toBe("eyecare");
+      fireEvent.change(select, { target: { value: "night" } });
+      expect(select.value).toBe("night");
 
-      const overlay = document.querySelector(".pdf-appearance-overlay") as HTMLCanvasElement;
-      expect(overlay).toBeInTheDocument();
+      const pdfPage = document.querySelector(".pdf-page") as HTMLElement;
+      expect(pdfPage).toBeInTheDocument();
+      expect(pdfPage.getAttribute("data-appearance")).toBe("night");
     });
   });
 });

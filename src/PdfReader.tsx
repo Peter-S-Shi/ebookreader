@@ -362,6 +362,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           pageAppearance,
           isScanLikeDoc,
           currentImgRects,
+          canvas,
         );
       }
 
@@ -418,8 +419,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
   // Reactive Page Appearance update for single-page mode without full PDF canvas re-render
   useEffect(() => {
-    if (viewMode !== "single" || !appearanceCanvasRef.current) return;
+    if (viewMode !== "single" || !appearanceCanvasRef.current || !canvasRef.current) return;
     const canvas = appearanceCanvasRef.current;
+    const baseCanvas = canvasRef.current;
     if (canvas.width > 0 && canvas.height > 0) {
       renderAppearanceOverlay(
         canvas,
@@ -428,6 +430,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         pageAppearance,
         isScanLikeDoc,
         pageImageRects,
+        baseCanvas,
       );
     }
   }, [pageAppearance, isScanLikeDoc, pageImageRects, viewMode]);
@@ -606,6 +609,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
                   pageAppearance,
                   isScanLikeDoc,
                   imgRects,
+                  canvas,
                 );
               }
             }
@@ -637,6 +641,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       for (let i = 1; i <= pdf.numPages; i++) {
         if (cancelled) return;
         const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
+        const canvas = canvasRefs.current[i - 1];
         if (!appearanceCanvas || appearanceCanvas.width === 0) continue;
         const page = await pdf.getPage(i);
         if (cancelled) return;
@@ -651,6 +656,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             pageAppearance,
             isScanLikeDoc,
             imgRects,
+            canvas,
           );
         }
       }
@@ -863,6 +869,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             <option value="day">Day</option>
             <option value="eyecare">Eye Care</option>
             <option value="parchment">Parchment</option>
+            <option value="night">Night</option>
           </select>
           <button
             type="button"
@@ -1058,7 +1065,11 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       )}
       {viewMode === "single" ? (
         <div ref={singlePageSurfaceRef} className="reader-surface">
-          <div className="pdf-page">
+          <div
+            className="pdf-page"
+            data-appearance={pageAppearance}
+            data-scan-like={isScanLikeDoc ? "true" : "false"}
+          >
             <canvas ref={canvasRef} />
             <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
             <div ref={textLayerRef} className="textLayer pdf-text-layer" />
@@ -1071,7 +1082,12 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           onScroll={handleContinuousScroll}
         >
           {Array.from({ length: pageCount }, (_, i) => (
-            <div key={i} className="pdf-page">
+            <div
+              key={i}
+              className="pdf-page"
+              data-appearance={pageAppearance}
+              data-scan-like={isScanLikeDoc ? "true" : "false"}
+            >
               <canvas
                 ref={(el) => {
                   canvasRefs.current[i] = el;

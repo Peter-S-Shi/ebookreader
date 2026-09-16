@@ -1,6 +1,6 @@
 import * as pdfjsLib from "pdfjs-dist";
 
-export type PdfPageAppearance = "default" | "day" | "eyecare" | "parchment";
+export type PdfPageAppearance = "default" | "day" | "eyecare" | "parchment" | "night";
 
 export interface PdfImageRect {
   x: number;
@@ -15,6 +15,7 @@ export const APPEARANCE_COLORS: Record<PdfPageAppearance, string | null> = {
   day: "#ffffff",
   eyecare: "#c7edcc",
   parchment: "#f4eedb",
+  night: null,
 };
 
 const STORAGE_KEY = "ebookreader.pdf.pageAppearance";
@@ -22,7 +23,7 @@ const STORAGE_KEY = "ebookreader.pdf.pageAppearance";
 export function getPdfPageAppearancePreference(): PdfPageAppearance {
   try {
     const val = localStorage.getItem(STORAGE_KEY);
-    if (val === "day" || val === "eyecare" || val === "parchment") {
+    if (val === "day" || val === "eyecare" || val === "parchment" || val === "night") {
       return val;
     }
   } catch {
@@ -180,6 +181,7 @@ export function renderAppearanceOverlay(
   appearance: PdfPageAppearance,
   isScanLikeDoc: boolean,
   imageRects: PdfImageRect[],
+  sourceCanvas?: HTMLCanvasElement | null,
 ): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -187,9 +189,36 @@ export function renderAppearanceOverlay(
   ctx.clearRect(0, 0, width, height);
 
   if (appearance === "default" || appearance === "day") {
+    if (canvas.style) canvas.style.mixBlendMode = "normal";
     return;
   }
 
+  if (appearance === "night") {
+    if (canvas.style) canvas.style.mixBlendMode = "normal";
+    if (!isScanLikeDoc && sourceCanvas && imageRects.length > 0) {
+      for (const rect of imageRects) {
+        try {
+          ctx.drawImage(
+            sourceCanvas,
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height,
+          );
+        } catch {
+          // ignore drawImage error if source canvas is empty
+        }
+      }
+    }
+    return;
+  }
+
+  // eyecare or parchment
+  if (canvas.style) canvas.style.mixBlendMode = "multiply";
   const color = APPEARANCE_COLORS[appearance];
   if (!color) return;
 

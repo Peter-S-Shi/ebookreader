@@ -1053,6 +1053,20 @@ a:hover {
   z-index: 1;
 }
 
+/* Night mode for text/mixed PDF pages:
+   Visually inverts the base PDF canvas (paper becomes dark, black text becomes light).
+   Scanned PDFs (data-scan-like="true") are explicitly excluded to preserve the original scan.
+   Embedded image/photo regions are drawn onto .pdf-appearance-overlay to preserve original color. */
+.pdf-page[data-appearance="night"]:not([data-scan-like="true"]) > canvas:first-child {
+  filter: invert(0.92) hue-rotate(180deg);
+  background-color: #1a1a1a;
+}
+
+.pdf-page[data-appearance="night"] .textLayer span.reader-highlight,
+.pdf-page[data-appearance="night"] .pdf-text-layer span.reader-highlight {
+  mix-blend-mode: screen;
+}
+
 .textLayer,
 .pdf-text-layer {
   color-scheme: only light;

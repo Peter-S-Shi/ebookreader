@@ -195,7 +195,39 @@ describe("pdfAppearance module", () => {
       expect(clearRect).toHaveBeenCalledTimes(3);
       expect(clearRect).toHaveBeenNthCalledWith(1, 0, 0, 600, 800);
       expect(clearRect).toHaveBeenNthCalledWith(2, 50, 100, 200, 150);
-      expect(clearRect).toHaveBeenNthCalledWith(3, 300, 400, 250, 200);
+    });
+
+    it("draws original un-inverted image rectangles from source canvas in Night mode for text/mixed PDFs", () => {
+      const { canvas, clearRect } = createMockCanvas(600, 800);
+      const drawImage = vi.fn();
+      const mockCtx = (canvas as any).getContext("2d");
+      mockCtx.drawImage = drawImage;
+
+      const mockSourceCanvas = {} as HTMLCanvasElement;
+      const photo1: PdfImageRect = { x: 50, y: 100, width: 200, height: 150, areaRatio: 0.0625 };
+      const photo2: PdfImageRect = { x: 300, y: 400, width: 250, height: 200, areaRatio: 0.104 };
+
+      renderAppearanceOverlay(canvas, 600, 800, "night", false, [photo1, photo2], mockSourceCanvas);
+
+      expect(clearRect).toHaveBeenCalledWith(0, 0, 600, 800);
+      expect(drawImage).toHaveBeenCalledTimes(2);
+      expect(drawImage).toHaveBeenNthCalledWith(1, mockSourceCanvas, 50, 100, 200, 150, 50, 100, 200, 150);
+      expect(drawImage).toHaveBeenNthCalledWith(2, mockSourceCanvas, 300, 400, 250, 200, 300, 400, 250, 200);
+    });
+
+    it("leaves overlay canvas completely clear in Night mode for scan-like PDFs (preserves original scan)", () => {
+      const { canvas, clearRect } = createMockCanvas(500, 700);
+      const drawImage = vi.fn();
+      const mockCtx = (canvas as any).getContext("2d");
+      mockCtx.drawImage = drawImage;
+
+      const mockSourceCanvas = {} as HTMLCanvasElement;
+      const dominantImage: PdfImageRect = { x: 0, y: 0, width: 500, height: 700, areaRatio: 1.0 };
+
+      renderAppearanceOverlay(canvas, 500, 700, "night", true, [dominantImage], mockSourceCanvas);
+
+      expect(clearRect).toHaveBeenCalledWith(0, 0, 500, 700);
+      expect(drawImage).not.toHaveBeenCalled();
     });
   });
 
@@ -215,6 +247,9 @@ describe("pdfAppearance module", () => {
 
       setPdfPageAppearancePreference("day");
       expect(getPdfPageAppearancePreference()).toBe("day");
+
+      setPdfPageAppearancePreference("night");
+      expect(getPdfPageAppearancePreference()).toBe("night");
     });
 
     it("falls back to default for unknown stored value", () => {
