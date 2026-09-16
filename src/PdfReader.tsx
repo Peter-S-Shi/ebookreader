@@ -18,6 +18,16 @@ import { applyPdfHighlights, clearPdfHighlights, recolorPdfHighlight, type PdfAn
 import { TocPanel, type TocItem } from "./TocPanel";
 import { pdfOutlineToTocItems } from "./pdfOutline";
 import { parsePageJumpInput } from "./pdfPageInput";
+import {
+  getPdfPageAppearancePreference,
+  setPdfPageAppearancePreference,
+  extractImageRects,
+  isScanLikeDocument,
+  renderAppearanceOverlay,
+  type PdfPageAppearance,
+  type PdfImageRect,
+  type PageScanSample,
+} from "./pdfAppearance";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -86,10 +96,12 @@ function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
 // the user: the button's label says so rather than faking a progress bar.
 export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const appearanceCanvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const singlePageSurfaceRef = useRef<HTMLDivElement>(null);
   const continuousContainerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  const appearanceCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const pendingContinuousPageRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Loading…");
   const [jumpFailed, setJumpFailed] = useState(false);
@@ -98,6 +110,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const [zoomScale, setZoomScale] = useState(DEFAULT_PDF_SCALE);
   const [fitMode, setFitMode] = useState<PdfFitMode>("custom");
+  const [pageAppearance, setPageAppearance] = useState<PdfPageAppearance>(getPdfPageAppearancePreference);
+  const [isScanLikeDoc, setIsScanLikeDoc] = useState(false);
+  const [pageImageRects, setPageImageRects] = useState<PdfImageRect[]>([]);
   const [notebookOpen, setNotebookOpen] = useState(false);
   // V2-M2: native PDF bookmarks (pdf.js `getOutline()`) surfaced in the
   // same shared Contents UI (`TocPanel`) EPUB already uses. Empty when the
@@ -180,8 +195,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       setToc(await pdfOutlineToTocItems(outline, pdf));
 
       // Check text content of initial target page immediately for text selection state.
-      // Entire-document scanned state (hasExtractableText = false) remains unknown
-      // until the background whole-document inspection below completes.
       try {
         const page1 = await pdf.getPage(startPage);
         const tc1 = await page1.getTextContent();
@@ -206,12 +219,24 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
     const timer = setTimeout(async () => {
       let anyPageHasText = false;
+      const fullDocSamples: PageScanSample[] = [];
+
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         if (cancelled) return;
         const page = await pdfDoc.getPage(i);
         if (cancelled) return;
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+        const textCharCount = textContent.items.reduce((acc, item) => acc + ("str" in item ? (item as { str: string }).str.length : 0), 0);
+
+        if (fullDocSamples.length < 10) {
+          const sOpList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
+          const sVp = page.getViewport({ scale: 1.0 });
+          const imgRects = sOpList ? extractImageRects(sOpList, sVp) : [];
+          const maxImageAreaRatio = imgRects.length > 0 ? Math.max(...imgRects.map((r) => r.areaRatio)) : 0;
+          fullDocSamples.push({ textCharCount, maxImageAreaRatio });
+        }
+
         if (pageText.trim()) {
           anyPageHasText = true;
           const anchor: DocumentLocationDTO = {
@@ -233,6 +258,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       }
       if (!cancelled) {
         setHasExtractableText(anyPageHasText);
+        if (fullDocSamples.length > 0) {
+          setIsScanLikeDoc(isScanLikeDocument(fullDocSamples));
+        }
       }
     }, 100);
 
@@ -300,9 +328,42 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         pageDiv.style.height = `${viewport.height}px`;
       }
 
+      const appearanceCanvas = appearanceCanvasRef.current;
+      if (appearanceCanvas) {
+        appearanceCanvas.width = viewport.width;
+        appearanceCanvas.height = viewport.height;
+        appearanceCanvas.style.width = `${viewport.width}px`;
+        appearanceCanvas.style.height = `${viewport.height}px`;
+      }
+
       renderTask = page.render({ canvasContext: context, viewport, canvas });
       await renderTask.promise.catch(() => {});
       if (cancelled) return;
+
+      // Extract image rects for Page Appearance (Eye Care / Parchment image protection)
+      let currentImgRects: PdfImageRect[] = [];
+      try {
+        if (typeof page.getOperatorList === "function") {
+          const opList = await page.getOperatorList();
+          if (!cancelled && opList) {
+            currentImgRects = extractImageRects(opList, viewport);
+            setPageImageRects(currentImgRects);
+          }
+        }
+      } catch {
+        // ignore opList error
+      }
+
+      if (appearanceCanvas && !cancelled) {
+        renderAppearanceOverlay(
+          appearanceCanvas,
+          viewport.width,
+          viewport.height,
+          pageAppearance,
+          isScanLikeDoc,
+          currentImgRects,
+        );
+      }
 
       const textLayerDiv = textLayerRef.current;
       if (textLayerDiv) {
@@ -353,7 +414,23 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [viewMode, pageNumber, bookId, pdfDoc, zoomScale]);
+  }, [viewMode, pageNumber, bookId, pdfDoc, zoomScale, isScanLikeDoc]);
+
+  // Reactive Page Appearance update for single-page mode without full PDF canvas re-render
+  useEffect(() => {
+    if (viewMode !== "single" || !appearanceCanvasRef.current) return;
+    const canvas = appearanceCanvasRef.current;
+    if (canvas.width > 0 && canvas.height > 0) {
+      renderAppearanceOverlay(
+        canvas,
+        canvas.width,
+        canvas.height,
+        pageAppearance,
+        isScanLikeDoc,
+        pageImageRects,
+      );
+    }
+  }, [pageAppearance, isScanLikeDoc, pageImageRects, viewMode]);
 
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
   // Single-page mode only this checkpoint -- continuous mode would need
@@ -495,6 +572,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       for (let i = 1; i <= pdf.numPages; i++) {
         if (cancelled) return;
         const canvas = canvasRefs.current[i - 1];
+        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
         if (!canvas) continue;
         const page = await pdf.getPage(i);
         if (cancelled) return;
@@ -502,7 +580,39 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         const context = canvas.getContext("2d")!;
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        await page.render({ canvasContext: context, viewport, canvas }).promise;
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+
+        if (appearanceCanvas) {
+          appearanceCanvas.width = viewport.width;
+          appearanceCanvas.height = viewport.height;
+          appearanceCanvas.style.width = `${viewport.width}px`;
+          appearanceCanvas.style.height = `${viewport.height}px`;
+        }
+
+        await page.render({ canvasContext: context, viewport, canvas }).promise.catch(() => {});
+        if (cancelled) return;
+
+        if (appearanceCanvas) {
+          try {
+            if (typeof page.getOperatorList === "function") {
+              const opList = await page.getOperatorList();
+              if (!cancelled && opList) {
+                const imgRects = extractImageRects(opList, viewport);
+                renderAppearanceOverlay(
+                  appearanceCanvas,
+                  viewport.width,
+                  viewport.height,
+                  pageAppearance,
+                  isScanLikeDoc,
+                  imgRects,
+                );
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
       }
       if (cancelled) return;
       setStatus("Ready");
@@ -514,7 +624,42 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [viewMode, bookId, pageCount, zoomScale]);
+  }, [viewMode, bookId, pageCount, zoomScale, isScanLikeDoc]);
+
+  // Reactive Page Appearance update for continuous mode
+  useEffect(() => {
+    if (viewMode !== "continuous") return;
+    const pdf = pdfRef.current;
+    if (!pdf) return;
+    let cancelled = false;
+
+    (async () => {
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (cancelled) return;
+        const appearanceCanvas = appearanceCanvasRefs.current[i - 1];
+        if (!appearanceCanvas || appearanceCanvas.width === 0) continue;
+        const page = await pdf.getPage(i);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale: zoomScale });
+        const opList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
+        const imgRects = opList ? extractImageRects(opList, viewport) : [];
+        if (!cancelled) {
+          renderAppearanceOverlay(
+            appearanceCanvas,
+            viewport.width,
+            viewport.height,
+            pageAppearance,
+            isScanLikeDoc,
+            imgRects,
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pageAppearance, isScanLikeDoc, viewMode, zoomScale]);
 
   useEffect(() => {
     if (viewMode !== "continuous") return;
@@ -703,6 +848,21 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           >
             <option value="single">Single page</option>
             <option value="continuous">Continuous scroll</option>
+          </select>
+          <select
+            aria-label="Page appearance"
+            className="pdf-appearance-select"
+            value={pageAppearance}
+            onChange={(e) => {
+              const next = e.target.value as PdfPageAppearance;
+              setPageAppearance(next);
+              setPdfPageAppearancePreference(next);
+            }}
+          >
+            <option value="default">Default</option>
+            <option value="day">Day</option>
+            <option value="eyecare">Eye Care</option>
+            <option value="parchment">Parchment</option>
           </select>
           <button
             type="button"
@@ -900,6 +1060,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         <div ref={singlePageSurfaceRef} className="reader-surface">
           <div className="pdf-page">
             <canvas ref={canvasRef} />
+            <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
             <div ref={textLayerRef} className="textLayer pdf-text-layer" />
           </div>
         </div>
@@ -910,12 +1071,20 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           onScroll={handleContinuousScroll}
         >
           {Array.from({ length: pageCount }, (_, i) => (
-            <canvas
-              key={i}
-              ref={(el) => {
-                canvasRefs.current[i] = el;
-              }}
-            />
+            <div key={i} className="pdf-page">
+              <canvas
+                ref={(el) => {
+                  canvasRefs.current[i] = el;
+                }}
+              />
+              <canvas
+                ref={(el) => {
+                  appearanceCanvasRefs.current[i] = el;
+                }}
+                className="pdf-appearance-overlay"
+                aria-hidden="true"
+              />
+            </div>
           ))}
         </div>
       )}

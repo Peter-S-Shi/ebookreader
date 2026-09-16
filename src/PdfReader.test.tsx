@@ -11,11 +11,17 @@ const mockGetPage = vi.fn().mockImplementation(async (_pageNo: number) => ({
   getViewport: ({ scale }: { scale?: number } = {}) => {
     const resolvedScale = scale ?? 1.2;
     viewportScales.push(resolvedScale);
-    return { width: 600 * resolvedScale, height: 800 * resolvedScale, scale: resolvedScale };
+    return {
+      width: 600 * resolvedScale,
+      height: 800 * resolvedScale,
+      scale: resolvedScale,
+      convertToViewportPoint: (x: number, y: number) => [x * resolvedScale, y * resolvedScale],
+    };
   },
   render: () => mockRenderTask,
   getTextContent: async () => ({ items: [] }), // No text items -> scanned PDF
   streamTextContent: async () => ({ items: [] }),
+  getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
 }));
 
 const mockGetOutline = vi.fn(async () => null as unknown[] | null);
@@ -39,6 +45,15 @@ vi.mock("pdfjs-dist", () => ({
     render() {
       return Promise.resolve();
     }
+  },
+  OPS: {
+    save: 17,
+    restore: 18,
+    transform: 21,
+    paintImageXObject: 82,
+    paintInlineImageXObject: 83,
+    paintImageMaskXObject: 84,
+    paintSolidColorImageMask: 85,
   },
 }));
 
@@ -329,5 +344,31 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chapter 2" }));
 
     await waitFor(() => expect(screen.getByDisplayValue("5")).toBeInTheDocument());
+  });
+
+  describe("Page Appearance controls", () => {
+    it("renders the Page Appearance select with Default, Day, Eye Care, and Parchment options", async () => {
+      render(<PdfReader bookId="pdf1" title="Appearance PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const select = screen.getByLabelText("Page appearance") as HTMLSelectElement;
+      expect(select).toBeInTheDocument();
+      expect(select.value).toBe("default");
+
+      const options = Array.from(select.options).map((o) => o.value);
+      expect(options).toEqual(["default", "day", "eyecare", "parchment"]);
+    });
+
+    it("changes appearance mode and updates overlay canvas", async () => {
+      render(<PdfReader bookId="pdf1" title="Appearance PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("12");
+
+      const select = screen.getByLabelText("Page appearance") as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: "eyecare" } });
+      expect(select.value).toBe("eyecare");
+
+      const overlay = document.querySelector(".pdf-appearance-overlay") as HTMLCanvasElement;
+      expect(overlay).toBeInTheDocument();
+    });
   });
 });

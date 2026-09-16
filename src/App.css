@@ -1044,6 +1044,15 @@ a:hover {
   display: block;
 }
 
+.pdf-appearance-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 1;
+}
+
 .textLayer,
 .pdf-text-layer {
   color-scheme: only light;
@@ -1061,7 +1070,7 @@ a:hover {
   forced-color-adjust: none;
   transform-origin: 0 0;
   caret-color: CanvasText;
-  z-index: 1;
+  z-index: 2;
 
   --min-font-size: 1;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
