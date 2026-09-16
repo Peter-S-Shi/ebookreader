@@ -64,20 +64,65 @@ describe("librarySort", () => {
     ]);
   });
 
-  it("sorts by Title — Z → A using natural/numeric collation", () => {
+  it("sorts by Title — Z → A as the exact inverse of A → Z", () => {
     const books: SortableBook[] = [
       { book_id: "b", title: "Chapter 10", importIndex: 0 },
       { book_id: "a", title: "Chapter 2", importIndex: 1 },
       { book_id: "c", title: "chapter 1", importIndex: 2 },
       { book_id: "d", title: "Book Alpha", importIndex: 3 },
     ];
-    const result = sortLibraryBooks(books, "title-desc");
-    expect(result.map((b) => b.title)).toEqual([
+    const asc = sortLibraryBooks(books, "title-asc");
+    const desc = sortLibraryBooks(books, "title-desc");
+    expect(desc).toEqual([...asc].reverse());
+    expect(desc.map((b) => b.title)).toEqual([
       "Chapter 10",
       "Chapter 2",
       "chapter 1",
       "Book Alpha",
     ]);
+  });
+
+  it("correctly sorts multilingual mixed-script library (numeric -> Latin -> CJK) with pinyin collation and leading punctuation normalization", () => {
+    const rawTitles = [
+      "一间只属于自己的房间",
+      "2023-2026 ...",
+      "《黑塞文集...》",
+      "sample10",
+      "Discover Canada",
+      "孤独六讲",
+      "Year of Wonder",
+      "sample1",
+      "《失眠症漫记》",
+      "夜晚的潜水艇",
+      "诗歌手册",
+    ];
+
+    const books: SortableBook[] = rawTitles.map((title, idx) => ({
+      book_id: `id-${idx}`,
+      title,
+      importIndex: idx,
+    }));
+
+    const sortedAsc = sortLibraryBooks(books, "title-asc");
+    const sortedDesc = sortLibraryBooks(books, "title-desc");
+
+    const expectedAscTitles = [
+      "2023-2026 ...",
+      "Discover Canada",
+      "sample1",
+      "sample10",
+      "Year of Wonder",
+      "孤独六讲",
+      "《黑塞文集...》",
+      "《失眠症漫记》",
+      "诗歌手册",
+      "夜晚的潜水艇",
+      "一间只属于自己的房间",
+    ];
+
+    expect(sortedAsc.map((b) => b.title)).toEqual(expectedAscTitles);
+    expect(sortedDesc.map((b) => b.title)).toEqual([...expectedAscTitles].reverse());
+    expect(sortedDesc).toEqual([...sortedAsc].reverse());
   });
 
   it("sorts by Recently Opened — Newest First with never-opened books placed AFTER opened books", () => {
@@ -99,8 +144,10 @@ describe("librarySort", () => {
       { book_id: "id-b", title: "Same Title", importIndex: 0 },
       { book_id: "id-a", title: "Same Title", importIndex: 1 },
     ];
-    expect(sortLibraryBooks(identicalTitles, "title-asc").map((b) => b.book_id)).toEqual(["id-b", "id-a"]);
-    expect(sortLibraryBooks(identicalTitles, "title-desc").map((b) => b.book_id)).toEqual(["id-b", "id-a"]);
+    const ascTitles = sortLibraryBooks(identicalTitles, "title-asc");
+    const descTitles = sortLibraryBooks(identicalTitles, "title-desc");
+    expect(ascTitles.map((b) => b.book_id)).toEqual(["id-b", "id-a"]);
+    expect(descTitles).toEqual([...ascTitles].reverse());
 
     const identicalOpened: SortableBook[] = [
       { book_id: "id-b", title: "Book B", last_opened_at: "2026-03-01T00:00:00Z", importIndex: 0 },
