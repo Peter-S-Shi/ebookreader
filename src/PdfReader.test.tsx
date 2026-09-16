@@ -708,5 +708,115 @@ describe("PdfReader — Direct Page Jump (V2-M2 addendum)", () => {
       // Distant pages should NOT have render() called
       expect(renderedPageNumbers).not.toContain(50);
     });
+
+    it("preserves per-page geometry for mixed page heights and landscape/rotated pages without uniform cropping", async () => {
+      // Mock 10 pages with mixed sizes:
+      // Page 1: 600x800 (Portrait)
+      // Page 2: 900x600 (Landscape / rotated)
+      // Page 3: 600x1200 (Tall foldout)
+      // Pages 4..10: 600x800
+      mockGetPage.mockImplementation(async (pageNo: number) => {
+        let width = 600;
+        let height = 800;
+        if (pageNo === 2) {
+          width = 900;
+          height = 600;
+        } else if (pageNo === 3) {
+          width = 600;
+          height = 1200;
+        }
+        return {
+          pageNo,
+          getViewport: ({ scale }: { scale?: number } = {}) => {
+            const resolvedScale = scale ?? 1.0;
+            return {
+              width: width * resolvedScale,
+              height: height * resolvedScale,
+              scale: resolvedScale,
+              convertToViewportPoint: (x: number, y: number) => [x * resolvedScale, y * resolvedScale],
+            };
+          },
+          render: vi.fn().mockImplementation(() => {
+            renderedPageNumbers.push(pageNo);
+            return mockRenderTask;
+          }),
+          getTextContent: async () => ({ items: [] }),
+          streamTextContent: async () => ({ items: [] }),
+          getOperatorList: async () => ({ fnArray: [], argsArray: [] }),
+          getAnnotations: mockGetAnnotations,
+        };
+      });
+
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "read_book_file_command") return new Uint8Array([37, 80, 68, 70, 45]);
+        if (cmd === "load_reading_location_command") {
+          return {
+            book_id: "pdf1",
+            format: "pdf",
+            progression_hint: 0.1,
+            primary_anchor: "1",
+            fallback_anchors: [],
+            context_selector: null,
+          };
+        }
+        if (cmd === "list_reading_assets_command") return [];
+        if (cmd === "reading_session_status_command") {
+          return { state: "active", total_excluded_ms: 0, total_note_taking_ms: 0 };
+        }
+        return null;
+      });
+
+      render(<PdfReader bookId="pdf1" title="Mixed Page Sizes PDF" onBack={vi.fn()} />);
+      await screen.findByDisplayValue("1");
+
+      fireEvent.change(screen.getByRole("combobox", { name: "View mode" }), { target: { value: "continuous" } });
+
+      await waitFor(() => {
+        const page1El = document.querySelector<HTMLElement>('[data-page="1"]');
+        const page2El = document.querySelector<HTMLElement>('[data-page="2"]');
+        const page3El = document.querySelector<HTMLElement>('[data-page="3"]');
+
+        expect(page1El).toBeInTheDocument();
+        expect(page2El).toBeInTheDocument();
+        expect(page3El).toBeInTheDocument();
+
+        // At zoom 1.2:
+        // Page 1: 600*1.2 = 720w, 800*1.2 = 960h
+        expect(page1El?.style.width).toBe("720px");
+        expect(page1El?.style.height).toBe("960px");
+
+        // Page 2 (landscape): 900*1.2 = 1080w, 600*1.2 = 720h
+        expect(page2El?.style.width).toBe("1080px");
+        expect(page2El?.style.height).toBe("720px");
+
+        // Page 3 (tall): 600*1.2 = 720w, 1200*1.2 = 1440h
+        expect(page3El?.style.width).toBe("720px");
+        expect(page3El?.style.height).toBe("1440px");
+      });
+
+      const continuousSurface = document.querySelector<HTMLElement>(".pdf-continuous")!;
+
+      // Scroll to Page 2 start (Page 1 height 960 + 16 = 976px)
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 976 });
+      fireEvent.scroll(continuousSurface);
+      expect(screen.getByDisplayValue("2")).toBeInTheDocument();
+
+      // Scroll to Page 3 start (976 + 720 + 16 = 1712px)
+      Object.defineProperty(continuousSurface, "scrollTop", { configurable: true, value: 1712 });
+      fireEvent.scroll(continuousSurface);
+      expect(screen.getByDisplayValue("3")).toBeInTheDocument();
+
+      // Distant page jump to Page 8
+      const pageInput = screen.getByRole("textbox", { name: "Current page" });
+      fireEvent.change(pageInput, { target: { value: "8" } });
+      fireEvent.keyDown(pageInput, { key: "Enter" });
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("8")).toBeInTheDocument();
+      });
+
+      // Bounded rendering: distant page 10 was not rendered
+      expect(renderedPageNumbers).not.toContain(10);
+    });
   });
 });

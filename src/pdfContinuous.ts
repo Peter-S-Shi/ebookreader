@@ -1,6 +1,7 @@
-// Pure helpers for PDF continuous-scroll mode (FORMAT_CAPABILITY_MATRIX.md's
-// required "Continuous scroll" row for Text PDF).
-// Bounds live high-resolution rendering and canvas memory to the viewport neighborhood.
+export interface PdfPageDimension {
+  width: number;
+  height: number;
+}
 
 /** Returns the 1-based page number whose region contains `scrollTop`. */
 export function currentPageFromScroll(pageHeights: number[], scrollTop: number): number {
@@ -76,19 +77,68 @@ export function computeActivePagesFromScroll(
 }
 
 /**
+ * Resolves per-page dimensions with fallback to Page 1 or standard document geometry.
+ */
+export function resolvePageDimension(
+  dimension: PdfPageDimension | null | undefined,
+  fallback: PdfPageDimension | null | undefined,
+  zoomScale: number,
+): PdfPageDimension {
+  const baseWidth =
+    dimension?.width && dimension.width > 0
+      ? dimension.width
+      : fallback?.width && fallback.width > 0
+      ? fallback.width
+      : 595;
+  const baseHeight =
+    dimension?.height && dimension.height > 0
+      ? dimension.height
+      : fallback?.height && fallback.height > 0
+      ? fallback.height
+      : 842;
+  const scale = Math.max(0.1, zoomScale || 1.0);
+  return {
+    width: Math.round(baseWidth * scale),
+    height: Math.round(baseHeight * scale),
+  };
+}
+
+/**
+ * Computes individual page steps (height + gap) for all pages based on per-page geometry.
+ */
+export function computePageHeights(
+  dimensions: (PdfPageDimension | null | undefined)[],
+  fallback: PdfPageDimension | null | undefined,
+  zoomScale: number,
+  gap: number = 16,
+): number[] {
+  return dimensions.map((dim) => {
+    const resolved = resolvePageDimension(dim, fallback, zoomScale);
+    return resolved.height + gap;
+  });
+}
+
+/**
+ * Computes the top scroll offset (in px) for a given 1-based page number.
+ */
+export function getPageTopOffset(pageHeights: number[], pageNumber: number): number {
+  if (pageNumber <= 1 || pageHeights.length === 0) return 0;
+  const targetIdx = Math.min(pageHeights.length, pageNumber - 1);
+  let total = 0;
+  for (let i = 0; i < targetIdx; i++) {
+    total += pageHeights[i];
+  }
+  return total;
+}
+
+/**
  * Estimates layout geometry for page placeholders based on Page 1 viewport or standard A4.
  */
 export function estimatePageDimensions(
   page1Viewport: { width: number; height: number } | null,
   zoomScale: number,
 ): { width: number; height: number } {
-  const baseWidth = page1Viewport?.width && page1Viewport.width > 0 ? page1Viewport.width : 595;
-  const baseHeight = page1Viewport?.height && page1Viewport.height > 0 ? page1Viewport.height : 842;
-  const scale = Math.max(0.1, zoomScale || 1.0);
-  return {
-    width: Math.round(baseWidth * scale),
-    height: Math.round(baseHeight * scale),
-  };
+  return resolvePageDimension(page1Viewport, null, zoomScale);
 }
 
 /**

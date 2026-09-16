@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   computeActivePageRange,
   computeActivePagesFromScroll,
+  computePageHeights,
   currentPageFromScroll,
   diffActivePages,
   estimatePageDimensions,
+  getPageTopOffset,
+  resolvePageDimension,
 } from "./pdfContinuous";
 
 describe("currentPageFromScroll", () => {
@@ -81,6 +84,45 @@ describe("estimatePageDimensions", () => {
     const dims = estimatePageDimensions(null, 1.0);
     expect(dims.width).toBeGreaterThan(500);
     expect(dims.height).toBeGreaterThan(700);
+  });
+});
+
+describe("resolvePageDimension & computePageHeights", () => {
+  it("resolves specific page dimensions or falls back to Page 1 / default", () => {
+    // Normal page
+    expect(resolvePageDimension({ width: 600, height: 800 }, null, 1.5)).toEqual({ width: 900, height: 1200 });
+    // Landscape / rotated page (900x600)
+    expect(resolvePageDimension({ width: 900, height: 600 }, null, 1.0)).toEqual({ width: 900, height: 600 });
+    // Null with fallback to page 1
+    expect(resolvePageDimension(null, { width: 500, height: 700 }, 2.0)).toEqual({ width: 1000, height: 1400 });
+  });
+
+  it("computes per-page heights including gap for mixed page sizes", () => {
+    const mixedDims = [
+      { width: 600, height: 800 }, // Page 1: 800 * 1.0 + 16 = 816
+      { width: 900, height: 600 }, // Page 2 (landscape): 600 * 1.0 + 16 = 616
+      { width: 600, height: 1200 }, // Page 3 (tall foldout): 1200 * 1.0 + 16 = 1216
+    ];
+    const heights = computePageHeights(mixedDims, null, 1.0, 16);
+    expect(heights).toEqual([816, 616, 1216]);
+  });
+
+  it("computes cumulative page top offset accurately for mixed page heights", () => {
+    const heights = [816, 616, 1216]; // Page 1 starts at 0, Page 2 at 816, Page 3 at 1432
+    expect(getPageTopOffset(heights, 1)).toBe(0);
+    expect(getPageTopOffset(heights, 2)).toBe(816);
+    expect(getPageTopOffset(heights, 3)).toBe(1432);
+    expect(getPageTopOffset(heights, 4)).toBe(2648);
+  });
+
+  it("tracks current page across mixed heights correctly", () => {
+    const heights = [816, 616, 1216];
+    expect(currentPageFromScroll(heights, 0)).toBe(1);
+    expect(currentPageFromScroll(heights, 815)).toBe(1);
+    expect(currentPageFromScroll(heights, 816)).toBe(2);
+    expect(currentPageFromScroll(heights, 1431)).toBe(2);
+    expect(currentPageFromScroll(heights, 1432)).toBe(3);
+    expect(currentPageFromScroll(heights, 2000)).toBe(3);
   });
 });
 

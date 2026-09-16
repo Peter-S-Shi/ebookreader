@@ -9,7 +9,9 @@ import {
   currentPageFromScroll,
   computeActivePageRange,
   computeActivePagesFromScroll,
-  estimatePageDimensions,
+  computePageHeights,
+  resolvePageDimension,
+  type PdfPageDimension,
 } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
@@ -58,9 +60,7 @@ interface PdfReaderProps {
   bookId: string;
   title: string;
   onBack: () => void;
-  // FC-C01/FC-C02: a source location (from a Search hit or a Notebook
-  // asset) to open directly to, instead of resuming the last page.
-  initialAnchor?: DocumentLocationDTO;
+  initialAnchor?: DocumentLocationDTO | null;
 }
 
 type PdfViewMode = "single" | "continuous";
@@ -80,23 +80,11 @@ function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
   return Boolean(target.closest("input, select, textarea, button, [contenteditable='true'], [role='dialog'], [role='alertdialog']"));
 }
 
-// PDF reading surface: renders via pdf.js (the engine ARCHITECTURE.md
-// SS5/M0-C validated for text/geometry extraction) to a canvas per page.
-// page index is the DocumentLocation primary_anchor, per ARCHITECTURE.md
-// SS5's "candidates to validate: page index; page geometry/bounding box".
-// Two view modes close FORMAT_CAPABILITY_MATRIX.md's required "Continuous
-// scroll" / "Single-page / paged" rows for Text PDF (DESIGN.md SS7's PDF
-// controls share one zoom state across single-page and continuous modes.
-// Double-page spread and very large
-// (100s of pages) documents' rendering performance are later-checkpoint
-// residuals: continuous mode here renders every page eagerly, which is
-// fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Text selection ->
-// Highlight/Excerpt (M4, SS11) is
-// implemented for single-page mode via a pdf.js TextLayer overlaid on the
-// canvas; continuous mode's per-page selection scoping is a follow-up.
-// Whole-page text is also indexed into the M4 search index in the
-// background on open (SS12: "supported book text" is a required
+// FORMAT_CAPABILITY_MATRIX.md: PDF is a FIXED-LAYOUT / PAGED format.
+// Page Appearance (Day / Eye Care / Parchment / Night) is applied via
+// canvas overlay with image-region cutout protection and scanned-PDF detection.
+// Continuous Scroll (V2-M4): rendered as a vertical stack of canvases.
+// Whole-book search index is built asynchronously on first open (M3
 // Library-wide Search source). M5 (Scanned PDF OCR) begins here: the same
 // background pass that extracts text also detects a scanned PDF (no
 // extractable text on any page) and surfaces SS13.1/SS13.2's truthful
@@ -117,6 +105,8 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const appearanceCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const page1ViewportRef = useRef<{ width: number; height: number } | null>(null);
+  const pageDimensionsRef = useRef<(PdfPageDimension | null)[]>([]);
+  const [, setPageDimensionsVersion] = useState(0);
   const pendingContinuousPageRef = useRef<number | null>(null);
   const continuousRenderTasksRef = useRef<Map<number, pdfjsLib.RenderTask>>(new Map());
   const renderedContinuousPagesRef = useRef<Set<number>>(new Set());
@@ -210,6 +200,10 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       if (cancelled) return;
 
       pdfRef.current = pdf;
+      pageDimensionsRef.current = new Array(pdf.numPages).fill(null);
+      if (page1ViewportRef.current) {
+        pageDimensionsRef.current[0] = { ...page1ViewportRef.current };
+      }
       setPageCount(pdf.numPages);
       setPageNumber(startPage);
       const initialActiveRange = computeActivePageRange(startPage, pdf.numPages, 2);
@@ -228,6 +222,38 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
     };
   }, [bookId]);
+
+  // When continuous mode is active, ensure lightweight unscaled viewport metadata is probed for all pages
+  useEffect(() => {
+    if (viewMode !== "continuous") return;
+    const pdf = pdfDoc || pdfRef.current;
+    if (!pdf) return;
+    let cancelled = false;
+
+    (async () => {
+      let anyNew = false;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (cancelled) return;
+        if (pageDimensionsRef.current[i - 1]) continue;
+        try {
+          const p = await pdf.getPage(i);
+          if (cancelled) return;
+          const vp = p.getViewport({ scale: 1.0 });
+          pageDimensionsRef.current[i - 1] = { width: vp.width, height: vp.height };
+          anyNew = true;
+        } catch {
+          // ignore
+        }
+      }
+      if (!cancelled && anyNew) {
+        setPageDimensionsVersion((v) => v + 1);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, pdfDoc]);
 
   // Deferred whole-book text extraction into search index and scanned-PDF detection.
   // Runs asynchronously after Reader reaches Ready state to avoid competing with Page 1 paint.
@@ -335,6 +361,8 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const page = await pdf.getPage(pageNumber);
       if (cancelled) return;
       const viewport = page.getViewport({ scale: zoomScale });
+      const naturalVp = page.getViewport({ scale: 1.0 });
+      pageDimensionsRef.current[pageNumber - 1] = { width: naturalVp.width, height: naturalVp.height };
       const canvas = canvasRef.current!;
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
@@ -703,6 +731,8 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           if (cancelled || !activeSet.has(pageNum)) return;
 
           const viewport = page.getViewport({ scale: zoomScale });
+          const naturalVp = page.getViewport({ scale: 1.0 });
+          pageDimensionsRef.current[pageNum - 1] = { width: naturalVp.width, height: naturalVp.height };
           const context = canvas.getContext("2d")!;
 
           canvas.width = viewport.width;
@@ -826,15 +856,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       saveLocation(pendingPage, pdf.numPages);
       return;
     }
-    const pageDims = estimatePageDimensions(page1ViewportRef.current, zoomScale);
-    const pageStep = pageDims.height + 16;
-    const heights = new Array(pdf.numPages).fill(pageStep);
-    const current = currentPageFromScroll(heights, container.scrollTop);
+    const pageHeights = computePageHeights(pageDimensionsRef.current, page1ViewportRef.current, zoomScale, 16);
+    const current = currentPageFromScroll(pageHeights, container.scrollTop);
     setPageNumber(current);
     saveLocation(current, pdf.numPages);
 
     const visiblePages = computeActivePagesFromScroll(
-      heights,
+      pageHeights,
       container.scrollTop,
       container.clientHeight || 800,
       1,
@@ -1333,40 +1361,39 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           className="reader-surface pdf-continuous"
           onScroll={handleContinuousScroll}
         >
-          {(() => {
-            const continuousPageDims = estimatePageDimensions(page1ViewportRef.current, zoomScale);
-            return Array.from({ length: pageCount }, (_, i) => {
-              const pNum = i + 1;
-              return (
-                <div
-                  key={i}
-                  className="pdf-page continuous-page"
-                  data-page={pNum}
-                  data-appearance={pageAppearance}
-                  data-scan-like={isScanLikeDoc ? "true" : "false"}
-                  style={{
-                    width: `${continuousPageDims.width}px`,
-                    height: `${continuousPageDims.height}px`,
-                    minHeight: `${continuousPageDims.height}px`,
-                    marginBottom: "16px",
+          {Array.from({ length: pageCount }, (_, i) => {
+            const pNum = i + 1;
+            const unscaled = pageDimensionsRef.current[i] || page1ViewportRef.current;
+            const continuousPageDims = resolvePageDimension(unscaled, page1ViewportRef.current, zoomScale);
+            return (
+              <div
+                key={i}
+                className="pdf-page continuous-page"
+                data-page={pNum}
+                data-appearance={pageAppearance}
+                data-scan-like={isScanLikeDoc ? "true" : "false"}
+                style={{
+                  width: `${continuousPageDims.width}px`,
+                  height: `${continuousPageDims.height}px`,
+                  minHeight: `${continuousPageDims.height}px`,
+                  marginBottom: "16px",
+                }}
+              >
+                <canvas
+                  ref={(el) => {
+                    canvasRefs.current[i] = el;
                   }}
-                >
-                  <canvas
-                    ref={(el) => {
-                      canvasRefs.current[i] = el;
-                    }}
-                  />
-                  <canvas
-                    ref={(el) => {
-                      appearanceCanvasRefs.current[i] = el;
-                    }}
-                    className="pdf-appearance-overlay"
-                    aria-hidden="true"
-                  />
-                </div>
-              );
-            });
-          })()}
+                />
+                <canvas
+                  ref={(el) => {
+                    appearanceCanvasRefs.current[i] = el;
+                  }}
+                  className="pdf-appearance-overlay"
+                  aria-hidden="true"
+                />
+              </div>
+            );
+          })}
         </div>
       )}
       {externalLinkPromptUrl && (
