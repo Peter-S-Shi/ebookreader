@@ -31,6 +31,7 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
   "appearance.accent_color",
   "library.progress_display_mode",
   "library.completed_read_mark_mode",
+  "library.sort_option",
 ]);
 
 vi.mock("@tauri-apps/api/core", () => ({

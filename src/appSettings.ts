@@ -38,6 +38,8 @@ export const LIBRARY_PROGRESS_DISPLAY_KEY = "library.progress_display_mode";
 export const COMPLETED_READ_MARK_KEY = "library.completed_read_mark_mode";
 // V2-M3 item 3: EPUB/TXT K/N reading-position indicator, optional and On by default.
 export const READING_POSITION_INDICATOR_ENABLED_KEY = "reading_position_indicator.enabled";
+// V2-M4-Addendum A: Library sorting option persistence.
+export const LIBRARY_SORT_KEY = "library.sort_option";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -204,4 +206,29 @@ export async function loadCompletedReadMarkMode(): Promise<CompletedReadMarkMode
 
 export async function saveCompletedReadMarkMode(mode: CompletedReadMarkMode): Promise<void> {
   await setSetting(COMPLETED_READ_MARK_KEY, mode);
+}
+
+export type { LibrarySortOption } from "./librarySort";
+import type { LibrarySortOption } from "./librarySort";
+export const DEFAULT_LIBRARY_SORT_OPTION: LibrarySortOption = "recent-import-desc";
+
+const VALID_LIBRARY_SORT_OPTIONS = new Set<LibrarySortOption>([
+  "recent-import-desc",
+  "recent-import-asc",
+  "title-asc",
+  "title-desc",
+  "recent-open-desc",
+  "recent-open-asc",
+]);
+
+export async function loadLibrarySortOption(): Promise<LibrarySortOption> {
+  const stored = await getSetting(LIBRARY_SORT_KEY);
+  if (stored && VALID_LIBRARY_SORT_OPTIONS.has(stored as LibrarySortOption)) {
+    return stored as LibrarySortOption;
+  }
+  return DEFAULT_LIBRARY_SORT_OPTION;
+}
+
+export async function saveLibrarySortOption(option: LibrarySortOption): Promise<void> {
+  await setSetting(LIBRARY_SORT_KEY, option);
 }

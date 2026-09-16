@@ -7,6 +7,7 @@ import {
   DEFAULT_PROGRESS_DISPLAY_MODE,
   DEFAULT_THEME_MODE,
   loadGlobalTypography,
+  loadLibrarySortOption,
   loadPerBookTypography,
   loadCompletedReadMarkMode,
   loadLibraryProgressDisplayMode,
@@ -15,6 +16,7 @@ import {
   saveCompletedReadMarkMode,
   saveGlobalTypography,
   saveLibraryProgressDisplayMode,
+  saveLibrarySortOption,
   savePerBookTypography,
   setSetting,
   THEME_MODE_KEY,
@@ -110,6 +112,23 @@ describe("library progress-display settings (V2-M3 item 2)", () => {
     invokeMock.mockResolvedValueOnce(undefined);
     await saveCompletedReadMarkMode("hide");
     expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.completed_read_mark_mode", value: "hide" });
+  });
+
+  it("defaults library sort option to recent-import-desc when unset or corrupt", async () => {
+    invokeMock.mockResolvedValueOnce(null);
+    expect(await loadLibrarySortOption()).toBe("recent-import-desc");
+
+    invokeMock.mockResolvedValueOnce("invalid-sort-option");
+    expect(await loadLibrarySortOption()).toBe("recent-import-desc");
+  });
+
+  it("loads and saves library sort option", async () => {
+    invokeMock.mockResolvedValueOnce("title-asc");
+    expect(await loadLibrarySortOption()).toBe("title-asc");
+
+    invokeMock.mockResolvedValueOnce(undefined);
+    await saveLibrarySortOption("recent-open-desc");
+    expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.sort_option", value: "recent-open-desc" });
   });
 });
 

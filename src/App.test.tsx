@@ -39,6 +39,7 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
   "appearance.accent_color",
   "library.progress_display_mode",
   "library.completed_read_mark_mode",
+  "library.sort_option",
 ]);
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -357,7 +358,7 @@ describe("Library", () => {
 
       await user.click(screen.getByRole("button", { name: /import book/i }));
 
-      expect(await screen.findByText("This book already exists.")).toBeInTheDocument();
+      expect(await screen.findByText(/This book already exists in your Library as:/i)).toBeInTheDocument();
       const dialog = screen.getByRole("dialog", { name: "Duplicate Book" });
       expect(within(dialog).getByText("Existing Book")).toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: "Open Existing" })).toBeInTheDocument();
@@ -366,6 +367,23 @@ describe("Library", () => {
       // The duplicate report must not itself have refreshed/mutated the Library
       // beyond the one load on mount.
       expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
+    });
+
+    it("displays the user-renamed Library title rather than the incoming filename", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([]); // initial list
+      openMock.mockResolvedValueOnce("C:/downloads/raw-scanner-file-v2.pdf");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "renamed-id", title: "My Beautiful Renamed Book" });
+
+      render(<App />);
+      await screen.findByText(/library is empty/i);
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Duplicate Book" });
+      expect(within(dialog).getByText(/This book already exists in your Library as:/i)).toBeInTheDocument();
+      expect(within(dialog).getByText("My Beautiful Renamed Book")).toBeInTheDocument();
+      expect(within(dialog).queryByText("raw-scanner-file-v2.pdf")).not.toBeInTheDocument();
     });
 
     it("Open Existing opens the already-in-Library book without importing the picked file", async () => {
@@ -1592,5 +1610,146 @@ describe("Book Hours Planning Integration (BH-3C.1)", () => {
     // Should open on Overview tab without resurrecting Target Book's drawer
     expect(await screen.findByRole("region", { name: "Book Hours Planning" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Target Book" })).not.toBeInTheDocument();
+  });
+
+  describe("Library Sorting (V2 Addendum A)", () => {
+    const mockLibraryBooks = [
+      {
+        book_id: "book-c",
+        title: "Cherry Recipe",
+        path: "C:/books/c.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-03-01T10:00:00Z", // opened
+      },
+      {
+        book_id: "book-a",
+        title: "Apple Pie",
+        path: "C:/books/a.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-03-05T12:00:00Z", // most recently opened
+      },
+      {
+        book_id: "book-b",
+        title: "Banana Bread",
+        path: "C:/books/b.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: null, // never opened
+      },
+    ];
+
+    it("renders sort select with default value and allows changing sort option", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.5 };
+        if (cmd === "get_setting_command") return null;
+        if (cmd === "list_collections_command") return [];
+        return null;
+      });
+
+      render(<App />);
+      await screen.findByText("Cherry Recipe");
+
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      expect(sortSelect).toHaveValue("recent-import-desc");
+
+      // Default import order: Cherry (0), Apple (1), Banana (2)
+      const libraryGrid = document.querySelector(".library-book-list") as HTMLElement;
+      let bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie", "Banana Bread"]);
+
+      // Change to Title A -> Z
+      await user.selectOptions(sortSelect, "title-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Banana Bread", "Cherry Recipe"]);
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.sort_option", value: "title-asc" });
+
+      // Change to Title Z -> A
+      await user.selectOptions(sortSelect, "title-desc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Banana Bread", "Apple Pie"]);
+
+      // Change to Recently Opened - Newest First (Apple: March 5, Cherry: March 1, Banana: never)
+      await user.selectOptions(sortSelect, "recent-open-desc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Cherry Recipe", "Banana Bread"]);
+
+      // Change to Recently Opened - Oldest First (Cherry: March 1, Apple: March 5, Banana: never)
+      await user.selectOptions(sortSelect, "recent-open-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie", "Banana Bread"]);
+
+      // Change to Recently Imported - Oldest First (Banana, Apple, Cherry)
+      await user.selectOptions(sortSelect, "recent-import-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Banana Bread", "Apple Pie", "Cherry Recipe"]);
+    });
+
+    it("composes with active collection filter without resetting filter or sort", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.5 };
+        return null;
+      });
+      collectionsMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+        if (cmd === "list_book_ids_in_collection_command") return ["book-c", "book-a"];
+        return [];
+      });
+
+      render(<App />);
+      await screen.findByText("Cherry Recipe");
+
+      // Click collection chip "Favorites"
+      const colChip = await screen.findByRole("button", { name: "Favorites" });
+      await user.click(colChip);
+
+      const libraryGrid = document.querySelector(".library-book-list") as HTMLElement;
+      let bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie"]);
+
+      // Change sort to Title A -> Z
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      await user.selectOptions(sortSelect, "title-asc");
+
+      // Remains in collection filter, now sorted A -> Z
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Cherry Recipe"]);
+      expect(colChip).toHaveClass("active");
+    });
+
+    it("leaves Continue Reading recency ordering unchanged when Library sort changes", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.3 };
+        if (cmd === "get_setting_command") return null;
+        if (cmd === "list_collections_command") return [];
+        return null;
+      });
+
+      render(<App />);
+      await screen.findByRole("region", { name: "Continue Reading" });
+
+      const continueList = document.querySelector(".continue-reading-list") as HTMLElement;
+      const continueHeadings = within(continueList).getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim());
+      // Continue Reading ranks strictly by last_opened_at desc: Apple (March 5), Cherry (March 1)
+      expect(continueHeadings).toEqual(["Apple Pie", "Cherry Recipe"]);
+
+      // Change library sort to Title Z -> A
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      await user.selectOptions(sortSelect, "title-desc");
+
+      // Continue Reading order must NOT change
+      const continueHeadingsAfter = within(continueList).getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim());
+      expect(continueHeadingsAfter).toEqual(["Apple Pie", "Cherry Recipe"]);
+    });
   });
 });

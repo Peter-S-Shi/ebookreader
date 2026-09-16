@@ -13,14 +13,22 @@ import { BookHoursPlanning } from "./BookHoursPlanning";
 import { BookCover } from "./BookCover";
 import {
   DEFAULT_COMPLETED_READ_MARK_MODE,
+  DEFAULT_LIBRARY_SORT_OPTION,
   DEFAULT_PROGRESS_DISPLAY_MODE,
   loadAndApplyAppearance,
   loadAndApplyMotionPreference,
   loadCompletedReadMarkMode,
   loadDefaultImportMode,
   loadLibraryProgressDisplayMode,
+  loadLibrarySortOption,
   loadUpdateCheckOnStartupPreference,
+  saveLibrarySortOption,
+  type LibrarySortOption,
 } from "./appSettings";
+import {
+  LIBRARY_SORT_OPTIONS,
+  sortLibraryBooks,
+} from "./librarySort";
 import {
   computeCompletedReadMarkText,
   computeLibraryDisplayPercent,
@@ -203,6 +211,7 @@ function App() {
   const [libraryProgress, setLibraryProgress] = useState<Record<string, ReadingProgressDTO>>({});
   const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
   const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
+  const [sortOption, setSortOption] = useState<LibrarySortOption>(DEFAULT_LIBRARY_SORT_OPTION);
 
   // Orphan-settings correction: Settings owns its own copy of these two
   // settings and saves them straight to the backend store; it has no way
@@ -214,15 +223,16 @@ function App() {
     if (destination !== "library") return;
     loadLibraryProgressDisplayMode().then(setProgressDisplayMode);
     loadCompletedReadMarkMode().then(setCompletedReadMarkMode);
+    loadLibrarySortOption().then(setSortOption);
   }, [destination]);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
-    setBooks(result);
+    setBooks(result ?? []);
   }, []);
 
   useEffect(() => {
-    if (!books) return;
+    if (!books || !Array.isArray(books)) return;
     let cancelled = false;
     const openedBooks = [...books]
       .filter((b) => b.last_opened_at)
@@ -596,7 +606,7 @@ function App() {
     const assets = await invoke<ReadingAssetDTO[]>("list_all_reading_assets_command", {
       kind: kind || null,
     });
-    setGlobalNotes(assets);
+    setGlobalNotes(assets ?? []);
   }
 
   function goToNotes() {
@@ -836,7 +846,7 @@ function App() {
                 </label>
               </div>
               <ul className="global-notes-list">
-                {globalNotes.length === 0 ? (
+                {!globalNotes || globalNotes.length === 0 ? (
                   <li className="empty-notes-item">No Notebook assets yet.</li>
                 ) : (
                   globalNotes.map((asset) => {
@@ -912,11 +922,26 @@ function App() {
 
           {duplicateImport && (
             <div className="duplicate-import-dialog overlay open" role="dialog" aria-label="Duplicate Book">
-              <div className="modal">
+              <div className="modal" style={{ maxWidth: "480px" }}>
                 <div className="modalHead">
-                  <h2>This book already exists.</h2>
+                  <h2>Duplicate Book</h2>
                 </div>
-                <p>{duplicateImport.title}</p>
+                <p>This book already exists in your Library as:</p>
+                <p
+                  className="duplicate-book-title"
+                  style={{
+                    fontWeight: 600,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                    margin: "8px 0 16px 0",
+                    padding: "10px 12px",
+                    background: "var(--surface2)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {duplicateImport.title}
+                </p>
                 <div className="modalActions">
                   <button type="button" className="btn primary" onClick={openExistingDuplicate}>
                     Open Existing
@@ -978,9 +1003,40 @@ function App() {
           )}
 
           <section aria-label="Collections" className="collections-section">
-            <div className="section" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div className="section" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
               <h2 style={{ margin: 0 }}>Collections</h2>
               <div className="grow" />
+              <div className="library-sort-control" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <label htmlFor="library-sort-select" style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 500 }}>
+                  Sort by:
+                </label>
+                <select
+                  id="library-sort-select"
+                  aria-label="Sort library by"
+                  className="library-sort-select"
+                  value={sortOption}
+                  onChange={(e) => {
+                    const next = e.target.value as LibrarySortOption;
+                    setSortOption(next);
+                    saveLibrarySortOption(next).catch(() => {});
+                  }}
+                  style={{
+                    fontSize: "13px",
+                    padding: "4px 8px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {LIBRARY_SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 className="btn-sm"
@@ -1012,13 +1068,15 @@ function App() {
             </div>
           </section>
 
-          {books === null ? null : books.length === 0 ? (
+          {books === null || !Array.isArray(books) ? null : books.length === 0 ? (
             <p className="empty-state">Library is empty. Import a book to get started.</p>
           ) : (() => {
-            const visibleBooks =
+            const indexedBooks = books.map((book, idx) => ({ ...book, importIndex: idx }));
+            const filteredBooks =
               collectionFilterBookIds === null
-                ? books
-                : books.filter((book) => collectionFilterBookIds.has(book.book_id));
+                ? indexedBooks
+                : indexedBooks.filter((book) => collectionFilterBookIds.has(book.book_id));
+            const visibleBooks = sortLibraryBooks(filteredBooks, sortOption);
             return visibleBooks.length === 0 ? (
               <p className="empty-state">No Books in this Collection.</p>
             ) : (
