@@ -3,12 +3,18 @@ import {
   ACCENT_COLOR_KEY,
   applyAppearance,
   DEFAULT_ACCENT_COLOR,
+  DEFAULT_COMPLETED_READ_MARK_MODE,
+  DEFAULT_PROGRESS_DISPLAY_MODE,
   DEFAULT_THEME_MODE,
   loadGlobalTypography,
   loadPerBookTypography,
+  loadCompletedReadMarkMode,
+  loadLibraryProgressDisplayMode,
   getSetting,
   loadAndApplyAppearance,
+  saveCompletedReadMarkMode,
   saveGlobalTypography,
+  saveLibraryProgressDisplayMode,
   savePerBookTypography,
   setSetting,
   THEME_MODE_KEY,
@@ -68,6 +74,42 @@ describe("loadAndApplyAppearance", () => {
     expect(result).toEqual({ themeMode: "light", accentColor: "#00ff00" });
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.documentElement.style.getPropertyValue("--accent-color")).toBe("#00ff00");
+  });
+});
+
+describe("library progress-display settings (V2-M3 item 2)", () => {
+  it("defaults progress display to cumulative and the completed-read mark to shown when nothing is persisted", async () => {
+    invokeMock.mockResolvedValueOnce(null);
+    expect(await loadLibraryProgressDisplayMode()).toBe(DEFAULT_PROGRESS_DISPLAY_MODE);
+
+    invokeMock.mockResolvedValueOnce(null);
+    expect(await loadCompletedReadMarkMode()).toBe(DEFAULT_COMPLETED_READ_MARK_MODE);
+  });
+
+  it("loads a persisted current-read display mode and hidden mark", async () => {
+    invokeMock.mockResolvedValueOnce("current");
+    expect(await loadLibraryProgressDisplayMode()).toBe("current");
+
+    invokeMock.mockResolvedValueOnce("hide");
+    expect(await loadCompletedReadMarkMode()).toBe("hide");
+  });
+
+  it("falls back to defaults for a stale/corrupt stored value rather than coercing it", async () => {
+    invokeMock.mockResolvedValueOnce("not-a-real-mode");
+    expect(await loadLibraryProgressDisplayMode()).toBe(DEFAULT_PROGRESS_DISPLAY_MODE);
+
+    invokeMock.mockResolvedValueOnce("not-a-real-mode");
+    expect(await loadCompletedReadMarkMode()).toBe(DEFAULT_COMPLETED_READ_MARK_MODE);
+  });
+
+  it("persists changes via the generic setting store", async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+    await saveLibraryProgressDisplayMode("current");
+    expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.progress_display_mode", value: "current" });
+
+    invokeMock.mockResolvedValueOnce(undefined);
+    await saveCompletedReadMarkMode("hide");
+    expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.completed_read_mark_mode", value: "hide" });
   });
 });
 

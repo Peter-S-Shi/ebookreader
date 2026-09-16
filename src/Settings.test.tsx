@@ -281,6 +281,64 @@ describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
   });
 });
 
+describe("Settings — Library Display (V2-M3 item 2)", () => {
+  it("defaults to Cumulative Progress and Show, without affecting reading-progress truth", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Cumulative Progress" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Show" })).toBeChecked();
+  });
+
+  it("loads a persisted Current Read Progress + Hide combination", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Current Read Progress" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Hide" })).toBeChecked();
+  });
+
+  it("persists changing Progress Display without touching the Completed Read Mark setting", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const radio = await screen.findByRole("radio", { name: "Current Read Progress" });
+
+    await user.click(radio);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: "library.progress_display_mode",
+        value: "current",
+      }),
+    );
+    expect(invokeMock).not.toHaveBeenCalledWith("set_setting_command", {
+      key: "library.completed_read_mark_mode",
+      value: expect.anything(),
+    });
+  });
+
+  it("persists changing the Completed Read Mark", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const radio = await screen.findByRole("radio", { name: "Hide" });
+
+    await user.click(radio);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: "library.completed_read_mark_mode",
+        value: "hide",
+      }),
+    );
+  });
+});
+
 describe("Settings — About & Updates (DESIGN.md 'About & Updates'; FC-A16)", () => {
   it("shows the current version and Stable release channel", async () => {
     invokeMock.mockResolvedValue(null);

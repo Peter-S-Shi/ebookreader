@@ -49,6 +49,8 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
   "files.default_import_mode",
   "appearance.theme_mode",
   "appearance.accent_color",
+  "library.progress_display_mode",
+  "library.completed_read_mark_mode",
 ]);
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -123,7 +125,14 @@ beforeEach(() => {
     }
   });
   updateCheckPrefMock.mockImplementation(async (_cmd: string, args: { key?: string } = {}) => {
-    if (args.key === "appearance.theme_mode" || args.key === "appearance.accent_color") return null;
+    if (
+      args.key === "appearance.theme_mode" ||
+      args.key === "appearance.accent_color" ||
+      args.key === "library.progress_display_mode" ||
+      args.key === "library.completed_read_mark_mode"
+    ) {
+      return null;
+    }
     return "false";
   });
   delete document.documentElement.dataset.motion;
@@ -547,6 +556,74 @@ describe("Book Details + Continue Reading (DESIGN.md ER-BOOK-001/SS4; FC-A11)", 
     await screen.findByText("Finished Book");
 
     expect(screen.queryByRole("region", { name: "Continue Reading" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Library grid progress display (V2-M3 item 2)", () => {
+  function threeBookLibrary() {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "never", title: "Never Opened", path: "C:/books/never.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: null },
+      { book_id: "active", title: "Active Second Read", path: "C:/books/active.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: "2026-09-09T01:00:00Z" },
+      { book_id: "done", title: "Twice Completed", path: "C:/books/done.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: "2026-09-09T00:00:00Z" },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string }) => {
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") {
+        return { completed_read_count: 1, active_read_in_progress: true, active_pass_progress: 31 };
+      }
+      if (cmd === "get_reading_progress_command" && args?.bookId === "done") {
+        return { completed_read_count: 2, active_read_in_progress: false, active_pass_progress: 0 };
+      }
+      return undefined;
+    });
+  }
+
+  function bookCard(title: string) {
+    const list = document.querySelector(".library-book-list")!;
+    return within(list as HTMLElement).getByText(title).closest("li")!;
+  }
+
+  it("Cumulative Progress (the default) and Show (the default): all four states render correctly", async () => {
+    threeBookLibrary();
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Never Opened")).getByText("0%")).toBeInTheDocument());
+
+    expect(within(bookCard("Never Opened")).queryByText(/^Read \d+ times?$/)).not.toBeInTheDocument();
+
+    expect(within(bookCard("Active Second Read")).getByText("131%")).toBeInTheDocument();
+    expect(within(bookCard("Active Second Read")).getByText("Read 1 time")).toBeInTheDocument();
+
+    expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument();
+    expect(within(bookCard("Twice Completed")).getByText("Read 2 times")).toBeInTheDocument();
+  });
+
+  it("Current Read Progress mode shows the active position, 100% for completed-with-no-active-read, and 0% for never-started", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      return null;
+    });
+
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Never Opened")).getByText("0%")).toBeInTheDocument());
+
+    expect(within(bookCard("Active Second Read")).getByText("31%")).toBeInTheDocument();
+    expect(within(bookCard("Twice Completed")).getByText("100%")).toBeInTheDocument();
+  });
+
+  it("Completed Read Mark = Hide removes the mark from every card, without changing the percent", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument());
+
+    expect(screen.queryByText(/^Read \d+ times?$/)).not.toBeInTheDocument();
   });
 });
 

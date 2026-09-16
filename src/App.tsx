@@ -11,11 +11,22 @@ import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
 import { BookHoursPlanning } from "./BookHoursPlanning";
 import {
+  DEFAULT_COMPLETED_READ_MARK_MODE,
+  DEFAULT_PROGRESS_DISPLAY_MODE,
   loadAndApplyAppearance,
   loadAndApplyMotionPreference,
+  loadCompletedReadMarkMode,
   loadDefaultImportMode,
+  loadLibraryProgressDisplayMode,
   loadUpdateCheckOnStartupPreference,
 } from "./appSettings";
+import {
+  computeCompletedReadMarkText,
+  computeLibraryDisplayPercent,
+  type CompletedReadMarkMode,
+  type ProgressDisplayMode,
+} from "./libraryProgressDisplay";
+import type { ReadingProgressDTO } from "./useReadingProgress";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import { formatSearchSnippet } from "./searchUtils";
 import "./App.css";
@@ -29,6 +40,15 @@ interface BookSummary {
   available: boolean;
   last_opened_at: string | null;
 }
+
+// V2-M3 item 2: a Book with no `last_opened_at` has never been opened, so
+// its ReadingProgress is always exactly `ReadingProgress::new()`'s default
+// -- no IPC round trip needed to know that.
+const NEVER_OPENED_PROGRESS: ReadingProgressDTO = {
+  completed_read_count: 0,
+  active_read_in_progress: true,
+  active_pass_progress: 0,
+};
 
 // Mirrors `document_location::DocumentLocation` (see also each Reader's
 // own local copy of this same shape).
@@ -168,6 +188,21 @@ function App() {
   // progress, ranked by real recorded recency (`last_opened_at`), not
   // import order. Recomputed whenever the Library list changes.
   const [continueReading, setContinueReading] = useState<{ book: BookSummary; percent: number }[]>([]);
+  // V2-M3 item 2: every Book's ReadingProgress, for the main Library
+  // grid's per-card presentation (Progress Display / Completed Read Mark
+  // settings below). Shares this same fetch with Continue Reading above
+  // rather than fetching twice -- a never-opened Book (no `last_opened_at`)
+  // is never actually opened, so its progress is always exactly
+  // `ReadingProgress::new()`'s default and is filled in locally without an
+  // IPC round trip.
+  const [libraryProgress, setLibraryProgress] = useState<Record<string, ReadingProgressDTO>>({});
+  const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
+  const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
+
+  useEffect(() => {
+    loadLibraryProgressDisplayMode().then(setProgressDisplayMode);
+    loadCompletedReadMarkMode().then(setCompletedReadMarkMode);
+  }, []);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
@@ -177,17 +212,16 @@ function App() {
   useEffect(() => {
     if (!books) return;
     let cancelled = false;
-    const candidates = [...books]
+    const openedBooks = [...books]
       .filter((b) => b.last_opened_at)
-      .sort((a, b) => (a.last_opened_at! < b.last_opened_at! ? 1 : a.last_opened_at! > b.last_opened_at! ? -1 : 0))
-      .slice(0, 10);
+      .sort((a, b) => (a.last_opened_at! < b.last_opened_at! ? 1 : a.last_opened_at! > b.last_opened_at! ? -1 : 0));
 
     Promise.all(
-      candidates.map((book) =>
-        invoke<{ completed_read_count: number; active_read_in_progress: boolean; active_pass_progress: number }>(
-          "get_reading_progress_command",
-          { bookId: book.book_id },
-        ).then((progress) => ({ book, progress })),
+      openedBooks.map((book) =>
+        invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id }).then((progress) => ({
+          book,
+          progress,
+        })),
       ),
     ).then((results) => {
       if (cancelled) return;
@@ -200,6 +234,10 @@ function App() {
             percent: r.progress.completed_read_count * 100 + r.progress.active_pass_progress,
           })),
       );
+      const progressMap: Record<string, ReadingProgressDTO> = {};
+      for (const book of books) progressMap[book.book_id] = NEVER_OPENED_PROGRESS;
+      for (const r of results) progressMap[r.book.book_id] = r.progress;
+      setLibraryProgress(progressMap);
     });
     return () => {
       cancelled = true;
@@ -1018,6 +1056,18 @@ function App() {
                                 {book.format.toUpperCase()} · {book.ownership_mode}
                                 {!book.available && <span className="needs-relink"> — Needs Relink</span>}
                               </div>
+                              {libraryProgress[book.book_id] && (
+                                <div className="book-progress">
+                                  <span className="book-progress-percent">
+                                    {Math.round(computeLibraryDisplayPercent(libraryProgress[book.book_id], progressDisplayMode))}%
+                                  </span>
+                                  {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode) && (
+                                    <span className="book-completed-read-mark">
+                                      {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {!selectMode && (
                                 <div className="book-actions">
                                   {canOpen && (
