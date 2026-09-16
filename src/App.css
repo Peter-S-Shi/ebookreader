@@ -1120,11 +1120,15 @@ a:hover {
   position: static !important;
   display: inline !important;
   color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  outline: none !important;
   cursor: pointer !important;
   transform: none !important;
   border-radius: 2px;
   padding: 0 !important;
-  box-shadow: none !important;
+  mix-blend-mode: multiply;
   -webkit-user-select: text;
   -moz-user-select: text;
   user-select: text;
@@ -3450,6 +3454,32 @@ mark.reader-highlight[data-color="orange"],
     background-color: rgba(255, 152, 0, 0.45) !important;
     box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.5) !important;
   }
+}
+
+/* PDF TextLayer persistent highlights: translucent background over canvas glyphs.
+   Must NEVER render visible foreground text (must be transparent) or box-shadow
+   to avoid ghosting, wash-out, or white/reflective text artifacts across all themes. */
+.textLayer span.reader-highlight,
+.pdf-text-layer span.reader-highlight,
+[data-theme="dark"] .textLayer span.reader-highlight,
+[data-theme="dark"] .pdf-text-layer span.reader-highlight,
+:root:not([data-theme="light"]) .textLayer span.reader-highlight,
+:root:not([data-theme="light"]) .pdf-text-layer span.reader-highlight {
+  position: static !important;
+  display: inline !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  transform: none !important;
+  border-radius: 2px;
+  padding: 0 !important;
+  mix-blend-mode: multiply;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
 }
 
 /* B8 Dismissible Scanned-PDF Notice */
