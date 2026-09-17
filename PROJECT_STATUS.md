@@ -119,7 +119,7 @@ Current Phase: **V2.0.0 Released (Official Release Complete — Entering Portfol
 
 - **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B, RC-2, RC-3 Complete); V2.0.0 Released (Official Release Complete).
 - **Current Checkpoint**: `V2_RELEASE_COMPLETE_PORTFOLIO_PACKAGING_ENTRY`.
-- **Current Branch / PR**: `docs/v2-post-release-reconciliation` (docs PR to `main`).
+- **Current Branch / PR**: `main` after post-release documentation reconciliation merge.
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
