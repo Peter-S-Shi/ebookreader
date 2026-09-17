@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2 RC Candidate Build & Runtime Closure Verification Complete — Candidate artifacts built, clean-environment packaged acceptance pending)
+Last Updated: 2026-09-16 (V2 RC-3 Clean Windows Packaged Acceptance PASS — Candidate passed clean-environment verification; unmerged, not yet released)
 
-Current Phase: **V2 RC Candidate Build & Runtime Closure (RC-2 Complete)**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), and RC-2 Candidate Build & Runtime Closure are complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2.0.0 candidate artifacts successfully built and runtime-closure verification passed; clean-environment packaged acceptance still pending. V2 has not been merged into `main` and is not yet a released version. Next phase is clean-environment packaged acceptance.
+Current Phase: **V2 RC Packaged Acceptance (RC-3 Complete — PASS)**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance are complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2.0.0 candidate artifacts have passed clean-environment packaged acceptance (Core NSIS/MSI clean install, dual launches, AppData/SQLite initialization, PDF/EPUB/TXT packaged smoke, /cmaps/ and /wasm/ JBIG2/OpenJPEG/QCMS static runtime closure, Core-only OCR degraded state, and Optional OCR Pack auto-discovery/inference/persistence). V2 has not yet been merged into `main`, tagged, or released on GitHub. Next phase is release promotion and publication.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -107,8 +107,8 @@ Current Phase: **V2 RC Candidate Build & Runtime Closure (RC-2 Complete)**. V1.0
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete).
-- **Current Checkpoint**: `V2_RC_2_CANDIDATE_BUILD_RUNTIME_CLOSURE_COMPLETE`.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete; RC-3 Clean Windows Packaged Acceptance PASS).
+- **Current Checkpoint**: `V2_RC_3_CLEAN_ENVIRONMENT_PACKAGED_ACCEPTANCE_PASS`.
 - **Current Branch / PR**: `v2-m1/epub-preference-override-compat` (long-lived V2 branch; unmerged; no open PR).
 - **Current Blockers**: None.
 - **Current Escalations**: None.
@@ -118,7 +118,7 @@ Current Phase: **V2 RC Candidate Build & Runtime Closure (RC-2 Complete)**. V1.0
 - **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
 - **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
-- **RC / Release State**: `v1.0.0` released on `main`; V2.0.0 candidate artifacts successfully built and runtime-closure verification passed; clean-environment packaged acceptance still pending.
-- **Next Action**: **V2 Clean-Environment Packaged Acceptance.**
+- **RC / Release State**: `v1.0.0` released on `main`; V2.0.0 candidate artifacts passed clean-environment packaged acceptance on the long-lived branch; unmerged, untagged, and unreleased.
+- **Next Action**: **V2 Release Promotion & Publication (PR, Merge to `main`, Tag `v2.0.0`, GitHub Release, and Portfolio Packaging).**
 
 
