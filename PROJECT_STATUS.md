@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2 Regression & Manual Acceptance Complete — Entering RC Preparation on long-lived V2 branch)
+Last Updated: 2026-09-16 (V2 RC Preparation — Release Identity Finalized to 2.0.0 on long-lived V2 branch)
 
-Current Phase: **V2 Regression & Manual Acceptance Complete — Entering RC Preparation**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M4, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, and V2-M6 Regression & Manual Acceptance (including the accepted pre-R3 Contents TOC Expand/Collapse-all addendum, R3 Gate: PASS) are now fully complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2 is Feature Complete and its product scope is **Frozen**. Nothing V2 has been merged into `main` yet, and V2 is not yet an RC or released version. The next lifecycle phase is **RC Preparation**.
+Current Phase: **V2 RC Preparation (RC-1B Release Identity Finalization)**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance are fully complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2 is Feature Complete and Frozen. The release identity has been officially finalized to **2.0.0** (future Git tag `v2.0.0`) across all tracked package manifests, Tauri configuration, Cargo metadata, update awareness, and packaging test contracts. V2 has not been merged into `main`, is not yet a built candidate or released version, and has not completed clean-environment acceptance. Next phase is candidate packaging preparation and clean-environment verification.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -107,8 +107,8 @@ Current Phase: **V2 Regression & Manual Acceptance Complete — Entering RC Prep
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS).
-- **Current Checkpoint**: `V2_REGRESSION_COMPLETE_RC_PREPARATION_ENTRY`.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalization Complete).
+- **Current Checkpoint**: `V2_RC_1B_RELEASE_IDENTITY_FINALIZED`.
 - **Current Branch / PR**: `v2-m1/epub-preference-override-compat` (long-lived V2 branch; unmerged; no open PR).
 - **Current Blockers**: None.
 - **Current Escalations**: None.
@@ -117,7 +117,8 @@ Current Phase: **V2 Regression & Manual Acceptance Complete — Entering RC Prep
 - **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development, workflow redesign, new format promises, or unrelated refactors permitted without explicit human scope reopening.
 - **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
-- **RC / Release State**: `v1.0.0` released on `main`; V2 is unmerged, unreleased, and not yet an RC.
-- **Next Action**: **V2 RC Preparation on the frozen long-lived branch.**
+- **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
+- **RC / Release State**: `v1.0.0` released on `main`; V2 release identity is finalized to 2.0.0 on the long-lived branch; unmerged, not yet a packaged candidate or released version.
+- **Next Action**: **V2 Candidate Packaging & Clean-Environment Verification.**
 
 
