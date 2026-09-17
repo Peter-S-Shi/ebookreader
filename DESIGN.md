@@ -787,3 +787,10 @@ The PDF Reader toolbar is structured into three clear semantic rows to avoid hor
 ### 24.5 V2 Reading Modes Contract
 - **Validated Page-Based Modes**: V2 standardizes EPUB and PDF reading on validated page-based reading modes. EPUB supports Single page and Double page; PDF supports Single page. Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience.
 
+### 24.6 Contents (TOC) Bulk Expand / Collapse
+- **Dynamic Bulk Toggle**: Hierarchical Contents/TOC panels feature a compact boxed icon button in the header alongside Close:
+  - Displays boxed plus (`⊞`, `Expand all`) when all collapsible parent nodes are collapsed;
+  - Displays boxed minus (`⊟`, `Collapse all`) when all or some parent nodes are expanded (mixed state);
+  - Hidden when the table of contents has no collapsible parent nodes;
+  - State updates dynamically as individual chapter nodes are toggled.
+
