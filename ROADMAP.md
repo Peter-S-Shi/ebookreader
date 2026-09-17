@@ -1,6 +1,6 @@
 # EbookReader Roadmap
 
-Current Lifecycle State: **V2.0.0 Released — Entering Portfolio Packaging (Branch: `main` / `v2.0.0` Tag)**
+Current Lifecycle State: **V2.0.0 Released — Portfolio Packaging Complete / Entering Local Workspace Cleanup (Branch: `main` / `v2.0.0` Tag)**
 
 > **V2 Lifecycle Summary**:
 > - V1 roadmap remains the archived historical baseline (`v1.0.0` released on `main`).
@@ -9,7 +9,8 @@ Current Lifecycle State: **V2.0.0 Released — Entering Portfolio Packaging (Bra
 > - **V2 is Feature Complete and its product scope is FROZEN.**
 > - V2 RC Candidate Build & Runtime Closure (RC-2) and Clean Windows Packaged Acceptance (RC-3) are **Complete** (Human PASS on frozen SHA256-verified candidate artifacts).
 > - V2.0.0 release promotion PR #7 merged into `main` (`e235562`), Git tag `v2.0.0` created and pushed, and GitHub Release `v2.0.0` officially published with verified artifacts.
-> - **Next Lifecycle Phase**: **Portfolio Packaging (PP)**. Local workspace slimming / cleanup remains scheduled after PP.
+> - **V2 Portfolio Packaging is Complete**: the flagship README, synthetic public product evidence, hero presentation, engineering journey, and release-facing portfolio narrative have been packaged for `main`.
+> - **Next Lifecycle Phase**: **Local Workspace Cleanup**.
 > - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC → Promotion PR → Release Publication → Portfolio Packaging → Workspace Cleanup`.
 > - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
 >   - defect / correctness fixes

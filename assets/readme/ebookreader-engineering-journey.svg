@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+<title id="title">EbookReader v2 engineering journey</title>
+<desc id="desc">From product contracts and multi-format architecture through hardening, runtime closure, clean Windows acceptance, and v2.0.0 release.</desc>
+<rect width="1600" height="520" rx="32" fill="#f4f1e8"/>
+<text x="80" y="82" font-family="Segoe UI, Arial, sans-serif" font-size="42" font-weight="700" fill="#233731">EbookReader v2 engineering journey</text>
+<text x="80" y="124" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#65716c">A released desktop product built through explicit contracts, verification gates, and packaged acceptance.</text>
+
+<line x1="120" y1="285" x2="1480" y2="285" stroke="#b7c0ba" stroke-width="6" stroke-linecap="round"/>
+
+<g font-family="Segoe UI, Arial, sans-serif">
+  <g transform="translate(110,0)">
+    <circle cx="0" cy="285" r="24" fill="#355d50"/>
+    <text x="-32" y="220" font-size="20" font-weight="700" fill="#233731">Contracts</text>
+    <text x="-55" y="350" font-size="16" fill="#65716c">Product + UI</text>
+  </g>
+  <g transform="translate(280,0)">
+    <circle cx="0" cy="285" r="24" fill="#355d50"/>
+    <text x="-52" y="220" font-size="20" font-weight="700" fill="#233731">Architecture</text>
+    <text x="-58" y="350" font-size="16" fill="#65716c">EPUB / PDF / TXT</text>
+  </g>
+  <g transform="translate(450,0)">
+    <circle cx="0" cy="285" r="24" fill="#557466"/>
+    <text x="-46" y="220" font-size="20" font-weight="700" fill="#233731">Milestones</text>
+    <text x="-48" y="350" font-size="16" fill="#65716c">V2 feature work</text>
+  </g>
+  <g transform="translate(620,0)">
+    <circle cx="0" cy="285" r="24" fill="#557466"/>
+    <text x="-48" y="220" font-size="20" font-weight="700" fill="#233731">Acceptance</text>
+    <text x="-52" y="350" font-size="16" fill="#65716c">Human gates</text>
+  </g>
+  <g transform="translate(790,0)">
+    <circle cx="0" cy="285" r="24" fill="#6f846f"/>
+    <text x="-47" y="220" font-size="20" font-weight="700" fill="#233731">Hardening</text>
+    <text x="-55" y="350" font-size="16" fill="#65716c">Risk + regression</text>
+  </g>
+  <g transform="translate(960,0)">
+    <circle cx="0" cy="285" r="24" fill="#6f846f"/>
+    <text x="-55" y="220" font-size="20" font-weight="700" fill="#233731">RC candidate</text>
+    <text x="-55" y="350" font-size="16" fill="#65716c">Frozen artifacts</text>
+  </g>
+  <g transform="translate(1130,0)">
+    <circle cx="0" cy="285" r="24" fill="#557466"/>
+    <text x="-66" y="220" font-size="20" font-weight="700" fill="#233731">Runtime closure</text>
+    <text x="-56" y="350" font-size="16" fill="#65716c">DLL / WASM / CMap</text>
+  </g>
+  <g transform="translate(1300,0)">
+    <circle cx="0" cy="285" r="24" fill="#355d50"/>
+    <text x="-66" y="220" font-size="20" font-weight="700" fill="#233731">Clean Windows</text>
+    <text x="-58" y="350" font-size="16" fill="#65716c">Packaged human QA</text>
+  </g>
+  <g transform="translate(1470,0)">
+    <circle cx="0" cy="285" r="30" fill="#1f4a3e"/>
+    <text x="-42" y="210" font-size="22" font-weight="700" fill="#1f4a3e">v2.0.0</text>
+    <text x="-43" y="355" font-size="17" font-weight="700" fill="#1f4a3e">Released</text>
+  </g>
+</g>
+
+<text x="80" y="462" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#6f7773">Source regression → packaged-runtime verification → SHA256-verified clean-machine acceptance → public GitHub release</text>
+</svg>

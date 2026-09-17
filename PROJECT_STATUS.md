@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2.0.0 Release Complete — Official publication on GitHub verified; Entering Portfolio Packaging)
+Last Updated: 2026-09-17 (V2.0.0 Portfolio Packaging Complete — Flagship portfolio packaged; Local Workspace Cleanup next)
 
-Current Phase: **V2.0.0 Released (Official Release Complete — Entering Portfolio Packaging)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, V2-M6 Regression & Manual Acceptance, V2 RC (RC-1B Release Identity Finalization to 2.0.0, RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance), and RC-4 Release Governance & Publication are fully **Complete**. PR #7 has merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified SHA256 candidate artifacts. The next lifecycle phase is **Portfolio Packaging (PP)**. Local Workspace Cleanup remains scheduled after PP.
+Current Phase: **V2.0.0 Released (Portfolio Packaging Complete — Local Workspace Cleanup next)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, V2-M6 Regression & Manual Acceptance, V2 RC (RC-1B Release Identity Finalization to 2.0.0, RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance), and RC-4 Release Governance & Publication are fully **Complete**. PR #7 has merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified SHA256 candidate artifacts. **Portfolio Packaging (PP) is complete** with the V2 flagship README and public portfolio evidence packaged through the V2 portfolio promotion PR. The next lifecycle phase is **Local Workspace Cleanup**.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -118,8 +118,8 @@ Current Phase: **V2.0.0 Released (Official Release Complete — Entering Portfol
 ## Lifecycle Snapshot
 
 - **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B, RC-2, RC-3 Complete); V2.0.0 Released (Official Release Complete).
-- **Current Checkpoint**: `V2_RELEASE_COMPLETE_PORTFOLIO_PACKAGING_ENTRY`.
-- **Current Branch / PR**: `main` after post-release documentation reconciliation merge.
+- **Current Checkpoint**: `V2_PORTFOLIO_PACKAGING_COMPLETE_WORKSPACE_CLEANUP_ENTRY`.
+- **Current Branch / PR**: `main` after V2 Portfolio Packaging merge.
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
@@ -130,6 +130,6 @@ Current Phase: **V2.0.0 Released (Official Release Complete — Entering Portfol
 - **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
 - **Release Identity**: **v2.0.0 Officially Released** (Git tag `v2.0.0`, GitHub Release `v2.0.0`).
 - **RC / Release State**: `v2.0.0` officially published on `main`.
-- **Next Action**: **Portfolio Packaging (PP) for EbookReader V2.0.0. Local Workspace Cleanup remains scheduled after PP.**
+- **Next Action**: **Local Workspace Cleanup.**
 
 
