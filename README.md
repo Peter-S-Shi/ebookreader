@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0"><strong>Download v1.0.0 (Latest Release)</strong></a>
+  <a href="https://github.com/Peter-S-Shi/ebookreader/releases/tag/v2.0.0"><strong>Download v2.0.0</strong></a>
   ·
   <a href="PRODUCT_SPEC.md">Product Spec</a>
   ·
@@ -155,7 +155,7 @@ The repository deliberately separates authority between product semantics, UI se
 
 ## Release engineering
 
-**v1.0.0** is the first stable public release.
+**v2.0.0** is the latest stable public release.
 
 The release process included:
 
@@ -169,11 +169,11 @@ The release process included:
 
 Release artifacts:
 
-- `EbookReader_1.0.0_x64-setup.exe` — standard NSIS installer
-- `EbookReader_1.0.0_x64_en-US.msi` — MSI installer
-- `EbookReader_OCR_Pack_1.0.0_x64-setup.exe` — optional local OCR pack
+- `EbookReader_2.0.0_x64-setup.exe` — standard NSIS installer
+- `EbookReader_2.0.0_x64_en-US.msi` — MSI installer
+- `EbookReader_OCR_Pack_2.0.0_x64-setup.exe` — optional local OCR pack
 
-➡️ **[Download EbookReader v1.0.0](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)**
+➡️ **[Download EbookReader v2.0.0](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v2.0.0)**
 
 ---
 
@@ -231,6 +231,8 @@ EbookReader is local-first.
 
 ## Release
 
-**Current public release:** [`v1.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)
+**Current stable release:** [`v2.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v2.0.0)
 
-**Current repository state:** `v2.0.0` source promoted to `main` (clean-environment packaged acceptance complete; formal release publication pending). Windows Core installers and the Optional OCR Pack for v1.0.0 are published on the GitHub Release page with SHA256 checksums and third-party notices.
+**Previous stable release:** [`v1.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)
+
+Windows Core installers and the Optional OCR Pack are published on the GitHub Release page with SHA256 checksums and third-party notices.

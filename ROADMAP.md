@@ -1,6 +1,6 @@
 # EbookReader Roadmap
 
-Current Lifecycle State: **V2.0.0 Release Promotion — Promoted to `main` / Release Publication Pending**
+Current Lifecycle State: **V2.0.0 Released — Entering Portfolio Packaging (Branch: `main` / `v2.0.0` Tag)**
 
 > **V2 Lifecycle Summary**:
 > - V1 roadmap remains the archived historical baseline (`v1.0.0` released on `main`).
@@ -8,9 +8,9 @@ Current Lifecycle State: **V2.0.0 Release Promotion — Promoted to `main` / Rel
 > - V2-M1, V2-M2, V2-M3, V2-M4, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, and V2-M6 Regression & Manual Acceptance are **Complete** and human-accepted.
 > - **V2 is Feature Complete and its product scope is FROZEN.**
 > - V2 RC Candidate Build & Runtime Closure (RC-2) and Clean Windows Packaged Acceptance (RC-3) are **Complete** (Human PASS on frozen SHA256-verified candidate artifacts).
-> - V2.0.0 release identity is finalized to `2.0.0` and source code has been promoted into `main` via the promotion PR.
-> - **Next Lifecycle Phase**: **Release Publication Verification (`v2.0.0` Git tag & GitHub Release publication)**.
-> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC → Promotion PR → Release Publication`.
+> - V2.0.0 release promotion PR #7 merged into `main` (`e235562`), Git tag `v2.0.0` created and pushed, and GitHub Release `v2.0.0` officially published with verified artifacts.
+> - **Next Lifecycle Phase**: **Portfolio Packaging (PP)**. Local workspace slimming / cleanup remains scheduled after PP.
+> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC → Promotion PR → Release Publication → Portfolio Packaging → Workspace Cleanup`.
 > - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
 >   - defect / correctness fixes
 >   - regression fixes
