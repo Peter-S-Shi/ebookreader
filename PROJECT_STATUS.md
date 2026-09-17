@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-17 (V2.0.0 Portfolio Packaging Complete — Flagship portfolio packaged; Local Workspace Cleanup next)
+Last Updated: 2026-09-17 (V2.0.0 Released — Portfolio Packaging Complete — Local Workspace Cleanup Complete)
 
-Current Phase: **V2.0.0 Released (Portfolio Packaging Complete — Local Workspace Cleanup next)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, V2-M6 Regression & Manual Acceptance, V2 RC (RC-1B Release Identity Finalization to 2.0.0, RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance), and RC-4 Release Governance & Publication are fully **Complete**. PR #7 has merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified SHA256 candidate artifacts. **Portfolio Packaging (PP) is complete** with the V2 flagship README and public portfolio evidence packaged through the V2 portfolio promotion PR. The next lifecycle phase is **Local Workspace Cleanup**.
+Current Phase: **V2.0.0 Released (Portfolio Packaging Complete — Local Workspace Cleanup Complete)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, V2-M6 Regression & Manual Acceptance, V2 RC (RC-1B Release Identity Finalization to 2.0.0, RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance), and RC-4 Release Governance & Publication are fully **Complete**. PR #7 has merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified SHA256 candidate artifacts. **Portfolio Packaging (PP) is complete** with the V2 flagship README and public portfolio evidence packaged through the V2 portfolio promotion PR. **Local Workspace Cleanup is complete** with rebuildable build artifacts and private fixtures removed. Future maintenance or V3 planning requires explicit human authorization.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -117,19 +117,20 @@ Current Phase: **V2.0.0 Released (Portfolio Packaging Complete — Local Workspa
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B, RC-2, RC-3 Complete); V2.0.0 Released (Official Release Complete).
-- **Current Checkpoint**: `V2_PORTFOLIO_PACKAGING_COMPLETE_WORKSPACE_CLEANUP_ENTRY`.
-- **Current Branch / PR**: `main` after V2 Portfolio Packaging merge.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B, RC-2, RC-3 Complete); V2.0.0 Released (Official Release Complete); Portfolio Packaging Complete; Local Workspace Cleanup Complete.
+- **Current Checkpoint**: `V2_LIFECYCLE_COMPLETE`.
+- **Current Branch / PR**: `main` after V2 lifecycle closeout.
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
-- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, Packaged Acceptance, and Release Publication have been executed.
+- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, Packaged Acceptance, Release Publication, Portfolio Packaging, and Workspace Cleanup have been executed.
 - **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**.
 - **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
 - **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
 - **Release Identity**: **v2.0.0 Officially Released** (Git tag `v2.0.0`, GitHub Release `v2.0.0`).
 - **RC / Release State**: `v2.0.0` officially published on `main`.
-- **Next Action**: **Local Workspace Cleanup.**
+- **Local Workspace Cleanup**: **Complete** — rebuildable build artifacts and private regression fixtures removed; active source, OCR assets, runtime assets, tooling, documentation, and Git history retained.
+- **Next Action**: **None — V2 lifecycle is complete. Future maintenance or V3 planning requires explicit human authorization.**
 
 
