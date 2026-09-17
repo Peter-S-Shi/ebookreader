@@ -91,7 +91,7 @@ Current Phase: **V2 Regression & Manual Acceptance Complete — Entering RC Prep
 - **Production Cleanup**: Removed selectable continuous reading mode from EPUB (`scrolled`) and PDF (`continuous`), cleaned up obsolete toolbar selectors, and added backward-compatible fallback normalization for legacy persisted modes.
 
 **V2-M6 Regression & Manual Acceptance (Complete — R3 Gate PASS):**
-- **Risk-Based Regression Matrix & Automated Sweep (R1)**: Reconciled cumulative human and automated evidence across Areas A–N; verified 100% domain storage and packaging dependency closure.
+- **Risk-Based Regression Matrix & Automated Sweep (R1)**: Reconciled cumulative human and automated evidence across Areas A–N; verified domain/storage regression coverage and source/build-level runtime dependency closure (packaged-runtime closure remains an RC verification item).
 - **Pre-R3 Contents / TOC Dynamic Bulk Toggle Addendum**: Integrated dynamic `Expand all` / `Collapse all` compact boxed icons into the shared `TocPanel` component header for EPUB and PDF readers with real-time recalculation across single-node and mixed-state toggles (Human Accepted).
 - **Cumulative Manual Acceptance Reconciliation (R2)**: Reconciled human acceptance across all 14 core workflows; zero manual-only evidence gaps remain.
 - **Final Automated Gate (R3)**: 100% green across all 54 test files (500 passed), TypeScript typecheck (0 errors), production frontend build, and Rust workspace tests (216 passed).
