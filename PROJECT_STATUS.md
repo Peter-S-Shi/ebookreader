@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2.0.0 Release Promotion PR — Promoted to main / Release Publication Pending)
+Last Updated: 2026-09-16 (V2.0.0 Release Complete — Official publication on GitHub verified; Entering Portfolio Packaging)
 
-Current Phase: **V2.0.0 Release Promotion (Promoted to `main` — Release Publication Pending)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance (Human PASS on the SHA256-verified RC-2 candidate artifacts) are complete. Human Release Promotion Gate has been approved, and V2.0.0 is promoted into `main` via this promotion PR. The `v2.0.0` Git tag and GitHub Release publication are pending execution. Next phase is formal publication verification.
+Current Phase: **V2.0.0 Released (Official Release Complete — Entering Portfolio Packaging)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, V2-M6 Regression & Manual Acceptance, V2 RC (RC-1B Release Identity Finalization to 2.0.0, RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance), and RC-4 Release Governance & Publication are fully **Complete**. PR #7 has merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified SHA256 candidate artifacts. The next lifecycle phase is **Portfolio Packaging (PP)**. Local Workspace Cleanup remains scheduled after PP.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -96,30 +96,40 @@ Current Phase: **V2.0.0 Release Promotion (Promoted to `main` — Release Public
 - **Cumulative Manual Acceptance Reconciliation (R2)**: Reconciled human acceptance across all 14 core workflows; zero manual-only evidence gaps remain.
 - **Final Automated Gate (R3)**: 100% green across all 54 test files (500 passed), TypeScript typecheck (0 errors), production frontend build, and Rust workspace tests (216 passed).
 
-**Automated Verification State (on Frozen V2 Branch):**
+**V2 Release Governance & Publication (Complete — RELEASED):**
+- **Release Identity Finalization (RC-1B)**: Upgraded release identity consistently to **2.0.0** across all package manifests, Tauri configuration, Cargo metadata, Update Awareness, OCR pack builder, tests, and documentation.
+- **Candidate Build & Runtime Closure (RC-2)**: Verified 100% PE import dependency closure; statically bundled WASM runtime decoders (JBIG2, OpenJPEG, QCMS) and CMap character maps into production output without external network dependencies.
+- **Clean Windows Packaged Acceptance (RC-3)**: Human PASS across clean Windows 11 VM testing for Core installation, dual launches, format smoke (EPUB, PDF, TXT), Core-only OCR degraded state, and Optional OCR Pack auto-discovery, inference, and persistence.
+- **Release Verification & Publication (RC-4)**: PR #7 merged into `main` (`e235562fa0cd9c9e201fad95072049cb36e4e34a`), Git tag `v2.0.0` pushed, and GitHub Release `v2.0.0` officially published with verified candidate artifacts.
+- **Verified release artifacts, exact file sizes, and SHA256 checksums**:
+  - Core NSIS Installer: `EbookReader_2.0.0_x64-setup.exe` (6,639,883 bytes, SHA256: `B341C835678055088866BE0302FBF063255B04552013ADEC7F27B2A4C6B5F003`)
+  - Core MSI Installer: `EbookReader_2.0.0_x64_en-US.msi` (8,171,520 bytes, SHA256: `318FD76E78B59D830A427141CAE1257EF974BBED21921F5543FF4DAEF65D81D5`)
+  - Optional OCR Pack: `EbookReader_OCR_Pack_2.0.0_x64-setup.exe` (59,219,745 bytes, SHA256: `04D9E6CBA87F10718BDDE8C77F1984541C3FA941958A82016BC5C5E99D6E0611`)
+
+**Automated Verification State (on `main` Baseline):**
 - Frontend unit & integration tests `npm test`: 54 test files, 500 passed; 0 failed.
 - TypeScript typecheck `npm run typecheck`: 0 errors.
 - Production frontend build `npm run build`: Succeeded.
 - Rust workspace tests `cargo test --workspace`: 216 passed; 0 failed.
-- Full automated gate passed on the final V2 candidate.
+- Full automated gate passed on the released V2.0.0 baseline.
 
 ---
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete; RC-3 Clean Windows Packaged Acceptance PASS); V2 Release Promotion (Promoted to `main`).
-- **Current Checkpoint**: `V2_RELEASE_PROMOTION_MERGED_TO_MAIN_PUBLICATION_PENDING`.
-- **Current Branch / PR**: Promoted from `v2-m1/epub-preference-override-compat` to `main` via promotion PR; Human Release Promotion approved.
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B, RC-2, RC-3 Complete); V2.0.0 Released (Official Release Complete).
+- **Current Checkpoint**: `V2_RELEASE_COMPLETE_PORTFOLIO_PACKAGING_ENTRY`.
+- **Current Branch / PR**: `docs/v2-post-release-reconciliation` (docs PR to `main`).
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
-- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, and Packaged Acceptance have been executed.
+- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, Packaged Acceptance, and Release Publication have been executed.
 - **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**.
 - **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
 - **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
-- **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
-- **RC / Release State**: V2.0.0 source code promoted to `main`; `v2.0.0` Git tag and GitHub Release publication pending.
-- **Next Action**: **Release Publication Verification (`v2.0.0` tag and GitHub Release). Portfolio Packaging begins only after release publication is verified complete.**
+- **Release Identity**: **v2.0.0 Officially Released** (Git tag `v2.0.0`, GitHub Release `v2.0.0`).
+- **RC / Release State**: `v2.0.0` officially published on `main`.
+- **Next Action**: **Portfolio Packaging (PP) for EbookReader V2.0.0. Local Workspace Cleanup remains scheduled after PP.**
 
 
