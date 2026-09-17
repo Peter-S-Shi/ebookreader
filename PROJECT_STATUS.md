@@ -120,6 +120,6 @@ Current Phase: **V2.0.0 Release Promotion (Promoted to `main` — Release Public
 - **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
 - **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
 - **RC / Release State**: V2.0.0 source code promoted to `main`; `v2.0.0` Git tag and GitHub Release publication pending.
-- **Next Action**: **Release Publication Verification (`v2.0.0` tag, GitHub Release, and Portfolio Packaging).**
+- **Next Action**: **Release Publication Verification (`v2.0.0` tag and GitHub Release). Portfolio Packaging begins only after release publication is verified complete.**
 
 
