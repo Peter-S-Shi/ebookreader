@@ -1,8 +1,8 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-16 (V2 RC-3 Clean Windows Packaged Acceptance PASS — Candidate passed clean-environment verification; unmerged, not yet released)
+Last Updated: 2026-09-16 (V2.0.0 Release Promotion PR — Promoted to main / Release Publication Pending)
 
-Current Phase: **V2 RC Packaged Acceptance (RC-3 Complete — PASS)**. V1.0.0 remains the released version on `main` and its historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance are complete on the long-lived branch (`v2-m1/epub-preference-override-compat`). V2.0.0 candidate artifacts have passed clean-environment packaged acceptance (Core NSIS/MSI clean install, dual launches, AppData/SQLite initialization, PDF/EPUB/TXT packaged smoke, /cmaps/ and /wasm/ JBIG2/OpenJPEG/QCMS static runtime closure, Core-only OCR degraded state, and Optional OCR Pack auto-discovery/inference/persistence). V2 has not yet been merged into `main`, tagged, or released on GitHub. Next phase is release promotion and publication.
+Current Phase: **V2.0.0 Release Promotion (Promoted to `main` — Release Publication Pending)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance (Human PASS on the SHA256-verified RC-2 candidate artifacts) are complete. Human Release Promotion Gate has been approved, and V2.0.0 is promoted into `main` via this promotion PR. The `v2.0.0` Git tag and GitHub Release publication are pending execution. Next phase is formal publication verification.
 
 **V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
@@ -107,18 +107,19 @@ Current Phase: **V2 RC Packaged Acceptance (RC-3 Complete — PASS)**. V1.0.0 re
 
 ## Lifecycle Snapshot
 
-- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete; RC-3 Clean Windows Packaged Acceptance PASS).
-- **Current Checkpoint**: `V2_RC_3_CLEAN_ENVIRONMENT_PACKAGED_ACCEPTANCE_PASS`.
-- **Current Branch / PR**: `v2-m1/epub-preference-override-compat` (long-lived V2 branch; unmerged; no open PR).
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete; RC-3 Clean Windows Packaged Acceptance PASS); V2 Release Promotion (Promoted to `main`).
+- **Current Checkpoint**: `V2_RELEASE_PROMOTION_MERGED_TO_MAIN_PUBLICATION_PENDING`.
+- **Current Branch / PR**: Promoted from `v2-m1/epub-preference-override-compat` to `main` via promotion PR; Human Release Promotion approved.
 - **Current Blockers**: None.
 - **Current Escalations**: None.
 - **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
-- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, and Regression validation have been executed.
-- **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**. No new feature development, workflow redesign, new format promises, or unrelated refactors permitted without explicit human scope reopening.
+- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, and Packaged Acceptance have been executed.
+- **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**.
 - **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
 - **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
+- **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
 - **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
-- **RC / Release State**: `v1.0.0` released on `main`; V2.0.0 candidate artifacts passed clean-environment packaged acceptance on the long-lived branch; unmerged, untagged, and unreleased.
-- **Next Action**: **V2 Release Promotion & Publication (PR, Merge to `main`, Tag `v2.0.0`, GitHub Release, and Portfolio Packaging).**
+- **RC / Release State**: V2.0.0 source code promoted to `main`; `v2.0.0` Git tag and GitHub Release publication pending.
+- **Next Action**: **Release Publication Verification (`v2.0.0` tag, GitHub Release, and Portfolio Packaging).**
 
 

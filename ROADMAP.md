@@ -1,18 +1,17 @@
 # EbookReader Roadmap
 
-Current Lifecycle State: **V2 Regression & Manual Acceptance Complete — Entering RC Preparation (Branch: `v2-m1/epub-preference-override-compat`)**
+Current Lifecycle State: **V2.0.0 Release Promotion — Promoted to `main` / Release Publication Pending**
 
 > **V2 Lifecycle Summary**:
 > - V1 roadmap remains the archived historical baseline (`v1.0.0` released on `main`).
 > - V2 development was explicitly authorized by the user.
-> - V2-M1, V2-M2, V2-M3, V2-M4, and Pre-Freeze UX Addenda A, B, and C are **Complete** and human-accepted on the long-lived branch `v2-m1/epub-preference-override-compat`.
+> - V2-M1, V2-M2, V2-M3, V2-M4, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, and V2-M6 Regression & Manual Acceptance are **Complete** and human-accepted.
 > - **V2 is Feature Complete and its product scope is FROZEN.**
-> - V2-M5 Product Hardening is **Complete** (H3 Hardening Exit Gate: PASS).
-> - V2-M6 Regression & Manual Acceptance is **Complete** (R3 Regression Closeout Gate: PASS).
-> - V2 has **not** been merged into `main` and is **not** yet an RC or release.
-> - **Next Lifecycle Phase**: **RC Preparation**.
-> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC`.
-> - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted during Freeze/Hardening without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
+> - V2 RC Candidate Build & Runtime Closure (RC-2) and Clean Windows Packaged Acceptance (RC-3) are **Complete** (Human PASS on frozen SHA256-verified candidate artifacts).
+> - V2.0.0 release identity is finalized to `2.0.0` and source code has been promoted into `main` via the promotion PR.
+> - **Next Lifecycle Phase**: **Release Publication Verification (`v2.0.0` Git tag & GitHub Release publication)**.
+> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC → Promotion PR → Release Publication`.
+> - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
 >   - defect / correctness fixes
 >   - regression fixes
 >   - evidence-backed compatibility fixes

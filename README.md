@@ -3,11 +3,11 @@
 </p>
 
 <p align="center">
-  <strong>EbookReader v1.0.0</strong> · Windows-first · Local-first · EPUB / PDF / TXT · Optional local OCR
+  <strong>EbookReader v2.0.0</strong> · Windows-first · Local-first · EPUB / PDF / TXT · Optional local OCR
 </p>
 
 <p align="center">
-  <a href="https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0"><strong>Download v1.0.0</strong></a>
+  <a href="https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0"><strong>Download v1.0.0 (Latest Release)</strong></a>
   ·
   <a href="PRODUCT_SPEC.md">Product Spec</a>
   ·
@@ -114,16 +114,16 @@ The Data & Recovery Center makes backup and restore explicit. It distinguishes a
 
 ## Core capabilities
 
-| Area | V1 capabilities |
+| Area | V2 capabilities |
 |---|---|
-| **Reading** | EPUB, PDF, TXT; persistent position/progress; rereads; format-aware controls |
-| **Annotations** | Notes, Excerpts, Highlights / Annotations, source-linked navigation |
-| **Organization** | Collections, library multi-select, soft removal from library |
+| **Reading** | EPUB (Single/Double Page, typography preference overrides, dynamic Contents TOC bulk expand/collapse, embedded covers), PDF (Single Page, direct page jump, Page 1 cover thumbnails, 5 Page Appearance modes with image protection, native internal/external hyperlinks, WASM JBIG2/OpenJPEG/QCMS runtime), TXT (plain text reading, K/N position indicators); persistent position/progress; rereads |
+| **Annotations** | Notes, Excerpts, Highlights / Annotations (translucent background tinting, original contrast preserved), source-linked navigation |
+| **Organization** | Collections, library multi-select, multilingual natural & pinyin sorting (6 modes), soft removal from library |
 | **Planning** | Book Hours, Reading Profiles, Collection workload views, Calendar |
 | **Bilingual** | Alignment Packages, synchronized reading, independent book data |
-| **OCR** | Optional local OCR pack for scanned PDFs, correction workspace |
+| **OCR** | Optional local OCR pack for scanned PDFs (document-level TEXT/SCAN/HYBRID classification, zero-config auto-discovery), correction workspace |
 | **Reliability** | SQLite persistence, app-data backup, full-library backup, restore, recovery snapshots |
-| **Preferences** | Light / dark appearance, typography, reading settings, update awareness |
+| **Preferences** | Light / dark appearance (reliable startup persistence), typography, reading settings, update awareness |
 
 ---
 
@@ -231,6 +231,6 @@ EbookReader is local-first.
 
 ## Release
 
-**Current stable release:** [`v1.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)
+**Current public release:** [`v1.0.0`](https://github.com/Peter-S-Shi/ebookreader/releases/tag/v1.0.0)
 
-Windows Core installers and the Optional OCR Pack are published on the GitHub Release page with SHA256 checksums and third-party notices.
+**Current repository state:** `v2.0.0` source promoted to `main` (clean-environment packaged acceptance complete; formal release publication pending). Windows Core installers and the Optional OCR Pack for v1.0.0 are published on the GitHub Release page with SHA256 checksums and third-party notices.
