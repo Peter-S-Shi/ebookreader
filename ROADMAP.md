@@ -1,7 +1,29 @@
-# EbookReader V1 Roadmap
+# EbookReader Roadmap
 
-Status: **Lifecycle Archived / Maintenance Mode (v1.0.0 Released; M1-M10 Complete; Portfolio Packaging Complete; Local Workspace Slimming Audit Complete)**
-M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze remains approved, V1 scope remains locked, Milestones 1-10 are COMPLETE, Portfolio Packaging is COMPLETE, and the Local Workspace Slimming Audit is COMPLETE. No development milestone is active. Maintenance work or further version development requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
+Current Lifecycle State: **V2.0.0 Release Promotion — Promoted to `main` / Release Publication Pending**
+
+> **V2 Lifecycle Summary**:
+> - V1 roadmap remains the archived historical baseline (`v1.0.0` released on `main`).
+> - V2 development was explicitly authorized by the user.
+> - V2-M1, V2-M2, V2-M3, V2-M4, Pre-Freeze UX Addenda A, B, and C, V2-M5 Product Hardening, and V2-M6 Regression & Manual Acceptance are **Complete** and human-accepted.
+> - **V2 is Feature Complete and its product scope is FROZEN.**
+> - V2 RC Candidate Build & Runtime Closure (RC-2) and Clean Windows Packaged Acceptance (RC-3) are **Complete** (Human PASS on frozen SHA256-verified candidate artifacts).
+> - V2.0.0 release identity is finalized to `2.0.0` and source code has been promoted into `main` via the promotion PR.
+> - **Next Lifecycle Phase**: **Release Publication Verification (`v2.0.0` Git tag & GitHub Release publication)**.
+> - Lifecycle Sequence: `Feature Complete → Freeze → Hardening → Regression / Manual Acceptance → RC → Promotion PR → Release Publication`.
+> - **Freeze Rule**: No new feature development, workflow redesign, new format promises, or unrelated refactors are permitted without explicit human scope reopening. Allowed frozen-scope changes are strictly limited to:
+>   - defect / correctness fixes
+>   - regression fixes
+>   - evidence-backed compatibility fixes
+>   - performance / memory fixes
+>   - security / privacy fixes
+>   - accessibility fixes
+>   - packaging / runtime-closure fixes
+>   - test / harness corrections
+>   - documentation truth corrections
+
+**Historical V1 Baseline (Archived Record):**
+M10-A Clean Install and M10-B Packaged RC Acceptance passed human clean-environment verification on Windows 11 VM; M10-C Release Governance & Publication completed with the official release of EbookReader v1.0.0 on GitHub (`dea8d82`, Tag: `v1.0.0`). Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Human Feature Freeze for V1 remains locked, Milestones 1-10 are COMPLETE, Portfolio Packaging is COMPLETE, and the Local Workspace Slimming Audit is COMPLETE. Maintenance work or further version development requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
 
 This file owns delivery sequence, execution contracts, evidence-gated promotion, stop/escalation behavior, and lifecycle gates.
 
@@ -1069,8 +1091,14 @@ A candidate is not merge-ready while macro documents still describe the pre-merg
 
 ---
 
-# Deferred / Future Candidates
+# Deferred / Future Candidates (V3)
 
-Deferred product features are owned by `PRODUCT_SPEC.md`.
+Deferred product features are owned by `PRODUCT_SPEC.md`. Future candidate milestones for subsequent major versions include:
 
-Do not duplicate or redefine that list here.
+### Continuous Reading Mode — EPUB / PDF (V3 Candidate)
+Dedicated future reading-mode enhancement for continuous-scroll reading across reflowable and fixed-layout documents, scoped with its own:
+- **Navigation Contract**: Scroll-driven location tracking, bi-directional smooth scrolling, chapter/page boundary synchronization, and jump-to-location resolution.
+- **Performance Acceptance**: Bounded-memory viewport virtualization, dynamic rendering window management, fast continuous fling/wheel interactions, and resource recycling on long (500+ pages) documents.
+- **Long-Document Validation**: Robust per-page geometry probing for mixed page orientations/dimensions and continuous high-DPI rendering without UI main-thread stalls.
+- **Cross-Format UX Consistency**: Harmonized continuous reading experience across EPUB and PDF surfaces with coherent toolbar, annotation, and highlight interactions.
+

@@ -1,9 +1,9 @@
-# EbookReader V1 Product Specification
+# EbookReader Product Specification
 
-Status: **Frozen V1 Product / Domain Contract**
+Status: **V1 Frozen Baseline + V2 Frozen Product Amendments**
 
 
-This document defines V1 product behavior. Implementation details may change during M0 and later engineering, but agents must not silently change these semantics.
+This document defines product behavior. The V1 historical baseline rules remain authoritative for foundational contracts, and Section 20 defines the admitted and frozen V2 product amendments. Implementation details may evolve, but agents must not silently change these semantics.
 
 ## Canonical Authority
 
@@ -741,3 +741,49 @@ UI implementation must preserve:
 - cross-device library synchronization;
 - complex habit/gamification features;
 - abstract Work/Edition graph unless later evidence requires it.
+
+---
+
+## 20. V2 Frozen Product Amendments
+
+The following amendments constitute the admitted and frozen product/domain semantics for EbookReader V2. All baseline V1 product invariants (local-first, non-mutation of source files, cryptographic fingerprint identity, user-authored asset durability) remain strictly in effect.
+
+### 20.1 Reading Progress, Completed-Read Durability & Library Display
+- **Active Progress Tracking**: Active reading progress tracks the user's current reading/exit position and may decrease when the user navigates backward through previously read sections.
+- **Durable Completed-Read Count**: Completed-read count (`completed_reads` / `Read Nx`) is durable; navigating backward during a reread pass never decrements or removes completed-read status.
+- **Library Progress Display Mode**: The Library progress display is user-configurable between *Cumulative Progress* and *Current Read Progress*.
+- **Completed Read Mark Visibility**: The `Read Nx` badge on Library cards is independently toggleable in settings without affecting the underlying completion count.
+
+### 20.2 Reflowable EPUB / TXT Typography Overrides & Indicators
+- **Publisher CSS Override Guarantee**: Reader-controlled typography preferences (font family, font size, line height, page width, margins) must reliably override conflicting publisher EPUB stylesheet declarations for reflowable prose.
+- **Free Numeric Input**: Typography panel (`Aa`) supports direct numeric input with bounds validation alongside preset buttons.
+- **Reflowed Position Indicators**: EPUB and TXT readers support an optional, user-toggleable `K/N` reading position indicator computed dynamically from reflowed layout metrics rather than fixed chapter fractions.
+
+### 20.3 Library Management & Duplicate Import Transparency
+- **Deterministic Multilingual Sorting**: Library supports six sorting modes: `Title A → Z`, `Title Z → A`, `Recently Imported (Newest First)`, `Recently Imported (Oldest First)`, `Recently Opened (Newest First)`, and `Recently Opened (Oldest First)`. Multilingual title sorting deterministically orders numbers, Latin text, and CJK characters using Chinese pinyin collation (`zh-CN-u-co-pinyin`) while ignoring non-semantic book-title punctuation (e.g. `《》`, `“”`, `""`, brackets).
+- **Duplicate Import Warning**: When an imported file matches an existing book's cryptographic fingerprint, the warning dialog explicitly presents the existing book's current Library title.
+
+### 20.4 Book Covers
+- **EPUB Covers**: Extracted from manifest metadata or cover image declarations in the package.
+- **PDF Cover Thumbnails**: Generated from Page 1 rendered to an offscreen thumbnail via lazy visibility detection with fallback to generic format placeholders on error or missing data.
+
+### 20.5 Native PDF Reading, Hyperlinks & Page Appearance
+- **Hierarchical Outline Navigation**: PDF document outline/bookmarks are parsed and presented in the collapsible Contents panel with nested hierarchy support.
+- **Direct Page Jump**: Precise page-number input field with validation, clamping to document bounds (`1..N`), and alert feedback on invalid input.
+- **Internal Hyperlinks**: PDF internal link annotations resolve target destinations directly and navigate within the reader on a single click.
+- **External Hyperlinks**: External HTTP/HTTPS links prompt the user with an in-app confirmation modal before delegating to the default system browser. Unsupported or unsafe link protocols (e.g. file URLs, executable launches) are blocked.
+- **Page Appearance Modes**: Supports `Default`, `Day`, `Eye Care`, `Parchment`, and `Night` modes implemented via non-destructive canvas overlay compositing.
+- **Embedded Image & Raster Protection**: Embedded raster photos and images are protected from tinting or color distortion. Scanned/image-only PDF pages in Night mode preserve original scanned rasters rather than applying destructive pixel-level inversion.
+- **Source Non-Mutation Guarantee**: PDF appearance filters, highlight overlays, annotations, and cover generation never alter or rewrite the underlying source PDF file.
+
+### 20.6 Document-Level OCR Classification & Degraded States
+- **Document-Level Classification**: PDF documents are classified across the entire document into `TEXT`, `SCAN`, or `HYBRID` profiles. Scanned and hybrid documents retain access to the OCR Workspace, preventing single text watermarks from suppressing OCR affordance for scanned content.
+- **Explicit User Action**: OCR processing remains an explicit, user-initiated operation and is never run automatically in the background.
+- **Truthful Degraded State**: Un-OCRed scanned documents preserve full visual readability while text-dependent features display a truthful degraded state.
+
+### 20.7 Known Source-PDF Limitations
+- **Source Unicode Integrity Boundary**: Certain PDF documents may render visual glyphs accurately while containing intrinsically corrupted or absent source `ToUnicode` mapping tables. In such cases, text extraction, search, and copying reflect the corrupted source mapping. EbookReader does not heuristically invent or synthesize missing source Unicode in V2.
+
+### 20.8 V2 Reading Modes Contract
+- **Validated Page-Based Modes**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB Single page, Double page; PDF Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+

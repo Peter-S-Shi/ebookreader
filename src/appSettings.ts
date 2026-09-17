@@ -5,6 +5,7 @@ import {
   serializeTypographySettings,
   type TypographySettings,
 } from "./typography";
+import type { CompletedReadMarkMode, ProgressDisplayMode } from "./libraryProgressDisplay";
 
 // Setting keys, mirroring `crates/domain/src/settings.rs::keys`. Kept in
 // sync manually -- there is no cross-language codegen in this project.
@@ -31,6 +32,14 @@ export const TYPOGRAPHY_GLOBAL_KEY = "typography.global_default";
 // setting; PRODUCT_SPEC.md "Default V1 import mode: Reference." names
 // the unset default.
 export const DEFAULT_IMPORT_MODE_KEY = "files.default_import_mode";
+// V2-M3 item 2: Library presentation only -- never affects underlying
+// ReadingProgress truth.
+export const LIBRARY_PROGRESS_DISPLAY_KEY = "library.progress_display_mode";
+export const COMPLETED_READ_MARK_KEY = "library.completed_read_mark_mode";
+// V2-M3 item 3: EPUB/TXT K/N reading-position indicator, optional and On by default.
+export const READING_POSITION_INDICATOR_ENABLED_KEY = "reading_position_indicator.enabled";
+// V2-M4-Addendum A: Library sorting option persistence.
+export const LIBRARY_SORT_KEY = "library.sort_option";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -54,6 +63,8 @@ export const DEFAULT_REDUCED_MOTION = false;
 // persistence to verify, but every ticket description and DESIGN.md's
 // bare mention agree it starts Off.
 export const DEFAULT_READING_CHECKPOINT_ENABLED = false;
+// V2-M3 item 3: defaults On per the spec.
+export const DEFAULT_READING_POSITION_INDICATOR_ENABLED = true;
 export type ImportMode = "reference" | "managed_copy";
 // PRODUCT_SPEC.md "Default V1 import mode: Reference."
 export const DEFAULT_IMPORT_MODE: ImportMode = "reference";
@@ -170,4 +181,54 @@ export async function loadDefaultImportMode(): Promise<ImportMode> {
 
 export async function saveDefaultImportMode(mode: ImportMode): Promise<void> {
   await setSetting(DEFAULT_IMPORT_MODE_KEY, mode);
+}
+
+export const DEFAULT_PROGRESS_DISPLAY_MODE: ProgressDisplayMode = "cumulative";
+export const DEFAULT_COMPLETED_READ_MARK_MODE: CompletedReadMarkMode = "show";
+
+/// A stale/corrupt stored value resolves to `DEFAULT_PROGRESS_DISPLAY_MODE`
+/// rather than being coerced.
+export async function loadLibraryProgressDisplayMode(): Promise<ProgressDisplayMode> {
+  const stored = await getSetting(LIBRARY_PROGRESS_DISPLAY_KEY);
+  if (stored === "cumulative" || stored === "current") return stored;
+  return DEFAULT_PROGRESS_DISPLAY_MODE;
+}
+
+export async function saveLibraryProgressDisplayMode(mode: ProgressDisplayMode): Promise<void> {
+  await setSetting(LIBRARY_PROGRESS_DISPLAY_KEY, mode);
+}
+
+export async function loadCompletedReadMarkMode(): Promise<CompletedReadMarkMode> {
+  const stored = await getSetting(COMPLETED_READ_MARK_KEY);
+  if (stored === "show" || stored === "hide") return stored;
+  return DEFAULT_COMPLETED_READ_MARK_MODE;
+}
+
+export async function saveCompletedReadMarkMode(mode: CompletedReadMarkMode): Promise<void> {
+  await setSetting(COMPLETED_READ_MARK_KEY, mode);
+}
+
+export type { LibrarySortOption } from "./librarySort";
+import type { LibrarySortOption } from "./librarySort";
+export const DEFAULT_LIBRARY_SORT_OPTION: LibrarySortOption = "recent-import-desc";
+
+const VALID_LIBRARY_SORT_OPTIONS = new Set<LibrarySortOption>([
+  "recent-import-desc",
+  "recent-import-asc",
+  "title-asc",
+  "title-desc",
+  "recent-open-desc",
+  "recent-open-asc",
+]);
+
+export async function loadLibrarySortOption(): Promise<LibrarySortOption> {
+  const stored = await getSetting(LIBRARY_SORT_KEY);
+  if (stored && VALID_LIBRARY_SORT_OPTIONS.has(stored as LibrarySortOption)) {
+    return stored as LibrarySortOption;
+  }
+  return DEFAULT_LIBRARY_SORT_OPTION;
+}
+
+export async function saveLibrarySortOption(option: LibrarySortOption): Promise<void> {
+  await setSetting(LIBRARY_SORT_KEY, option);
 }

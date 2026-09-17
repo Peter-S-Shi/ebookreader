@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { createPdfDocumentLoadingParams } from "./pdfDocumentOptions";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -79,7 +80,7 @@ async function extractBookData(bookId: string, format: string): Promise<Extracte
   }
 
   if (format === "pdf") {
-    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const pdf = await pdfjsLib.getDocument(createPdfDocumentLoadingParams(data)).promise;
     const pages: string[] = [];
     const pageOffsets: number[] = [];
     let currentOffset = 0;

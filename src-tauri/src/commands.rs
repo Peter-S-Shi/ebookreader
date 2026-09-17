@@ -408,8 +408,9 @@ pub fn get_reading_progress_command(state: State<DbState>, book_id: String) -> R
     load_progress(&conn, &book_id).map_err(|e| format!("could not load reading progress: {e}"))
 }
 
-/// SS8.2: forward progress within the active read only (backtracking
-/// cannot move this backwards -- enforced in `ReadingProgress` itself).
+/// V2-M3: reports the active read's current position (can move forward
+/// or backward through ordinary navigation -- enforced in
+/// `ReadingProgress` itself).
 #[tauri::command]
 pub fn advance_reading_progress_command(
     state: State<DbState>,

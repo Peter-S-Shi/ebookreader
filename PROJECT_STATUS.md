@@ -1,8 +1,10 @@
 # EbookReader Project Status
 
-Last Updated: 2026-09-12 (v1.0.0 Released — M1-M10 Complete — Portfolio Packaging Complete — Workspace Slimming Complete — Lifecycle Archived / Maintenance Mode)
+Last Updated: 2026-09-16 (V2.0.0 Release Promotion PR — Promoted to main / Release Publication Pending)
 
-Current Phase: **Lifecycle Archived / Maintenance Mode**. EbookReader v1.0.0 is released; M1-M10, Portfolio Packaging, and the Local Workspace Slimming Audit are complete. No development milestone is active. M10-A Clean Install is **HUMAN PASS** on clean Windows 11 VM. M10-B Packaged RC Acceptance is **HUMAN PASS** with full human verification across all 14 core reader workflows and Optional OCR Pack local discovery/inference. M10-C Release Governance & Publication is **Complete**; PR #1 merged into `main`, Git Tag `v1.0.0` pushed, and GitHub Release `v1.0.0` published with approved candidate artifacts and verified SHA256 checksums. Portfolio README / showcase PR #3 merged into `main` (`e15ab2c`) with the public README hero, release link, and six real-product showcase screenshots in `assets/readme/`. Full Automated Regression and CI Promotion Gate are **PASS (All Green)**. Human Feature Freeze remains **APPROVED** and V1 scope remains locked. Maintenance work or future version planning requires explicit user authorization. This lifecycle state does not mark the GitHub repository as archived and does not deprecate the product.
+Current Phase: **V2.0.0 Release Promotion (Promoted to `main` — Release Publication Pending)**. V1.0.0 historical lifecycle records stay locked (see V1 Feature Freeze Decision Summary below, retained for history). V2-M1 through V2-M6 Regression & Manual Acceptance, RC-1B Release Identity Finalization (2.0.0), RC-2 Candidate Build & Runtime Closure, and RC-3 Clean Windows Packaged Acceptance (Human PASS on the SHA256-verified RC-2 candidate artifacts) are complete. Human Release Promotion Gate has been approved, and V2.0.0 is promoted into `main` via this promotion PR. The `v2.0.0` Git tag and GitHub Release publication are pending execution. Next phase is formal publication verification.
+
+**V1 Feature Freeze Decision Summary (historical, retained; superseded for V2 scope only by explicit user authorization to begin V2-M1):**
 
 **Feature Freeze Decision Summary:**
 - The Human Feature Freeze Gate has been explicitly approved by the user after the Feature Complete Candidate #2 corrective pass and subsequent native Tauri acceptance.
@@ -52,22 +54,72 @@ Current Phase: **Lifecycle Archived / Maintenance Mode**. EbookReader v1.0.0 is 
   - Optional OCR Pack: `EbookReader_OCR_Pack_1.0.0_x64-setup.exe` (59,183,570 bytes, SHA256: `6A9D8ECD1500EE4C8DFE2DE610F2398EA72F51B222BDE4B4A4C1DFED0DA8ECA3`)
 - Verified third-party redistribution licenses & attributions: Microsoft ONNX Runtime (MIT), PaddleOCR DBNet/SVTR-LCNet models (Apache-2.0), Microsoft Edge WebView2.
 
-**Full Automated Regression Verification:**
-- Frontend unit tests `npm test`: 38 test files, 308 passed; 0 failed.
-- TypeScript typecheck `npm run typecheck`: 0 errors.
-- Rust workspace tests `cargo test --workspace` + `cargo test -p ebookreader`: 219 passed, 2 ignored; 0 failed.
-- PE runtime dependency closure `node tooling/audit_runtime_closure.mjs`: 100% closure verified (0 unresolved DLLs).
-- Production frontend build `npm run build`: passed.
-- Production Tauri release build `npm run tauri build`: passed.
+**V2-M1 EPUB Reader Preference Override Compatibility (Complete — Implementation, Targeted Verification, and Human A/B Retest all PASS):**
+- Scope: Diagnose and correctly fix reader typography preferences (font size, page width, margins) becoming unresponsive against certain publisher EPUB CSS. No other V2 area in scope for M1.
+- Implemented fix (`src/typography.ts`): every reader-controlled `body` rule declaration (font-size, line-height, max-width, margins, padding, font-family) carries its own `!important`. The prose-selector rule gives each declaration its own explicit `!important` and expresses font-size in root-relative `rem` instead of parent-relative `%`, preventing nested-compounding bugs.
+- Regression mechanism covered by public, synthetic, CI-safe unit tests in `src/typography.test.ts` (39/39 passed) and `npx tsc --noEmit` (0 errors).
+- **Human A/B Retest: PASS.** Verified across previously failing and control EPUBs.
 
-Current Milestone: M1 — **Complete**, `94aff83`; M2 — **Complete**, `0a04fb4`; M3 — **Complete**, `096b90d` + durability test; M4 — **Complete**, `7f12173`; M5 — **Complete**, `67d32c5`; M6 — **Complete**, `9e99099`; M7 — **Complete**, `4d86045`; M8 — **Complete**, `2b81d54`; M9 — **Complete**, `5ccc240`; M10 — **Complete** (M10-A Complete [HUMAN PASS], M10-B Complete [HUMAN PASS], M10-C Complete [RELEASED]).
-Current Checkpoint: **V1_0_0_RELEASED_M10_COMPLETE_PP_COMPLETE_WORKSPACE_SLIMMING_COMPLETE_LIFECYCLE_ARCHIVED**.
-Current Branch / PR: `main` after archival governance reconciliation merge.
-Current Blockers: None.
-Current Escalations: None.
-Architecture State: **Accepted Architecture Baseline (Updated for Pre-Freeze UX Hardening, Book Hours V1 Redesign, and Optional Local OCR Pack)**.
-Feature Complete: Complete; Candidate #2 accepted through the Human Feature Freeze Gate.
-Feature Freeze: **Approved by human decision on 2026-09-11. V1 scope locked.**
-RC / Release State: **v1.0.0 Released (GitHub Release & Assets Published)**.
-Portfolio Packaging State: **Complete** — public README portfolio packaging and showcase assets merged via PR #3.
-Next Action: Remain in Lifecycle Archived / Maintenance Mode. Resume development only after explicit user authorization for maintenance work or future version planning.
+**V2-M2 Reader Navigation & Reliability (Complete — Implementation, Targeted Verification, and Human Acceptance all PASS):**
+- Scope: Hierarchical Contents collapse/expand (`src/TocPanel.tsx`), native PDF bookmarks in Contents (`src/pdfOutline.ts`), Light/Dark theme startup-persistence fix, in-app confirmation modal for Remove from Library, and direct PDF page jump (`src/pdfPageInput.ts`).
+- Direct PDF page jump: `inputMode="numeric"` text field with validation (`1..N` exact jump, clamp, alert notices on invalid input, synchronized across all navigation triggers).
+- Regression coverage: `src/TocPanel.test.tsx`, `src/pdfOutline.test.ts`, `src/pdfPageInput.test.ts`, `src/PdfReader.test.tsx`, `src/App.test.tsx` (164/164 tests passed; `tsc --noEmit` 0 errors).
+- **Human Acceptance: PASS.**
+
+**V2-M3 Reading Progress, Reflowable Reading UX & EPUB Embedded Covers (Complete — Implementation, Targeted Verification, Corrective Passes, and Human Acceptance all PASS):**
+- Scope: Current-position reading progress semantics (`crates/domain/src/completion.rs`), Library progress display settings (Cumulative vs Current Read Progress), Completed Read Mark (`Read Nx` badge), free numeric typography inputs for EPUB/TXT (`src/typographyNumericInput.ts`), EPUB/TXT K/N reading-position indicators (`src/epubPageIndicator.ts`, `src/txtPageIndicator.ts`), in-app confirmation for Delete Reading Data + bulk action, and EPUB embedded cover extraction and display (`src/epubCover.ts`, `src/BookCover.tsx`).
+- Regression & Targeted verification: 47/47 vitest suites (413/413 tests passed), `cargo test --workspace` (216/216 passed), `tsc --noEmit` 0 errors.
+- **Human Acceptance: PASS.**
+
+**V2-M4 PDF Reading Experience, Hyperlinks, Appearance & OCR Architecture (Complete — Implementation, Targeted Verification, and Human Acceptance all PASS):**
+- Scope: PDF text highlight geometry and presentation cleanup, PDF Page Appearance modes, native internal and external hyperlinks, WASM JBIG2 runtime integration, and document-level OCR classification.
+- **Highlight Presentation & TextLayer Geometry**: PDF highlights add translucent background tinting while preserving the original glyph color and contrast without washed-out text artifacts.
+- **PDF Page Appearance Modes**: Added `Default`, `Day`, `Eye Care`, `Parchment`, and `Night` modes via composited overlay canvases. Embedded photo and image rects extracted from pdf.js operator streams are protected from color-filter distortion. Scanned/image-only pages in Night mode preserve the original scanned raster rather than applying destructive global pixel inversion.
+- **Native PDF Hyperlinks**: Resolves internal link destinations directly to page numbers with single-click jump; detects external HTTP/HTTPS links and prompts for user confirmation before delegating to the system browser; blocks unsupported or unsafe URI schemes.
+- **pdf.js WASM Runtime Integration**: Statically integrates local WASM binary decoders (`/wasm/`) into pdf.js loading configuration, resolving the blank-page rendering defect for JBIG2-encoded scanned PDF documents.
+- **Document OCR Eligibility & Classification**: Upgraded naive boolean checks to document-level heuristics (`TEXT`, `SCAN`, `HYBRID`), ensuring predominantly scanned books with incidental watermark text retain OCR affordance while predominantly healthy text documents keep OCR hidden.
+- **Known Source Limitation Explicitly Recorded**: Some PDFs may visually render correctly while their embedded Unicode/text mapping is intrinsically corrupted; EbookReader does not invent or heuristically reconstruct missing source Unicode in V2.
+- **Human Acceptance: PASS.**
+
+**Pre-Freeze UX Addenda (Complete — Human Acceptance PASS):**
+- **Addendum A — Library Sorting & Duplicate Import Clarity**: Added compact `Sort by:` dropdown supporting 6 sort modes (`Title A → Z`, `Title Z → A`, `Recently Imported newest/oldest`, `Recently Opened newest/oldest`). Implemented deterministic multilingual sorting with numeric natural sort, English collation, and Simplified Chinese pinyin collation (`zh-CN-u-co-pinyin`) with leading punctuation normalization (`《》`, quotes, brackets). Duplicate import dialog clearly surfaces the current Library title.
+- **Addendum B — PDF Reader Toolbar Re-layout**: Reorganized PDF Reader chrome into clear header identity (Row 1), reading configuration (Row 2: Document, Appearance, Geometry), and actions/tools (Row 3: Navigation, Tools) with responsive group wrapping.
+- **Addendum C — PDF Page 1 Cover Thumbnails in Library**: Extended `BookCover` to render Page 1 PDF thumbnails using offscreen canvas and session-memory caching. Features `IntersectionObserver` visibility-gated lazy loading, bounded concurrency queue (`MAX_CONCURRENT_PDF_COVERS = 2`), in-flight deduplication, and format placeholder fallback.
+
+**V2-M5 Hardening Product Scope Decision (Complete):**
+- **Reading Mode Standardization**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB: Single page, Double page; PDF: Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+- **Production Cleanup**: Removed selectable continuous reading mode from EPUB (`scrolled`) and PDF (`continuous`), cleaned up obsolete toolbar selectors, and added backward-compatible fallback normalization for legacy persisted modes.
+
+**V2-M6 Regression & Manual Acceptance (Complete — R3 Gate PASS):**
+- **Risk-Based Regression Matrix & Automated Sweep (R1)**: Reconciled cumulative human and automated evidence across Areas A–N; verified domain/storage regression coverage and source/build-level runtime dependency closure (packaged-runtime closure remains an RC verification item).
+- **Pre-R3 Contents / TOC Dynamic Bulk Toggle Addendum**: Integrated dynamic `Expand all` / `Collapse all` compact boxed icons into the shared `TocPanel` component header for EPUB and PDF readers with real-time recalculation across single-node and mixed-state toggles (Human Accepted).
+- **Cumulative Manual Acceptance Reconciliation (R2)**: Reconciled human acceptance across all 14 core workflows; zero manual-only evidence gaps remain.
+- **Final Automated Gate (R3)**: 100% green across all 54 test files (500 passed), TypeScript typecheck (0 errors), production frontend build, and Rust workspace tests (216 passed).
+
+**Automated Verification State (on Frozen V2 Branch):**
+- Frontend unit & integration tests `npm test`: 54 test files, 500 passed; 0 failed.
+- TypeScript typecheck `npm run typecheck`: 0 errors.
+- Production frontend build `npm run build`: Succeeded.
+- Rust workspace tests `cargo test --workspace`: 216 passed; 0 failed.
+- Full automated gate passed on the final V2 candidate.
+
+---
+
+## Lifecycle Snapshot
+
+- **Current Milestone**: V2-M1 Complete, V2-M2 Complete, V2-M3 Complete, V2-M4 Complete, Pre-Freeze UX Addenda A/B/C Complete, V2-M5 Product Hardening Complete, V2-M6 Regression & Manual Acceptance Complete (R3 Gate: PASS); V2 RC Preparation (RC-1B Release Identity Finalized to 2.0.0; RC-2 Candidate Build & Runtime Closure Verification Complete; RC-3 Clean Windows Packaged Acceptance PASS); V2 Release Promotion (Promoted to `main`).
+- **Current Checkpoint**: `V2_RELEASE_PROMOTION_MERGED_TO_MAIN_PUBLICATION_PENDING`.
+- **Current Branch / PR**: Promoted from `v2-m1/epub-preference-override-compat` to `main` via promotion PR; Human Release Promotion approved.
+- **Current Blockers**: None.
+- **Current Escalations**: None.
+- **Architecture State**: **Accepted V2 Architecture Baseline** (Incorporates EPUB typography overrides, PDF WASM decoders, Page Appearance compositing, Document OCR classification, lazy PDF cover thumbnails, standardized page-based reading modes, and dynamic TOC bulk expand/collapse).
+- **Feature Complete (V2)**: **Complete** — All planned V2 feature milestones (M1–M4), Addenda (A–C), Hardening scope corrections, Regression validation, and Packaged Acceptance have been executed.
+- **Feature Freeze (V2 Scope)**: **ACTIVE / FROZEN**.
+- **V2 Product Hardening**: **Complete** (Hardening Exit Gate: PASS).
+- **V2 Regression & Manual Acceptance**: **Complete** (R3 Closeout Gate: PASS).
+- **V2 Packaged Acceptance**: **Complete** (RC-3 Clean Windows Packaged Acceptance: PASS).
+- **Release Identity**: Finalized to **2.0.0** (`v2.0.0` tag).
+- **RC / Release State**: V2.0.0 source code promoted to `main`; `v2.0.0` Git tag and GitHub Release publication pending.
+- **Next Action**: **Release Publication Verification (`v2.0.0` tag and GitHub Release). Portfolio Packaging begins only after release publication is verified complete.**
+
+

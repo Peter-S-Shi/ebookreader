@@ -13,6 +13,8 @@ import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
 import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { computeTxtPageIndicator, type TxtPageIndicator } from "./txtPageIndicator";
+import { useReadingPositionIndicatorEnabled } from "./useReadingPositionIndicatorEnabled";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -49,6 +51,10 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
   const [selection, setSelection] = useState<{ text: string; startOffset: number; assetId?: string } | null>(null);
   const [highlightColor, setHighlightColor] = useState<HighlightColor>("yellow");
+  // V2-M3 item 3: synthetic K/N, since TXT has no chapters/headings to
+  // infer from (see txtPageIndicator.ts).
+  const [pageIndicator, setPageIndicator] = useState<TxtPageIndicator | null>(null);
+  const positionIndicatorEnabled = useReadingPositionIndicatorEnabled();
   const { progress, showCompletionPrompt, advance, startNextRead, dismissCompletionPrompt } = useReadingProgress(bookId);
   const checkpoint = useReadingCheckpoint();
   useRecordBookOpened(bookId);
@@ -307,6 +313,19 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     setNotebookRefreshKey((k) => k + 1);
   }
 
+  // V2-M3 item 3: recomputed from the container's own current geometry,
+  // so any typography/viewport change that reflows the text is picked up
+  // the next time this runs (scroll, or right after a typography change --
+  // see handleTypographyChange below).
+  function refreshPageIndicator() {
+    const container = containerRef.current;
+    if (!positionIndicatorEnabled || !container) {
+      setPageIndicator(null);
+      return;
+    }
+    setPageIndicator(computeTxtPageIndicator(container.scrollTop, container.clientHeight, container.scrollHeight));
+  }
+
   function handleScroll() {
     const container = containerRef.current;
     if (!container || text === null) return;
@@ -324,12 +343,22 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
     };
     invoke("save_reading_location_command", { location }).catch(() => {});
     advance(fraction);
+    refreshPageIndicator();
   }
 
   function handleTypographyChange(next: TypographySettings) {
     setTypography(next);
     savePerBookTypography(bookId, next).catch(() => {});
   }
+
+  // Runs after React actually commits the new typography to the DOM (a
+  // plain call inside handleTypographyChange would measure the container
+  // before the reflow it just caused), so the recalculation reflects the
+  // real new layout, not the stale one.
+  useEffect(() => {
+    refreshPageIndicator();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typography, positionIndicatorEnabled]);
 
   const textStyle: React.CSSProperties = toTextStyle(typography);
 
@@ -340,6 +369,11 @@ export function TxtReader({ bookId, title, onBack, initialAnchor }: TxtReaderPro
       progressPercent={progress?.active_pass_progress}
       toolbarExtra={
         <>
+          {positionIndicatorEnabled && pageIndicator && (
+            <span aria-label="Reading position">
+              {pageIndicator.current} / {pageIndicator.total}
+            </span>
+          )}
           <button type="button" onClick={() => setTypographyOpen((open) => !open)}>
             Aa
           </button>

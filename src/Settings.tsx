@@ -7,9 +7,12 @@ import {
   DEFAULT_ACCENT_COLOR,
   DEFAULT_AUTO_PAUSE_AFTER_INACTIVITY,
   DEFAULT_COUNT_NOTE_TAKING,
+  DEFAULT_COMPLETED_READ_MARK_MODE,
   DEFAULT_IMPORT_MODE,
   DEFAULT_PAUSE_ON_BACKGROUND,
+  DEFAULT_PROGRESS_DISPLAY_MODE,
   DEFAULT_READING_CHECKPOINT_ENABLED,
+  DEFAULT_READING_POSITION_INDICATOR_ENABLED,
   DEFAULT_THEME_MODE,
   DEFAULT_TRACK_ACTUAL_READING_TIME,
   DEFAULT_UPDATE_CHECK_ON_STARTUP,
@@ -19,15 +22,20 @@ import {
   loadAndApplyAppearance,
   loadAndApplyMotionPreference,
   loadBooleanSetting,
+  loadCompletedReadMarkMode,
   loadDefaultImportMode,
   loadGlobalTypography,
+  loadLibraryProgressDisplayMode,
   loadUpdateCheckOnStartupPreference,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
+  READING_POSITION_INDICATOR_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   saveBooleanSetting,
+  saveCompletedReadMarkMode,
   saveDefaultImportMode,
   saveGlobalTypography,
+  saveLibraryProgressDisplayMode,
   saveUpdateCheckOnStartupPreference,
   setSetting,
   SOUND_PAGE_TURN_ENABLED_KEY,
@@ -38,6 +46,7 @@ import {
 } from "./appSettings";
 import { TypographyPanel } from "./TypographyPanel";
 import { DEFAULT_TYPOGRAPHY, type TypographySettings } from "./typography";
+import type { CompletedReadMarkMode, ProgressDisplayMode } from "./libraryProgressDisplay";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 
 type SettingsPane = "appearance" | "reading" | "typography" | "sound" | "files" | "updates";
@@ -58,7 +67,12 @@ export function Settings() {
   const [soundPageTurnEnabled, setSoundPageTurnEnabled] = useState(DEFAULT_SOUND_PAGE_TURN_ENABLED);
   const [reducedMotion, setReducedMotion] = useState(DEFAULT_REDUCED_MOTION);
   const [readingCheckpointEnabled, setReadingCheckpointEnabled] = useState(DEFAULT_READING_CHECKPOINT_ENABLED);
+  const [readingPositionIndicatorEnabled, setReadingPositionIndicatorEnabled] = useState(
+    DEFAULT_READING_POSITION_INDICATOR_ENABLED,
+  );
   const [defaultImportMode, setDefaultImportMode] = useState<ImportMode>(DEFAULT_IMPORT_MODE);
+  const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
+  const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
   const [loaded, setLoaded] = useState(false);
   const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -75,7 +89,10 @@ export function Settings() {
       loadBooleanSetting(SOUND_PAGE_TURN_ENABLED_KEY, DEFAULT_SOUND_PAGE_TURN_ENABLED),
       loadAndApplyMotionPreference(),
       loadBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, DEFAULT_READING_CHECKPOINT_ENABLED),
+      loadBooleanSetting(READING_POSITION_INDICATOR_ENABLED_KEY, DEFAULT_READING_POSITION_INDICATOR_ENABLED),
       loadDefaultImportMode(),
+      loadLibraryProgressDisplayMode(),
+      loadCompletedReadMarkMode(),
     ]).then(
       ([
         { themeMode, accentColor },
@@ -88,7 +105,10 @@ export function Settings() {
         soundEnabled,
         motionReduced,
         checkpointEnabled,
+        positionIndicatorEnabled,
         importMode,
+        progressDisplay,
+        completedReadMark,
       ]) => {
         setThemeMode(themeMode);
         setAccentColor(accentColor);
@@ -101,7 +121,10 @@ export function Settings() {
         setSoundPageTurnEnabled(soundEnabled);
         setReducedMotion(motionReduced);
         setReadingCheckpointEnabled(checkpointEnabled);
+        setReadingPositionIndicatorEnabled(positionIndicatorEnabled);
         setDefaultImportMode(importMode);
+        setProgressDisplayMode(progressDisplay);
+        setCompletedReadMarkMode(completedReadMark);
         setLoaded(true);
       },
     );
@@ -165,9 +188,24 @@ export function Settings() {
     await saveBooleanSetting(READING_CHECKPOINT_ENABLED_KEY, next);
   }
 
+  async function updateReadingPositionIndicatorEnabled(next: boolean) {
+    setReadingPositionIndicatorEnabled(next);
+    await saveBooleanSetting(READING_POSITION_INDICATOR_ENABLED_KEY, next);
+  }
+
   async function updateDefaultImportMode(next: ImportMode) {
     setDefaultImportMode(next);
     await saveDefaultImportMode(next);
+  }
+
+  async function updateProgressDisplayMode(next: ProgressDisplayMode) {
+    setProgressDisplayMode(next);
+    await saveLibraryProgressDisplayMode(next);
+  }
+
+  async function updateCompletedReadMarkMode(next: CompletedReadMarkMode) {
+    setCompletedReadMarkMode(next);
+    await saveCompletedReadMarkMode(next);
   }
 
   async function runUpdateCheck() {
@@ -356,6 +394,50 @@ export function Settings() {
           </div>
 
           <div className="settingGroup">
+            <h3>Library Display</h3>
+            <div className="settingRow">
+              <div>
+                <b>Progress Display</b>
+                <div className="desc">Presentation only -- does not change the underlying reading-progress record.</div>
+              </div>
+              <div className="seg">
+                {(["cumulative", "current"] as const).map((mode) => (
+                  <label key={mode} className={`seg-item ${progressDisplayMode === mode ? "active" : ""}`}>
+                    <input
+                      type="radio"
+                      name="library-progress-display"
+                      value={mode}
+                      checked={progressDisplayMode === mode}
+                      onChange={() => updateProgressDisplayMode(mode)}
+                    />
+                    <span>{mode === "cumulative" ? "Cumulative Progress" : "Current Read Progress"}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="settingRow">
+              <div>
+                <b>Completed Read Mark</b>
+                <div className="desc">Shows how many times a Book has been completed, when at least one read is complete.</div>
+              </div>
+              <div className="seg">
+                {(["show", "hide"] as const).map((mode) => (
+                  <label key={mode} className={`seg-item ${completedReadMarkMode === mode ? "active" : ""}`}>
+                    <input
+                      type="radio"
+                      name="library-completed-read-mark"
+                      value={mode}
+                      checked={completedReadMarkMode === mode}
+                      onChange={() => updateCompletedReadMarkMode(mode)}
+                    />
+                    <span>{mode === "show" ? "Show" : "Hide"}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="settingGroup">
             <h3>Reading Behaviour</h3>
             <div className="settingRow">
               <div>
@@ -368,6 +450,20 @@ export function Settings() {
                   aria-label="Prompt for a reflection when leaving a Reader session"
                   checked={readingCheckpointEnabled}
                   onChange={(e) => updateReadingCheckpointEnabled(e.target.checked)}
+                />
+              </label>
+            </div>
+            <div className="settingRow">
+              <div>
+                <b>Reading Position Indicator</b>
+                <div className="desc">Show your current page within the chapter (EPUB) or document (TXT).</div>
+              </div>
+              <label className="settings-field">
+                <input
+                  type="checkbox"
+                  aria-label="Reading Position Indicator"
+                  checked={readingPositionIndicatorEnabled}
+                  onChange={(e) => updateReadingPositionIndicatorEnabled(e.target.checked)}
                 />
               </label>
             </div>

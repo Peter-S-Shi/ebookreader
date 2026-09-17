@@ -15,6 +15,8 @@ import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
 import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { computeEpubPageIndicator, type EpubPageIndicator } from "./epubPageIndicator";
+import { useReadingPositionIndicatorEnabled } from "./useReadingPositionIndicatorEnabled";
 
 interface DocumentLocationDTO {
   book_id: string;
@@ -42,6 +44,11 @@ interface FoliateRenderer {
   setStyles(css: string): void;
   setAttribute(name: string, value: string): void;
   removeAttribute(name: string): void;
+  // V2-M3 item 3: the Paginator's own live getters (not published on the
+  // relocate event's own detail) -- see epubPageIndicator.ts for how
+  // these translate to a real K/N.
+  page?: number;
+  pages?: number;
 }
 interface FoliateSection {
   createDocument?: () => Promise<Document>;
@@ -113,6 +120,14 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   const [typography, setTypography] = useState<TypographySettings>(DEFAULT_TYPOGRAPHY);
   const [toc, setToc] = useState<TocItem[]>([]);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  // V2-M3 item 3: derived from the renderer's own live page/pages getters
+  // (see epubPageIndicator.ts) -- null before the current chapter's layout has been measured.
+  const [pageIndicator, setPageIndicator] = useState<EpubPageIndicator | null>(null);
+  const positionIndicatorEnabled = useReadingPositionIndicatorEnabled();
+  const positionIndicatorEnabledRef = useRef(positionIndicatorEnabled);
+  useEffect(() => {
+    positionIndicatorEnabledRef.current = positionIndicatorEnabled;
+  }, [positionIndicatorEnabled]);
   const [viewMode, setViewMode] = useState<ViewMode>("paginated-double");
   const viewModeRef = useRef<ViewMode>("paginated-double");
   const [selection, setSelection] = useState<ActiveSelection | null>(null);
@@ -255,7 +270,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         const cfi = detail.cfi ?? view.lastLocation?.cfi;
         if (!cfi) return;
         playPageTurnRef.current();
-        if (hostRef.current && (viewModeRef.current as string) !== "continuous") {
+        if (hostRef.current) {
           hostRef.current.classList.remove("page-turn-animating");
           void hostRef.current.offsetWidth;
           hostRef.current.classList.add("page-turn-animating");
@@ -274,6 +289,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
         };
         invoke("save_reading_location_command", { location }).catch(() => {});
         advanceRef.current(fraction);
+        refreshPageIndicator(view.renderer as FoliateRenderer | undefined);
       });
 
       if (initialAnchor?.primary_anchor) {
@@ -356,12 +372,8 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     );
   }
 
-  function isPaginatedMode() {
-    return viewModeRef.current !== "scrolled";
-  }
-
   function handleReadingKeyDown(event: KeyboardEvent) {
-    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+    if (shouldLetTargetHandleInput(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
       return;
     }
     if (event.key === "ArrowRight") {
@@ -381,7 +393,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
   }
 
   function handleReadingWheel(event: ReadingWheelEvent) {
-    if (!isPaginatedMode() || shouldLetTargetHandleInput(event.target)) return;
+    if (shouldLetTargetHandleInput(event.target)) return;
     const dominantDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     if (Math.abs(dominantDelta) < 10) return;
     event.preventDefault();
@@ -417,11 +429,24 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     return () => mq.removeEventListener("change", handler);
   }, [typography, isFixedLayout]);
 
+  // V2-M3 item 3: typography (font size, line height, page width, margins)
+  // and column-mode changes all change the current chapter's layout, so
+  // the renderer's own page/pages getters need to be re-read afterward,
+  // not just on the next relocate event.
+  function refreshPageIndicator(renderer: FoliateRenderer | undefined) {
+    if (!positionIndicatorEnabledRef.current || typeof renderer?.page !== "number" || typeof renderer?.pages !== "number") {
+      setPageIndicator(null);
+      return;
+    }
+    setPageIndicator(computeEpubPageIndicator(renderer.page, renderer.pages));
+  }
+
   function handleTypographyChange(next: TypographySettings) {
     setTypography(next);
     viewRef.current?.renderer?.setStyles(toEpubCss(next, isDarkModeActive()));
     if (viewRef.current?.renderer) applyPageWidth(viewRef.current.renderer, next.pageWidthCh);
     savePerBookTypography(bookId, next).catch(() => {});
+    refreshPageIndicator(viewRef.current?.renderer);
   }
 
   function handleTocNavigate(href: string) {
@@ -536,6 +561,7 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
     setViewMode(next);
     const renderer = viewRef.current?.renderer;
     if (renderer) applyViewMode(renderer, next);
+    refreshPageIndicator(renderer);
   }
 
   return (
@@ -551,6 +577,11 @@ export function Reader({ bookId, title, onBack, initialAnchor }: ReaderProps) {
             <button type="button" onClick={() => setOpenPanel((p) => (p === "toc" ? null : "toc"))}>
               Contents
             </button>
+          )}
+          {positionIndicatorEnabled && pageIndicator && (
+            <span aria-label="Reading position">
+              {pageIndicator.current} / {pageIndicator.total}
+            </span>
           )}
           {!isFixedLayout && (
             <>

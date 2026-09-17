@@ -9,6 +9,7 @@ import {
   DEFAULT_IMPORT_MODE_KEY,
   PAUSE_ON_BACKGROUND_KEY,
   READING_CHECKPOINT_ENABLED_KEY,
+  READING_POSITION_INDICATOR_ENABLED_KEY,
   REDUCED_MOTION_KEY,
   SOUND_PAGE_TURN_ENABLED_KEY,
   THEME_MODE_KEY,
@@ -277,6 +278,99 @@ describe("Settings — Reading Checkpoint (DESIGN.md SS20; FC-A10)", () => {
 
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: READING_CHECKPOINT_ENABLED_KEY, value: "true" }),
+    );
+  });
+});
+
+describe("Settings — Reading Position Indicator (V2-M3 item 3)", () => {
+  it("defaults to On when nothing is persisted yet", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Reading Position Indicator" })).toBeChecked();
+  });
+
+  it("loads a persisted Off preference", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === READING_POSITION_INDICATOR_ENABLED_KEY) return "false";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("checkbox", { name: "Reading Position Indicator" })).not.toBeChecked();
+  });
+
+  it("persists turning the preference off", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Reading Position Indicator" });
+
+    await user.click(checkbox);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: READING_POSITION_INDICATOR_ENABLED_KEY,
+        value: "false",
+      }),
+    );
+  });
+});
+
+describe("Settings — Library Display (V2-M3 item 2)", () => {
+  it("defaults to Cumulative Progress and Show, without affecting reading-progress truth", async () => {
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Cumulative Progress" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Show" })).toBeChecked();
+  });
+
+  it("loads a persisted Current Read Progress + Hide combination", async () => {
+    invokeMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+    render(<Settings />);
+
+    expect(await screen.findByRole("radio", { name: "Current Read Progress" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Hide" })).toBeChecked();
+  });
+
+  it("persists changing Progress Display without touching the Completed Read Mark setting", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const radio = await screen.findByRole("radio", { name: "Current Read Progress" });
+
+    await user.click(radio);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: "library.progress_display_mode",
+        value: "current",
+      }),
+    );
+    expect(invokeMock).not.toHaveBeenCalledWith("set_setting_command", {
+      key: "library.completed_read_mark_mode",
+      value: expect.anything(),
+    });
+  });
+
+  it("persists changing the Completed Read Mark", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValue(null);
+    render(<Settings />);
+    const radio = await screen.findByRole("radio", { name: "Hide" });
+
+    await user.click(radio);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", {
+        key: "library.completed_read_mark_mode",
+        value: "hide",
+      }),
     );
   });
 });

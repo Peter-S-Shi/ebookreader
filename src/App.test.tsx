@@ -1,16 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { clearEpubCoverCache } from "./epubCover";
 
-const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock } = vi.hoisted(() => ({
+const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheckPrefMock, bookFileMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   openMock: vi.fn(),
-  // FC-A01: App now fetches Collections on every mount alongside the
-  // Library listing. Routing these commands to their own mock (with sane
-  // defaults set in beforeEach) keeps every pre-existing test's
-  // invokeMock.mockResolvedValueOnce(...) call sequence -- written before
-  // Collections existed -- valid without editing each of them.
   collectionsMock: vi.fn(),
   COLLECTIONS_COMMANDS: new Set([
     "list_collections_command",
@@ -25,16 +21,8 @@ const { invokeMock, openMock, collectionsMock, COLLECTIONS_COMMANDS, updateCheck
     "remove_tag_from_book_command",
     "list_tags_for_book_command",
   ]),
-  // FC-C08 / FC-A09: App also reads these settings on every mount
-  // (whether to run the startup Update Awareness check; the Reduced
-  // Motion preference). Routed separately (keyed on the
-  // `get_setting_command` call's specific `key` argument, not the whole
-  // command, since Settings-destination tests already exercise
-  // `get_setting_command` for other keys through invokeMock) and
-  // defaulted in beforeEach so pre-existing tests never trigger a real
-  // `fetch` via `checkForUpdate` and never see an extra queue-shifting
-  // call for a setting they don't know about.
   updateCheckPrefMock: vi.fn(),
+  bookFileMock: vi.fn(),
 }));
 
 // FC-A15: `importBook()` also reads this setting (not at mount, but on
@@ -47,11 +35,19 @@ const MOUNT_TIME_SETTING_KEYS = new Set([
   "update_awareness.check_on_startup",
   "motion.reduced",
   "files.default_import_mode",
+  "appearance.theme_mode",
+  "appearance.accent_color",
+  "library.progress_display_mode",
+  "library.completed_read_mark_mode",
+  "library.sort_option",
 ]);
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: [string, ...unknown[]]) => {
     const [cmd, callArgs] = args;
+    if (cmd === "read_book_file_command") {
+      return bookFileMock(...args);
+    }
     if (cmd === "get_setting_command" && MOUNT_TIME_SETTING_KEYS.has((callArgs as { key?: string } | undefined)?.key ?? "")) {
       return updateCheckPrefMock(...args);
     }
@@ -106,6 +102,9 @@ beforeEach(() => {
   openMock.mockReset();
   collectionsMock.mockReset();
   updateCheckPrefMock.mockReset();
+  bookFileMock.mockReset();
+  bookFileMock.mockRejectedValue(new Error("no cover"));
+  clearEpubCoverCache();
   vi.restoreAllMocks();
   collectionsMock.mockImplementation(async (cmd: string) => {
     switch (cmd) {
@@ -120,7 +119,17 @@ beforeEach(() => {
         return undefined;
     }
   });
-  updateCheckPrefMock.mockResolvedValue("false");
+  updateCheckPrefMock.mockImplementation(async (_cmd: string, args: { key?: string } = {}) => {
+    if (
+      args.key === "appearance.theme_mode" ||
+      args.key === "appearance.accent_color" ||
+      args.key === "library.progress_display_mode" ||
+      args.key === "library.completed_read_mark_mode"
+    ) {
+      return null;
+    }
+    return "false";
+  });
   delete document.documentElement.dataset.motion;
 });
 
@@ -218,9 +227,14 @@ describe("Library", () => {
     expect(within(presentItem).queryByText(/needs relink/i)).not.toBeInTheDocument();
   });
 
-  it("removes a book from the Library only after confirming the separated consequence", async () => {
+  it("removes a book from the Library only after confirming via the in-app dialog", async () => {
+    // Regression for a real runtime defect (V2-M2): window.confirm() does not
+    // reliably show a native dialog in this Tauri/WebView2 setup -- a human
+    // retest confirmed a single click on "Remove from Library" removed the
+    // book instantly with no prompt at all. The confirmation must go through
+    // a real rendered dialog the test can find and click, not a mocked
+    // browser primitive that can silently no-op in production.
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "to-remove", title: "Removable Book", path: "C:/books/removable.epub", format: "epub", ownership_mode: "reference", available: true },
     ]); // initial list
@@ -231,15 +245,18 @@ describe("Library", () => {
     await screen.findByText("Removable Book");
 
     await user.click(screen.getByRole("button", { name: "Remove from Library" }));
+    const removeDialog = screen.getByRole("dialog", { name: "Remove Book from Library" });
+    expect(within(removeDialog).getByText(/Reading data is kept/)).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", expect.anything());
+
+    await user.click(within(removeDialog).getByRole("button", { name: "Remove from Library" }));
 
     expect(await screen.findByText(/library is empty/i)).toBeInTheDocument();
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Reading data is kept"));
     expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "to-remove" });
   });
 
   it("does not remove a book when Remove from Library confirmation is cancelled", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     invokeMock.mockResolvedValueOnce([
       { book_id: "keep", title: "Keep Book", path: "C:/books/keep.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
@@ -248,14 +265,21 @@ describe("Library", () => {
     await screen.findByText("Keep Book");
 
     await user.click(screen.getByRole("button", { name: "Remove from Library" }));
+    const removeDialog = screen.getByRole("dialog", { name: "Remove Book from Library" });
 
-    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", { bookId: "keep" });
+    await user.click(within(removeDialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Remove Book from Library" })).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("remove_book_command", expect.anything());
     expect(screen.getByText("Keep Book")).toBeInTheDocument();
   });
 
-  it("deletes reading data through an explicitly labeled destructive action while keeping file semantics separate", async () => {
+  it("deletes reading data only after confirming via the in-app dialog", async () => {
+    // Same defect class as single-book Remove (V2-M2): window.confirm() does
+    // not reliably show a native dialog in this Tauri/WebView2 setup, so
+    // Delete Reading Data must use the same in-app dialog pattern, not a
+    // mocked browser primitive that can silently no-op in production.
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     invokeMock.mockResolvedValueOnce([
       { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
     ]);
@@ -268,10 +292,32 @@ describe("Library", () => {
     await screen.findByText("Data Book");
 
     await user.click(screen.getByRole("button", { name: "Delete Reading Data" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete Reading Data" });
+    expect(within(dialog).getByText(/The Book file stays in place/)).toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
 
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Book file stays in place"));
+    await user.click(within(dialog).getByRole("button", { name: "Delete Reading Data" }));
+
     expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "data-book" });
     expect(await screen.findByText("Data Book")).toBeInTheDocument();
+  });
+
+  it("does not delete reading data when the confirmation dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "data-book", title: "Data Book", path: "C:/books/data.epub", format: "epub", ownership_mode: "reference", available: true },
+    ]);
+
+    render(<App />);
+    await screen.findByText("Data Book");
+
+    await user.click(screen.getByRole("button", { name: "Delete Reading Data" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete Reading Data" });
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Delete Reading Data" })).not.toBeInTheDocument();
+    expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
   });
 
   it("offers Managed-Copy file deletion only for managed-copy books", async () => {
@@ -312,7 +358,7 @@ describe("Library", () => {
 
       await user.click(screen.getByRole("button", { name: /import book/i }));
 
-      expect(await screen.findByText("This book already exists.")).toBeInTheDocument();
+      expect(await screen.findByText(/This book already exists in your Library as:/i)).toBeInTheDocument();
       const dialog = screen.getByRole("dialog", { name: "Duplicate Book" });
       expect(within(dialog).getByText("Existing Book")).toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: "Open Existing" })).toBeInTheDocument();
@@ -321,6 +367,23 @@ describe("Library", () => {
       // The duplicate report must not itself have refreshed/mutated the Library
       // beyond the one load on mount.
       expect(invokeMock.mock.calls.filter((call) => call[0] === "list_library_command")).toHaveLength(1);
+    });
+
+    it("displays the user-renamed Library title rather than the incoming filename", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockResolvedValueOnce([]); // initial list
+      openMock.mockResolvedValueOnce("C:/downloads/raw-scanner-file-v2.pdf");
+      invokeMock.mockResolvedValueOnce({ kind: "duplicate", book_id: "renamed-id", title: "My Beautiful Renamed Book" });
+
+      render(<App />);
+      await screen.findByText(/library is empty/i);
+
+      await user.click(screen.getByRole("button", { name: /import book/i }));
+
+      const dialog = await screen.findByRole("dialog", { name: "Duplicate Book" });
+      expect(within(dialog).getByText(/This book already exists in your Library as:/i)).toBeInTheDocument();
+      expect(within(dialog).getByText("My Beautiful Renamed Book")).toBeInTheDocument();
+      expect(within(dialog).queryByText("raw-scanner-file-v2.pdf")).not.toBeInTheDocument();
     });
 
     it("Open Existing opens the already-in-Library book without importing the picked file", async () => {
@@ -402,6 +465,58 @@ describe("Reduced Motion reachability (DESIGN.md SS17; FC-A09)", () => {
   });
 });
 
+describe("Theme persistence reachability (V2-M2)", () => {
+  // Regression for a real startup-state bug: `loadAndApplyAppearance()` was
+  // previously only ever called from Settings.tsx's own mount effect, so an
+  // explicit Light or Dark choice was not honored until the user separately
+  // visited Settings that session -- exactly the "exits in Light, reopens in
+  // Dark" symptom, since with no data-theme attribute set at all the CSS's
+  // `prefers-color-scheme` media query decides instead.
+  afterEach(() => {
+    delete document.documentElement.dataset.theme;
+  });
+
+  it("applies a persisted Light theme choice on mount, without visiting Settings", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "light";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
+  });
+
+  it("applies a persisted Dark theme choice on mount, without visiting Settings", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "dark";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
+  });
+
+  it("leaves System mode System-driven (no data-theme attribute) on mount", async () => {
+    invokeMock.mockResolvedValueOnce([]);
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "appearance.theme_mode") return "system";
+      return "false";
+    });
+
+    render(<App />);
+    await screen.findByText(/library is empty/i);
+
+    await waitFor(() => expect(collectionsMock).toHaveBeenCalled());
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+});
+
 describe("Book Details + Continue Reading (DESIGN.md ER-BOOK-001/SS4; FC-A11)", () => {
   it("Details opens the Book Details view, and Back returns to the Library", async () => {
     const user = userEvent.setup();
@@ -478,6 +593,214 @@ describe("Book Details + Continue Reading (DESIGN.md ER-BOOK-001/SS4; FC-A11)", 
     await screen.findByText("Finished Book");
 
     expect(screen.queryByRole("region", { name: "Continue Reading" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Library grid progress display (V2-M3 item 2)", () => {
+  function threeBookLibrary() {
+    invokeMock.mockResolvedValueOnce([
+      { book_id: "never", title: "Never Opened", path: "C:/books/never.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: null },
+      { book_id: "active", title: "Active Second Read", path: "C:/books/active.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: "2026-09-09T01:00:00Z" },
+      { book_id: "done", title: "Twice Completed", path: "C:/books/done.epub", format: "epub", ownership_mode: "reference", available: true, last_opened_at: "2026-09-09T00:00:00Z" },
+    ]);
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string }) => {
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") {
+        return { completed_read_count: 1, active_read_in_progress: true, active_pass_progress: 31 };
+      }
+      if (cmd === "get_reading_progress_command" && args?.bookId === "done") {
+        return { completed_read_count: 2, active_read_in_progress: false, active_pass_progress: 0 };
+      }
+      return undefined;
+    });
+  }
+
+  function bookCard(title: string) {
+    const list = document.querySelector(".library-book-list")!;
+    return within(list as HTMLElement).getByText(title).closest("li")!;
+  }
+
+  it("Cumulative Progress (the default) and Show (the default): all four states render correctly", async () => {
+    threeBookLibrary();
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Never Opened")).getByText("0%")).toBeInTheDocument());
+
+    expect(within(bookCard("Never Opened")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
+
+    expect(within(bookCard("Active Second Read")).getByText("131%")).toBeInTheDocument();
+    expect(within(bookCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument();
+
+    expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument();
+    expect(within(bookCard("Twice Completed")).getByText("Read 2x")).toBeInTheDocument();
+  });
+
+  it("Current Read Progress mode shows the active position, 100% for completed-with-no-active-read, and 0% for never-started", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      return null;
+    });
+
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Never Opened")).getByText("0%")).toBeInTheDocument());
+
+    expect(within(bookCard("Active Second Read")).getByText("31%")).toBeInTheDocument();
+    expect(within(bookCard("Twice Completed")).getByText("100%")).toBeInTheDocument();
+  });
+
+  it("Completed Read Mark = Hide removes the mark from every card, without changing the percent", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+
+    render(<App />);
+    await screen.findByText("Never Opened");
+    await waitFor(() => expect(within(bookCard("Twice Completed")).getByText("200%")).toBeInTheDocument());
+
+    expect(screen.queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
+  });
+
+  it("refetches Library progress after returning from the Reader, so an in-session backtrack is not shown stale", async () => {
+    // V2-M3 human-acceptance correction: the Library-progress fetch effect
+    // only re-runs when `books` itself changes reference, which finishing
+    // a reading session alone never triggered -- so the card kept showing
+    // whatever value was fetched before the session started, even after
+    // the user backtracked to an earlier (lower) position and left the
+    // Reader. `onBack` must force a re-fetch.
+    const user = userEvent.setup();
+    let activeProgress = { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 60 };
+    const books = [
+      {
+        book_id: "active",
+        title: "Active Book",
+        path: "C:/books/active.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-09-09T01:00:00Z",
+      },
+    ];
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string }) => {
+      // A real Tauri IPC round trip always deserializes a fresh array (even
+      // with byte-identical content), so return a new array each call --
+      // matching that, not React state's `Object.is` bailout on the exact
+      // same JS reference the test happened to hold onto.
+      if (cmd === "list_library_command") return [...books];
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") return activeProgress;
+      return undefined;
+    });
+
+    render(<App />);
+    await screen.findByText("Active Book");
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("60%")).toBeInTheDocument());
+
+    // Backend now reports a lower position -- as if the user paged forward
+    // then back during the just-finished session.
+    activeProgress = { ...activeProgress, active_pass_progress: 25 };
+
+    await user.click(within(bookCard("Active Book")).getByRole("button", { name: "Active Book" }));
+    await screen.findByText(/Reading: Active Book/);
+    await user.click(screen.getByRole("button", { name: "Back to Library" }));
+
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("25%")).toBeInTheDocument());
+  });
+
+  function continueReadingCard(title: string) {
+    const section = screen.getByRole("region", { name: "Continue Reading" });
+    return within(section).getByText(title).closest("li")!;
+  }
+
+  it("Continue Reading respects the Library Progress Display setting instead of always showing cumulative (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.progress_display_mode") return "current";
+      return null;
+    });
+
+    render(<App />);
+    // "Active Second Read": completed_read_count 1, active_pass_progress 31
+    // -> cumulative would read 131%, current-read mode must read 31%.
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("31%")).toBeInTheDocument());
+    expect(within(continueReadingCard("Active Second Read")).queryByText("131%")).not.toBeInTheDocument();
+
+    // The main grid must show the same value -- both surfaces driven by
+    // the one setting, not diverging.
+    expect(within(bookCard("Active Second Read")).getByText("31%")).toBeInTheDocument();
+  });
+
+  it("Continue Reading shows the Completed Read Mark badge (Show, the default), matching the main grid (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    render(<App />);
+
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument());
+    expect(within(bookCard("Active Second Read")).getByText("Read 1x")).toBeInTheDocument();
+  });
+
+  it("Continue Reading honors Completed Read Mark = Hide, matching the main grid (V2-M3 final corrective)", async () => {
+    threeBookLibrary();
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command" && args?.key === "library.completed_read_mark_mode") return "hide";
+      return null;
+    });
+
+    render(<App />);
+    await waitFor(() => expect(within(continueReadingCard("Active Second Read")).getByText("131%")).toBeInTheDocument());
+    expect(within(continueReadingCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
+    expect(within(bookCard("Active Second Read")).queryByText(/^Read \d+x$/)).not.toBeInTheDocument();
+  });
+
+  it("reflects a Progress Display change made in Settings after navigating back to the Library (orphan-settings correction)", async () => {
+    // Bug report: toggling Progress Display / Completed Read Mark in
+    // Settings has zero visible effect on the Library. Root cause: App's
+    // own `progressDisplayMode`/`completedReadMarkMode` state is loaded
+    // once at mount (`useEffect(..., [])`) and Settings keeps a completely
+    // separate copy of the same two settings -- App is never told the
+    // setting changed, in-process or via navigation, so it keeps rendering
+    // whatever it read at startup no matter how many times Settings saves
+    // a new value.
+    const user = userEvent.setup();
+    const settingsStore: Record<string, string> = {};
+    const books = [
+      {
+        book_id: "active",
+        title: "Active Book",
+        path: "C:/books/active.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-09-09T01:00:00Z",
+      },
+    ];
+    invokeMock.mockImplementation(async (cmd: string, args: { bookId?: string; key?: string; value?: string }) => {
+      if (cmd === "list_library_command") return [...books];
+      if (cmd === "get_reading_progress_command" && args?.bookId === "active") {
+        return { completed_read_count: 1, active_read_in_progress: true, active_pass_progress: 31 };
+      }
+      if (cmd === "set_setting_command" && args?.key !== undefined) {
+        settingsStore[args.key] = args.value as string;
+        return undefined;
+      }
+      return undefined;
+    });
+    updateCheckPrefMock.mockImplementation(async (cmd: string, args: { key?: string }) => {
+      if (cmd === "get_setting_command") return settingsStore[args?.key ?? ""] ?? null;
+      return null;
+    });
+
+    render(<App />);
+    // completed_read_count(1) * 100 + active_pass_progress(31) = 131 (cumulative, the default).
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("131%")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const currentRadio = await screen.findByRole("radio", { name: "Current Read Progress" });
+    await user.click(currentRadio);
+    await waitFor(() => expect(currentRadio).toBeChecked());
+
+    await user.click(screen.getByRole("button", { name: "Library" }));
+    await waitFor(() => expect(within(bookCard("Active Book")).getByText("31%")).toBeInTheDocument());
   });
 });
 
@@ -745,6 +1068,36 @@ describe("Collections and Tags (PRODUCT_SPEC.md SS4.3/4.4; FC-A01)", () => {
       expect(invokeMock).toHaveBeenCalledWith("remove_book_command", { bookId: "b2" });
     });
 
+    it("bulk deletes reading data for selected books, after confirming via an in-app dialog", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") {
+          return [
+            { book_id: "b1", title: "Book One", path: "C:/books/b1.epub", format: "epub", ownership_mode: "reference", available: true },
+            { book_id: "b2", title: "Book Two", path: "C:/books/b2.epub", format: "epub", ownership_mode: "reference", available: true },
+          ];
+        }
+        return undefined;
+      });
+
+      render(<App />);
+      await screen.findByText("Book One");
+
+      await user.click(screen.getByRole("button", { name: "Select Books" }));
+      await user.click(screen.getByRole("button", { name: "Select All" }));
+      expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+      const bulkBar = screen.getByRole("toolbar", { name: "Bulk actions" });
+      await user.click(within(bulkBar).getByRole("button", { name: "Delete Reading Data" }));
+      const dialog = screen.getByRole("dialog", { name: "Delete Reading Data for Selected Books" });
+      expect(within(dialog).getByText(/selected Book\(s\)/)).toBeInTheDocument();
+      expect(invokeMock).not.toHaveBeenCalledWith("delete_reading_data_command", expect.anything());
+
+      await user.click(within(dialog).getByRole("button", { name: "Delete Reading Data" }));
+      expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "b1" });
+      expect(invokeMock).toHaveBeenCalledWith("delete_reading_data_command", { bookId: "b2" });
+    });
+
     it("bulk adds selected books to a Collection", async () => {
       const user = userEvent.setup();
       invokeMock.mockImplementation(async (cmd: string) => {
@@ -903,11 +1256,15 @@ describe("Settings", () => {
     render(<App />);
     await screen.findByText(/library is empty/i);
 
-    invokeMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null); // get_setting_command x2
+    // V2-M2: appearance.theme_mode/appearance.accent_color are now also
+    // read at App's own startup (see "Theme persistence reachability"
+    // below), so -- like motion.reduced and the other App-mount-time keys
+    // -- they're routed through updateCheckPrefMock, not invokeMock; that's
+    // also what Settings.tsx's own mount effect hits when it reads them.
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(await screen.findByRole("button", { name: "Appearance" })).toBeInTheDocument();
-    expect(invokeMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
+    expect(updateCheckPrefMock).toHaveBeenCalledWith("get_setting_command", { key: "appearance.theme_mode" });
   });
 });
 
@@ -1118,9 +1475,14 @@ describe("Opening a book", () => {
 
   it("returns to the Library when the Reader's Back to Library is clicked", async () => {
     const user = userEvent.setup();
-    invokeMock.mockResolvedValueOnce([
+    const library = [
       { book_id: "epub-1", title: "Openable EPUB", path: "C:/books/openable.epub", format: "epub", ownership_mode: "reference", available: true },
-    ]);
+    ];
+    invokeMock.mockResolvedValueOnce(library);
+    // V2-M3 human-acceptance correction: leaving the Reader now refetches
+    // the Library (so progress isn't shown stale) -- a second
+    // `list_library_command` call.
+    invokeMock.mockResolvedValueOnce(library);
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "Openable EPUB" }));
     await screen.findByText(/Reading: Openable EPUB/);
@@ -1248,5 +1610,146 @@ describe("Book Hours Planning Integration (BH-3C.1)", () => {
     // Should open on Overview tab without resurrecting Target Book's drawer
     expect(await screen.findByRole("region", { name: "Book Hours Planning" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Book Hours Setup for Target Book" })).not.toBeInTheDocument();
+  });
+
+  describe("Library Sorting (V2 Addendum A)", () => {
+    const mockLibraryBooks = [
+      {
+        book_id: "book-c",
+        title: "Cherry Recipe",
+        path: "C:/books/c.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-03-01T10:00:00Z", // opened
+      },
+      {
+        book_id: "book-a",
+        title: "Apple Pie",
+        path: "C:/books/a.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: "2026-03-05T12:00:00Z", // most recently opened
+      },
+      {
+        book_id: "book-b",
+        title: "Banana Bread",
+        path: "C:/books/b.epub",
+        format: "epub",
+        ownership_mode: "reference",
+        available: true,
+        last_opened_at: null, // never opened
+      },
+    ];
+
+    it("renders sort select with default value and allows changing sort option", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.5 };
+        if (cmd === "get_setting_command") return null;
+        if (cmd === "list_collections_command") return [];
+        return null;
+      });
+
+      render(<App />);
+      await screen.findByText("Cherry Recipe");
+
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      expect(sortSelect).toHaveValue("recent-import-desc");
+
+      // Default import order: Cherry (0), Apple (1), Banana (2)
+      const libraryGrid = document.querySelector(".library-book-list") as HTMLElement;
+      let bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie", "Banana Bread"]);
+
+      // Change to Title A -> Z
+      await user.selectOptions(sortSelect, "title-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Banana Bread", "Cherry Recipe"]);
+      expect(invokeMock).toHaveBeenCalledWith("set_setting_command", { key: "library.sort_option", value: "title-asc" });
+
+      // Change to Title Z -> A
+      await user.selectOptions(sortSelect, "title-desc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Banana Bread", "Apple Pie"]);
+
+      // Change to Recently Opened - Newest First (Apple: March 5, Cherry: March 1, Banana: never)
+      await user.selectOptions(sortSelect, "recent-open-desc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Cherry Recipe", "Banana Bread"]);
+
+      // Change to Recently Opened - Oldest First (Cherry: March 1, Apple: March 5, Banana: never)
+      await user.selectOptions(sortSelect, "recent-open-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie", "Banana Bread"]);
+
+      // Change to Recently Imported - Oldest First (Banana, Apple, Cherry)
+      await user.selectOptions(sortSelect, "recent-import-asc");
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Banana Bread", "Apple Pie", "Cherry Recipe"]);
+    });
+
+    it("composes with active collection filter without resetting filter or sort", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.5 };
+        return null;
+      });
+      collectionsMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_collections_command") return [{ id: "col-1", name: "Favorites" }];
+        if (cmd === "list_book_ids_in_collection_command") return ["book-c", "book-a"];
+        return [];
+      });
+
+      render(<App />);
+      await screen.findByText("Cherry Recipe");
+
+      // Click collection chip "Favorites"
+      const colChip = await screen.findByRole("button", { name: "Favorites" });
+      await user.click(colChip);
+
+      const libraryGrid = document.querySelector(".library-book-list") as HTMLElement;
+      let bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Cherry Recipe", "Apple Pie"]);
+
+      // Change sort to Title A -> Z
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      await user.selectOptions(sortSelect, "title-asc");
+
+      // Remains in collection filter, now sorted A -> Z
+      bookHeadings = within(libraryGrid).getAllByRole("heading", { level: 4 }).map((h) => h.textContent?.trim());
+      expect(bookHeadings).toEqual(["Apple Pie", "Cherry Recipe"]);
+      expect(colChip).toHaveClass("active");
+    });
+
+    it("leaves Continue Reading recency ordering unchanged when Library sort changes", async () => {
+      const user = userEvent.setup();
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === "list_library_command") return mockLibraryBooks;
+        if (cmd === "get_reading_progress_command") return { completed_read_count: 0, active_read_in_progress: true, active_pass_progress: 0.3 };
+        if (cmd === "get_setting_command") return null;
+        if (cmd === "list_collections_command") return [];
+        return null;
+      });
+
+      render(<App />);
+      await screen.findByRole("region", { name: "Continue Reading" });
+
+      const continueList = document.querySelector(".continue-reading-list") as HTMLElement;
+      const continueHeadings = within(continueList).getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim());
+      // Continue Reading ranks strictly by last_opened_at desc: Apple (March 5), Cherry (March 1)
+      expect(continueHeadings).toEqual(["Apple Pie", "Cherry Recipe"]);
+
+      // Change library sort to Title Z -> A
+      const sortSelect = screen.getByRole("combobox", { name: /sort library by/i });
+      await user.selectOptions(sortSelect, "title-desc");
+
+      // Continue Reading order must NOT change
+      const continueHeadingsAfter = within(continueList).getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim());
+      expect(continueHeadingsAfter).toEqual(["Apple Pie", "Cherry Recipe"]);
+    });
   });
 });

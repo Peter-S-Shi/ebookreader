@@ -10,20 +10,22 @@ const mockPdfOutline = vi.fn().mockResolvedValue(null);
 const mockGetDestination = vi.fn().mockResolvedValue([{}]);
 const mockGetPageIndex = vi.fn().mockResolvedValue(2);
 
+const mockGetDocument = vi.fn((_params?: any) => ({
+  promise: Promise.resolve({
+    numPages: 5,
+    getPage: (pageNum: number) =>
+      Promise.resolve({
+        getTextContent: () => Promise.resolve({ items: [{ str: `PDF Page ${pageNum} text` }] }),
+      }),
+    getOutline: mockPdfOutline,
+    getDestination: mockGetDestination,
+    getPageIndex: mockGetPageIndex,
+  }),
+}));
+
 vi.mock("pdfjs-dist", () => ({
   GlobalWorkerOptions: { workerSrc: "" },
-  getDocument: () => ({
-    promise: Promise.resolve({
-      numPages: 5,
-      getPage: (pageNum: number) =>
-        Promise.resolve({
-          getTextContent: () => Promise.resolve({ items: [{ str: `PDF Page ${pageNum} text` }] }),
-        }),
-      getOutline: mockPdfOutline,
-      getDestination: mockGetDestination,
-      getPageIndex: mockGetPageIndex,
-    }),
-  }),
+  getDocument: (params: any) => mockGetDocument(params),
 }));
 
 vi.mock("foliate-js/view.js", () => ({}));
@@ -56,6 +58,7 @@ const bookB = { bookId: "book-b", title: "Chinese Edition", format: "txt" };
 
 beforeEach(() => {
   invokeMock.mockReset();
+  mockGetDocument.mockClear();
   mockPdfOutline.mockReset().mockResolvedValue(null);
   mockGetDestination.mockReset().mockResolvedValue([{}]);
   mockGetPageIndex.mockReset().mockResolvedValue(2);
@@ -223,5 +226,18 @@ describe("BilingualReader", () => {
     expect(screen.getByRole("region", { name: "Book Contents" })).toBeInTheDocument();
     expect(screen.getByText("Section 1")).toBeInTheDocument();
     expect(screen.getByText("Section 2")).toBeInTheDocument();
+  });
+
+  it("loads PDF documents with standard static wasm and cmap resource options", async () => {
+    const pdfBookA = { bookId: "pdf-a", title: "PDF Edition", format: "pdf" };
+    render(<BilingualReader package={pkg} bookA={pdfBookA} bookB={bookB} onBack={() => {}} />);
+    await screen.findByText(/PDF Page 1 text/);
+
+    expect(mockGetDocument).toHaveBeenCalled();
+    const callArgs = mockGetDocument.mock.calls[0][0];
+    expect(callArgs.cMapUrl).toBe("/cmaps/");
+    expect(callArgs.cMapPacked).toBe(true);
+    expect(callArgs.wasmUrl).toBe("/wasm/");
+    expect(callArgs.data).toBeInstanceOf(Uint8Array);
   });
 });

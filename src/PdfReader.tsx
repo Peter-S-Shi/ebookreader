@@ -5,7 +5,6 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { ReaderShell } from "./ReaderShell";
 import { NotebookPanel } from "./NotebookPanel";
 import { OcrWorkspace } from "./OcrWorkspace";
-import { currentPageFromScroll } from "./pdfContinuous";
 import { useSoundToggle } from "./useSoundToggle";
 import { useReadingProgress } from "./useReadingProgress";
 import { CompletionPrompt } from "./CompletionPrompt";
@@ -13,7 +12,30 @@ import { useActualReadingTimeHeartbeat } from "./useActualReadingTimeHeartbeat";
 import { useReadingCheckpoint } from "./useReadingCheckpoint";
 import { ReadingCheckpointPrompt } from "./ReadingCheckpointPrompt";
 import { useRecordBookOpened } from "./useRecordBookOpened";
-import { extractHighlightColor, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { extractContextDetails, formatContextSelector, HIGHLIGHT_COLORS, type HighlightColor } from "./highlightUtils";
+import { applyPdfHighlights, clearPdfHighlights, recolorPdfHighlight, type PdfAnnotationItem } from "./pdfHighlight";
+import { TocPanel, type TocItem } from "./TocPanel";
+import { pdfOutlineToTocItems } from "./pdfOutline";
+import { parsePageJumpInput } from "./pdfPageInput";
+import {
+  getPdfPageAppearancePreference,
+  setPdfPageAppearancePreference,
+  extractImageRects,
+  isScanLikeDocument,
+  renderAppearanceOverlay,
+  type PdfPageAppearance,
+  type PdfImageRect,
+  type PageScanSample,
+} from "./pdfAppearance";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { extractPagePdfLinks, type PdfLinkItem, type PdfLinkTarget } from "./pdfLinks";
+import { PdfExternalLinkModal } from "./PdfExternalLinkModal";
+import { createPdfDocumentLoadingParams } from "./pdfDocumentOptions";
+import {
+  classifyPdfDocument,
+  type PdfDocumentClassification,
+  type PageTextSummary,
+} from "./pdfDocumentClassification";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -35,7 +57,6 @@ interface PdfReaderProps {
   initialAnchor?: DocumentLocationDTO;
 }
 
-type PdfViewMode = "single" | "continuous";
 type PdfFitMode = "custom" | "page" | "width";
 
 const DEFAULT_PDF_SCALE = 1.2;
@@ -56,52 +77,54 @@ function blocksPdfNavigationShortcut(target: EventTarget | null): boolean {
 // SS5/M0-C validated for text/geometry extraction) to a canvas per page.
 // page index is the DocumentLocation primary_anchor, per ARCHITECTURE.md
 // SS5's "candidates to validate: page index; page geometry/bounding box".
-// Two view modes close FORMAT_CAPABILITY_MATRIX.md's required "Continuous
-// scroll" / "Single-page / paged" rows for Text PDF (DESIGN.md SS7's PDF
-// controls share one zoom state across single-page and continuous modes.
-// Double-page spread and very large
-// (100s of pages) documents' rendering performance are later-checkpoint
-// residuals: continuous mode here renders every page eagerly, which is
-// fine at the scale M0 validated (a 15-page document) but would need
-// virtualization for much longer documents. Text selection ->
-// Highlight/Excerpt (M4, SS11) is
-// implemented for single-page mode via a pdf.js TextLayer overlaid on the
-// canvas; continuous mode's per-page selection scoping is a follow-up.
-// Whole-page text is also indexed into the M4 search index in the
-// background on open (SS12: "supported book text" is a required
-// Library-wide Search source). M5 (Scanned PDF OCR) begins here: the same
-// background pass that extracts text also detects a scanned PDF (no
-// extractable text on any page) and surfaces SS13.1/SS13.2's truthful
-// degraded state -- visual reading still works, text-dependent features
-// don't pretend to. The OCR pipeline itself (local ONNX inference via the
-// Rust `ort` crate, per M0_ARCHITECTURE_DECISION.md SS8) now runs for real
-// via run_ocr_job_command, with SS13.1's full Current Page / Selected Pages
-// / Entire Book scope selection. Real mid-run pause/cancel and incremental
-// per-page progress reporting are not wired (a single command call blocks
-// until every target page is done) -- a genuine residual, not hidden from
-// the user: the button's label says so rather than faking a progress bar.
+// V2 standardizes on validated single-page reading mode for PDF.
+// Continuous Scroll is deferred to V3.
+// Text selection -> Highlight/Excerpt (M4, SS11) is implemented via a
+// pdf.js TextLayer overlaid on the canvas. Whole-page text is also indexed
+// into the M4 search index in the background on open. M5 (Scanned PDF OCR)
+// detects scanned PDFs and surfaces SS13.1/SS13.2's truthful degraded state.
 export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const appearanceCanvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const singlePageSurfaceRef = useRef<HTMLDivElement>(null);
-  const continuousContainerRef = useRef<HTMLDivElement>(null);
-  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
-  const pendingContinuousPageRef = useRef<number | null>(null);
   const [status, setStatus] = useState("Loading…");
   const [jumpFailed, setJumpFailed] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
-  const [viewMode, setViewMode] = useState<PdfViewMode>("single");
   const [zoomScale, setZoomScale] = useState(DEFAULT_PDF_SCALE);
   const [fitMode, setFitMode] = useState<PdfFitMode>("custom");
+  const [pageAppearance, setPageAppearance] = useState<PdfPageAppearance>(getPdfPageAppearancePreference);
+  const [isScanLikeDoc, setIsScanLikeDoc] = useState(false);
+  const [pageImageRects, setPageImageRects] = useState<PdfImageRect[]>([]);
   const [notebookOpen, setNotebookOpen] = useState(false);
+  // V2-M2: native PDF bookmarks (pdf.js `getOutline()`) surfaced in the
+  // same shared Contents UI (`TocPanel`) EPUB already uses. Empty when the
+  // PDF has no usable outline, matching Reader.tsx's own `toc.length > 0`
+  // gate for hiding the Contents button entirely rather than showing one
+  // that opens onto nothing.
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [pageLinks, setPageLinks] = useState<PdfLinkItem[]>([]);
+  const [externalLinkPromptUrl, setExternalLinkPromptUrl] = useState<string | null>(null);
+  // V2-M2 addendum: the editable current-page field. `pageInputText` is
+  // the field's own draft text, kept in sync with `pageNumber` (which is
+  // the single source of truth, updated by Previous/Next, bookmark
+  // navigation, and continuous-scroll) so external page changes are
+  // reflected even mid-edit -- see the sync effect below.
+  const [pageInputText, setPageInputText] = useState("1");
+  const [pageJumpInvalid, setPageJumpInvalid] = useState(false);
   const [notebookRefreshKey, setNotebookRefreshKey] = useState(0);
-  const [selection, setSelection] = useState<{ text: string; page: number; assetId?: string } | null>(null);
-  // PRODUCT_SPEC.md SS13.1/SS13.2: a scanned PDF (no extractable text on
-  // any page) must display a truthful degraded state rather than pretend
-  // search/selection/excerpt work -- `null` until the whole-document text
-  // pass below has actually checked every page.
-  const [hasExtractableText, setHasExtractableText] = useState<boolean | null>(null);
+  const [selection, setSelection] = useState<{
+    text: string;
+    page: number;
+    assetId?: string;
+    prefix?: string;
+    suffix?: string;
+  } | null>(null);
+  // V2-M4-U4C: Robust document classification into TEXT, SCAN, or HYBRID.
+  // Replaces naive `anyPageHasText` so sparse watermarks / metadata do not disable OCR on scanned books.
+  const [documentClassification, setDocumentClassification] = useState<PdfDocumentClassification | null>(null);
   // Track OCR availability for the current page to surface a restrained affordance.
   // Full OCR review, run controls, and text corrections live in `OcrWorkspace`.
   const [ocrText, setOcrText] = useState<string | null>(null);
@@ -121,8 +144,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     (async () => {
       const rawBytes = await invoke<Uint8Array | ArrayBuffer | number[]>("read_book_file_command", { bookId });
       if (cancelled) return;
-      const uint8Bytes = rawBytes instanceof Uint8Array ? rawBytes : new Uint8Array(rawBytes as ArrayBuffer);
-      const pdf = await pdfjsLib.getDocument({ data: uint8Bytes }).promise;
+      const pdf = await pdfjsLib.getDocument(createPdfDocumentLoadingParams(rawBytes)).promise;
       if (cancelled) return;
       // FC-C01/FC-C02: an exact jump takes priority over the resume page.
       // An anchor that fails to parse to a valid in-range page is reported
@@ -147,19 +169,9 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       setPageNumber(startPage);
       setPdfDoc(pdf);
 
-      // Check text content of initial target page immediately for text selection state.
-      // Entire-document scanned state (hasExtractableText = false) remains unknown
-      // until the background whole-document inspection below completes.
-      try {
-        const page1 = await pdf.getPage(startPage);
-        const tc1 = await page1.getTextContent();
-        const hasText = tc1.items.some((item) => "str" in item && (item as { str: string }).str.trim().length > 0);
-        if (hasText && !cancelled) {
-          setHasExtractableText(true);
-        }
-      } catch {
-        // ignore page text check failure
-      }
+      const outline = await pdf.getOutline();
+      if (cancelled) return;
+      setToc(await pdfOutlineToTocItems(outline, pdf));
     })();
     return () => {
       cancelled = true;
@@ -173,15 +185,29 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     let cancelled = false;
 
     const timer = setTimeout(async () => {
-      let anyPageHasText = false;
+      const pageSummaries: PageTextSummary[] = [];
+      const fullDocSamples: PageScanSample[] = [];
+
       for (let i = 1; i <= pdfDoc.numPages; i++) {
         if (cancelled) return;
         const page = await pdfDoc.getPage(i);
         if (cancelled) return;
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item) => ("str" in item ? item.str : "")).join(" ");
+        const textCharCount = textContent.items.reduce((acc, item) => acc + ("str" in item ? (item as { str: string }).str.length : 0), 0);
+
+        let maxImageAreaRatio = 0;
+        if (fullDocSamples.length < 10) {
+          const sOpList = typeof page.getOperatorList === "function" ? await page.getOperatorList().catch(() => null) : null;
+          const sVp = page.getViewport({ scale: 1.0 });
+          const imgRects = sOpList ? extractImageRects(sOpList, sVp) : [];
+          maxImageAreaRatio = imgRects.length > 0 ? Math.max(...imgRects.map((r) => r.areaRatio)) : 0;
+          fullDocSamples.push({ textCharCount, maxImageAreaRatio });
+        }
+
+        pageSummaries.push({ textCharCount, maxImageAreaRatio });
+
         if (pageText.trim()) {
-          anyPageHasText = true;
           const anchor: DocumentLocationDTO = {
             book_id: bookId,
             format: "pdf",
@@ -200,7 +226,10 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         }
       }
       if (!cancelled) {
-        setHasExtractableText(anyPageHasText);
+        const isScanLikeVisual = fullDocSamples.length > 0 ? isScanLikeDocument(fullDocSamples) : false;
+        const classification = classifyPdfDocument(pageSummaries, isScanLikeVisual);
+        setDocumentClassification(classification);
+        setIsScanLikeDoc(classification.isScanLike);
       }
     }, 100);
 
@@ -217,7 +246,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   }
 
   useEffect(() => {
-    if (hasExtractableText !== false) return;
+    if (!documentClassification?.ocrEligible) return;
     let cancelled = false;
     invoke<string | null>("get_ocr_effective_text_command", { bookId, pageNumber })
       .then((text) => {
@@ -227,7 +256,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     return () => {
       cancelled = true;
     };
-  }, [bookId, pageNumber, hasExtractableText]);
+  }, [bookId, pageNumber, documentClassification]);
 
   function saveLocation(page: number, count: number) {
     const fraction = count > 0 ? page / count : 0;
@@ -245,7 +274,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
 
   // Single-page mode: render only the current page.
   useEffect(() => {
-    if (viewMode !== "single") return;
     const pdf = pdfDoc || pdfRef.current;
     if (!pdf || !canvasRef.current) return;
     let cancelled = false;
@@ -259,10 +287,52 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       const context = canvas.getContext("2d")!;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+
+      const pageDiv = canvas.parentElement;
+      if (pageDiv && pageDiv.classList.contains("pdf-page")) {
+        pageDiv.style.width = `${viewport.width}px`;
+        pageDiv.style.height = `${viewport.height}px`;
+      }
+
+      const appearanceCanvas = appearanceCanvasRef.current;
+      if (appearanceCanvas) {
+        appearanceCanvas.width = viewport.width;
+        appearanceCanvas.height = viewport.height;
+        appearanceCanvas.style.width = `${viewport.width}px`;
+        appearanceCanvas.style.height = `${viewport.height}px`;
+      }
 
       renderTask = page.render({ canvasContext: context, viewport, canvas });
       await renderTask.promise.catch(() => {});
       if (cancelled) return;
+
+      // Extract image rects for Page Appearance (Eye Care / Parchment image protection)
+      let currentImgRects: PdfImageRect[] = [];
+      try {
+        if (typeof page.getOperatorList === "function") {
+          const opList = await page.getOperatorList();
+          if (!cancelled && opList) {
+            currentImgRects = extractImageRects(opList, viewport);
+            setPageImageRects(currentImgRects);
+          }
+        }
+      } catch {
+        // ignore opList error
+      }
+
+      if (appearanceCanvas && !cancelled) {
+        renderAppearanceOverlay(
+          appearanceCanvas,
+          viewport.width,
+          viewport.height,
+          pageAppearance,
+          isScanLikeDoc,
+          currentImgRects,
+          canvas,
+        );
+      }
 
       const textLayerDiv = textLayerRef.current;
       if (textLayerDiv) {
@@ -281,29 +351,39 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             { bookId },
           );
           if (!cancelled && textLayerDiv) {
-            const pageAnnotations = assets.filter(
-              (a) => a.kind === "annotation" && !a.orphaned && a.anchor?.primary_anchor === String(pageNumber),
-            );
-            for (const ann of pageAnnotations) {
-              if (!ann.text?.trim()) continue;
-              const query = ann.text.trim().toLowerCase();
-              const color = extractHighlightColor(ann.anchor?.context_selector);
-              const spans = Array.from(textLayerDiv.querySelectorAll("span"));
-              for (const span of spans) {
-                if (span.textContent && span.textContent.toLowerCase().includes(query)) {
-                  span.classList.add("reader-highlight");
-                  span.dataset.color = color;
-                  span.dataset.assetId = ann.id;
-                  span.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    setSelection({ text: span.textContent || "", page: pageNumber, assetId: ann.id });
-                  });
-                }
-              }
-            }
+            const pageAnnotations: PdfAnnotationItem[] = assets
+              .filter(
+                (a) => a.kind === "annotation" && !a.orphaned && a.anchor?.primary_anchor === String(pageNumber),
+              )
+              .map((ann) => {
+                const details = extractContextDetails(ann.anchor?.context_selector);
+                return {
+                  id: ann.id,
+                  text: ann.text,
+                  color: details.color,
+                  contextPrefix: details.prefix,
+                  contextSuffix: details.suffix,
+                };
+              });
+            applyPdfHighlights(textLayerDiv, pageAnnotations, (assetId, text) => {
+              setSelection({ text, page: pageNumber, assetId });
+            });
           }
         } catch {
           // ignore highlight rehydration error if assets fail
+        }
+      }
+      if (cancelled) return;
+
+      // Extract and resolve clickable PDF hyperlinks for the page (V2-M4-U4A)
+      try {
+        const links = await extractPagePdfLinks(page, pdf, viewport);
+        if (!cancelled) {
+          setPageLinks(links);
+        }
+      } catch {
+        if (!cancelled) {
+          setPageLinks([]);
         }
       }
       if (cancelled) return;
@@ -316,18 +396,33 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [viewMode, pageNumber, bookId, pdfDoc, zoomScale]);
+  }, [pageNumber, bookId, pdfDoc, zoomScale, isScanLikeDoc]);
+
+  // Reactive Page Appearance update for single-page mode without full PDF canvas re-render
+  useEffect(() => {
+    if (!appearanceCanvasRef.current || !canvasRef.current) return;
+    const canvas = appearanceCanvasRef.current;
+    const baseCanvas = canvasRef.current;
+    if (canvas.width > 0 && canvas.height > 0) {
+      renderAppearanceOverlay(
+        canvas,
+        canvas.width,
+        canvas.height,
+        pageAppearance,
+        isScanLikeDoc,
+        pageImageRects,
+        baseCanvas,
+      );
+    }
+  }, [pageAppearance, isScanLikeDoc, pageImageRects]);
 
   // Text-selection -> Highlight/Excerpt capture (PRODUCT_SPEC.md SS11).
-  // Single-page mode only this checkpoint -- continuous mode would need
-  // per-page-div selection scoping across many simultaneously mounted text
-  // layers, a follow-up, not folded in here. Also covers the OCR result
+  // Single-page mode only. Also covers the OCR result
   // paragraph (`ocrTextRef`) once a scanned page has real OCR text -- it is
   // plain selectable DOM text, so the same selectionchange listener applies
   // without a separate pdf.js TextLayer (SS13's "search/excerpt/annotation
   // jump-back usability" for OCR'd pages, not just extractable-text pages).
   useEffect(() => {
-    if (viewMode !== "single") return;
     function handleSelectionChange() {
       const layer = textLayerRef.current;
       const sel = document.getSelection();
@@ -345,11 +440,28 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         setSelection(null);
         return;
       }
-      setSelection({ text, page: pageNumber });
+
+      let prefix = "";
+      let suffix = "";
+      try {
+        const preRange = document.createRange();
+        preRange.selectNodeContents(layer);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        prefix = preRange.toString().slice(-20);
+
+        const postRange = document.createRange();
+        postRange.selectNodeContents(layer);
+        postRange.setStart(range.endContainer, range.endOffset);
+        suffix = postRange.toString().slice(0, 20);
+      } catch {
+        // fallback if range extraction fails
+      }
+
+      setSelection({ text, page: pageNumber, prefix, suffix });
     }
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [viewMode, pageNumber]);
+  }, [pageNumber]);
 
   async function handleCaptureSelection(kind: "annotation" | "excerpt", selectedColor?: HighlightColor) {
     if (!selection) return;
@@ -360,7 +472,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       progression_hint: pageCount > 0 ? selection.page / pageCount : 0,
       primary_anchor: String(selection.page),
       fallback_anchors: [],
-      context_selector: formatContextSelector(selection.text, color),
+      context_selector: formatContextSelector(selection.text, color, selection.prefix, selection.suffix),
     };
 
     let targetAssetId = selection.assetId;
@@ -372,10 +484,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           anchor,
         }).catch(() => {});
         if (textLayerRef.current) {
-          const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
-          if (span) {
-            span.dataset.color = color;
-          }
+          recolorPdfHighlight(textLayerRef.current, targetAssetId, color);
         }
       } else {
         // Create new highlight
@@ -387,19 +496,21 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
             anchor,
           });
           if (textLayerRef.current) {
-            const query = selection.text.trim().toLowerCase();
-            const spans = Array.from(textLayerRef.current.querySelectorAll("span"));
-            for (const span of spans) {
-              if (span.textContent && span.textContent.toLowerCase().includes(query)) {
-                span.classList.add("reader-highlight");
-                span.dataset.color = color;
-                span.dataset.assetId = created.id;
-                span.addEventListener("click", (e) => {
-                  e.stopPropagation();
-                  setSelection({ text: span.textContent || "", page: selection.page, assetId: created.id });
-                });
-              }
-            }
+            applyPdfHighlights(
+              textLayerRef.current,
+              [
+                {
+                  id: created.id,
+                  text: selection.text,
+                  color,
+                  contextPrefix: selection.prefix,
+                  contextSuffix: selection.suffix,
+                },
+              ],
+              (assetId, text) => {
+                setSelection({ text, page: selection.page, assetId });
+              },
+            );
           }
         } catch {
           // creation fallback
@@ -421,77 +532,13 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     if (targetAssetId) {
       await invoke("delete_reading_asset_command", { assetId: targetAssetId }).catch(() => {});
       if (textLayerRef.current) {
-        const span = textLayerRef.current.querySelector<HTMLElement>(`span[data-asset-id="${targetAssetId}"]`);
-        if (span) {
-          span.classList.remove("reader-highlight");
-          delete span.dataset.color;
-          delete span.dataset.assetId;
-        }
+        clearPdfHighlights(textLayerRef.current, targetAssetId);
       }
     }
 
     document.getSelection()?.removeAllRanges();
     setSelection(null);
     setNotebookRefreshKey((k) => k + 1);
-  }
-
-  // Continuous mode: render every page into a scrollable stack, and jump
-  // to the saved page once on entry.
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const pdf = pdfRef.current;
-    if (!pdf) return;
-    let cancelled = false;
-
-    (async () => {
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelled) return;
-        const canvas = canvasRefs.current[i - 1];
-        if (!canvas) continue;
-        const page = await pdf.getPage(i);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale: zoomScale });
-        const context = canvas.getContext("2d")!;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: context, viewport, canvas }).promise;
-      }
-      if (cancelled) return;
-      setStatus("Ready");
-
-      const target = canvasRefs.current[pageNumber - 1];
-      target?.scrollIntoView({ block: "start" });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [viewMode, bookId, pageCount, zoomScale]);
-
-  useEffect(() => {
-    if (viewMode !== "continuous") return;
-    const target = canvasRefs.current[pageNumber - 1];
-    target?.scrollIntoView({ block: "start", behavior: "auto" });
-    const frame = requestAnimationFrame(() => {
-      pendingContinuousPageRef.current = null;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [viewMode, pageNumber]);
-
-  function handleContinuousScroll() {
-    const pdf = pdfRef.current;
-    const container = continuousContainerRef.current;
-    if (!pdf || !container) return;
-    const pendingPage = pendingContinuousPageRef.current;
-    if (pendingPage !== null) {
-      setPageNumber(pendingPage);
-      saveLocation(pendingPage, pdf.numPages);
-      return;
-    }
-    const heights = canvasRefs.current.map((c) => (c ? c.clientHeight + 16 : 0)); // + gap
-    const current = currentPageFromScroll(heights, container.scrollTop);
-    setPageNumber(current);
-    saveLocation(current, pdf.numPages);
   }
 
   function triggerPageTurnAnimation() {
@@ -509,19 +556,100 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
   function navigatePage(delta: -1 | 1) {
     const nextPage = Math.min(pageCount || 1, Math.max(1, pageNumber + delta));
     if (nextPage === pageNumber) return;
-    if (viewMode === "continuous") pendingContinuousPageRef.current = nextPage;
     setPageNumber(nextPage);
     playPageTurn();
-    if (viewMode === "single") {
-      triggerPageTurnAnimation();
-    } else if (pageCount > 0) {
-      saveLocation(nextPage, pageCount);
+    triggerPageTurnAnimation();
+  }
+
+  // V2-M2: a Contents bookmark's href is the 1-based page number produced
+  // by `pdfOutlineToTocItems` -- mirrors NotebookPanel's own `onJumpTo`
+  // page-jump pattern (validate range, set the page directly) rather than
+  // routing PDF navigation through any EPUB-specific path.
+  // V2-M2 addendum: keeps the editable page field synced with pageNumber
+  // regardless of which path changed it (Previous/Next, a bookmark jump, ...) --
+  // pageNumber is the one state every navigation path funnels through.
+  useEffect(() => {
+    setPageInputText(String(pageNumber));
+    setPageJumpInvalid(false);
+  }, [pageNumber]);
+
+  function commitPageJump() {
+    const result = parsePageJumpInput(pageInputText, pageCount);
+    if (result.kind === "empty") {
+      setPageInputText(String(pageNumber));
+      setPageJumpInvalid(false);
+      return;
+    }
+    if (result.kind === "invalid") {
+      setPageJumpInvalid(true);
+      return;
+    }
+    setPageJumpInvalid(false);
+    if (result.page === pageNumber) {
+      setPageInputText(String(pageNumber));
+      return;
+    }
+    setPageNumber(result.page);
+    triggerPageTurnAnimation();
+  }
+
+  function renderPageJumpField() {
+    return (
+      <span className="pdf-page-jump">
+        Page{" "}
+        <input
+          type="text"
+          inputMode="numeric"
+          aria-label="Current page"
+          className="pdf-page-jump-input"
+          value={pageInputText}
+          onChange={(e) => setPageInputText(e.target.value)}
+          onBlur={commitPageJump}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitPageJump();
+            }
+          }}
+        />
+        {pageCount > 0 ? ` of ${pageCount}` : ""}
+      </span>
+    );
+  }
+
+  function handleTocNavigate(href: string) {
+    const page = parseInt(href, 10);
+    if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return;
+    setPageNumber(page);
+    setTocOpen(false);
+  }
+
+  function handlePdfLinkClick(target: PdfLinkTarget) {
+    if (target.kind === "internal") {
+      const targetPage = target.pageNumber;
+      if (targetPage >= 1 && (pageCount === 0 || targetPage <= pageCount)) {
+        if (targetPage === pageNumber) return;
+        setPageNumber(targetPage);
+        playPageTurn();
+        triggerPageTurnAnimation();
+      }
+    } else if (target.kind === "external") {
+      setExternalLinkPromptUrl(target.url);
+    }
+  }
+
+  async function handleOpenExternalLink(url: string) {
+    setExternalLinkPromptUrl(null);
+    try {
+      await openUrl(url);
+    } catch (e) {
+      console.error("Failed to open external URL:", e);
     }
   }
 
   async function applyFit(nextFitMode: Exclude<PdfFitMode, "custom">) {
     const pdf = pdfRef.current;
-    const surface = viewMode === "continuous" ? continuousContainerRef.current : singlePageSurfaceRef.current;
+    const surface = singlePageSurfaceRef.current;
     if (!pdf || !surface) return;
     const page = await pdf.getPage(pageNumber);
     const natural = page.getViewport({ scale: 1 });
@@ -546,6 +674,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
         ocrWorkspaceOpen ||
         showCompletionPrompt ||
         checkpoint.showPrompt ||
+        externalLinkPromptUrl !== null ||
         selection !== null
       ) {
         return;
@@ -555,12 +684,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pageNumber, pageCount, viewMode, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, selection, soundEnabled]);
-
-  function switchViewMode(next: PdfViewMode) {
-    setFitMode("custom");
-    setViewMode(next);
-  }
+  }, [pageNumber, pageCount, notebookOpen, ocrWorkspaceOpen, showCompletionPrompt, checkpoint.showPrompt, externalLinkPromptUrl, selection, soundEnabled]);
 
   return (
     <ReaderShell
@@ -568,47 +692,85 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
       onBack={() => checkpoint.requestBack(onBack)}
       status={status}
       progressPercent={pageCount > 0 ? (pageNumber / pageCount) * 100 : progress?.active_pass_progress}
-      toolbarExtra={
-        <>
-          <select
-            aria-label="View mode"
-            value={viewMode}
-            onChange={(e) => switchViewMode(e.target.value as PdfViewMode)}
-          >
-            <option value="single">Single page</option>
-            <option value="continuous">Continuous scroll</option>
-          </select>
-          <button
-            type="button"
-            aria-label="Zoom out"
-            disabled={zoomScale <= MIN_PDF_SCALE}
-            onClick={() => {
-              setFitMode("custom");
-              setZoomScale((scale) => clampPdfScale(scale - PDF_ZOOM_STEP));
-            }}
-          >
-            −
-          </button>
-          <span aria-label="PDF zoom">{Math.round(zoomScale * 100)}%</span>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            disabled={zoomScale >= MAX_PDF_SCALE}
-            onClick={() => {
-              setFitMode("custom");
-              setZoomScale((scale) => clampPdfScale(scale + PDF_ZOOM_STEP));
-            }}
-          >
-            +
-          </button>
-          <button type="button" aria-label="Fit page" aria-pressed={fitMode === "page"} onClick={() => void applyFit("page")}>
-            Fit Page
-          </button>
-          <button type="button" aria-label="Fit width" aria-pressed={fitMode === "width"} onClick={() => void applyFit("width")}>
-            Fit Width
-          </button>
-          {viewMode === "single" && (
-            <>
+      toolbarBottom={
+        <div className="pdf-toolbar" role="toolbar" aria-label="PDF Reader Toolbar">
+          <div className="pdf-toolbar-row pdf-toolbar-row--config">
+            {toc.length > 0 && (
+              <div className="pdf-toolbar-group pdf-toolbar-group--document">
+                <button type="button" onClick={() => setTocOpen((open) => !open)}>
+                  Contents
+                </button>
+              </div>
+            )}
+            <div className="pdf-toolbar-group pdf-toolbar-group--appearance">
+              <label className="pdf-toolbar-select-label">
+                <span className="pdf-toolbar-field-label">Appearance</span>
+                <select
+                  aria-label="Page appearance"
+                  className="pdf-appearance-select"
+                  value={pageAppearance}
+                  onChange={(e) => {
+                    const next = e.target.value as PdfPageAppearance;
+                    setPageAppearance(next);
+                    setPdfPageAppearancePreference(next);
+                  }}
+                >
+                  <option value="default">Default</option>
+                  <option value="day">Day</option>
+                  <option value="eyecare">Eye Care</option>
+                  <option value="parchment">Parchment</option>
+                  <option value="night">Night</option>
+                </select>
+              </label>
+            </div>
+            <div className="pdf-toolbar-group pdf-toolbar-group--geometry">
+              <div className="pdf-toolbar-zoom-stepper">
+                <button
+                  type="button"
+                  aria-label="Zoom out"
+                  disabled={zoomScale <= MIN_PDF_SCALE}
+                  onClick={() => {
+                    setFitMode("custom");
+                    setZoomScale((scale) => clampPdfScale(scale - PDF_ZOOM_STEP));
+                  }}
+                >
+                  −
+                </button>
+                <span aria-label="PDF zoom" className="pdf-zoom-value">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+                <button
+                  type="button"
+                  aria-label="Zoom in"
+                  disabled={zoomScale >= MAX_PDF_SCALE}
+                  onClick={() => {
+                    setFitMode("custom");
+                    setZoomScale((scale) => clampPdfScale(scale + PDF_ZOOM_STEP));
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                aria-label="Fit page"
+                aria-pressed={fitMode === "page"}
+                onClick={() => void applyFit("page")}
+              >
+                Fit Page
+              </button>
+              <button
+                type="button"
+                aria-label="Fit width"
+                aria-pressed={fitMode === "width"}
+                onClick={() => void applyFit("width")}
+              >
+                Fit Width
+              </button>
+            </div>
+          </div>
+          <div className="pdf-toolbar-row pdf-toolbar-row--actions">
+            <div className="pdf-toolbar-group pdf-toolbar-group--navigation">
               <button
                 type="button"
                 disabled={pageNumber <= 1}
@@ -616,10 +778,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               >
                 Previous
               </button>
-              <span>
-                Page {pageNumber}
-                {pageCount > 0 ? ` of ${pageCount}` : ""}
-              </span>
+              {renderPageJumpField()}
               <button
                 type="button"
                 disabled={pageCount > 0 && pageNumber >= pageCount}
@@ -627,29 +786,27 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               >
                 Next
               </button>
-            </>
-          )}
-          {viewMode === "continuous" && (
-            <span>
-              Page {pageNumber}
-              {pageCount > 0 ? ` of ${pageCount}` : ""}
-            </span>
-          )}
-          <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
-            {soundEnabled ? "Sound: On" : "Sound: Off"}
-          </button>
-          <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
-            Notebook
-          </button>
-          {hasExtractableText === false && (
-            <button type="button" onClick={() => setOcrWorkspaceOpen(true)}>
-              OCR Workspace
-            </button>
-          )}
-        </>
+            </div>
+            <div className="pdf-toolbar-group pdf-toolbar-group--tools">
+              <button type="button" onClick={() => setNotebookOpen((o) => !o)}>
+                Notebook
+              </button>
+              {documentClassification?.ocrEligible && (
+                <button type="button" onClick={() => setOcrWorkspaceOpen(true)}>
+                  OCR Workspace
+                </button>
+              )}
+              <button type="button" aria-label="Toggle page-turn sound" onClick={toggleSound}>
+                {soundEnabled ? "Sound: On" : "Sound: Off"}
+              </button>
+            </div>
+          </div>
+        </div>
       }
       overlay={
-        notebookOpen ? (
+        tocOpen ? (
+          <TocPanel toc={toc} onNavigate={handleTocNavigate} onClose={() => setTocOpen(false)} />
+        ) : notebookOpen ? (
           <NotebookPanel
             key={notebookRefreshKey}
             bookId={bookId}
@@ -659,7 +816,6 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
               if (!asset.anchor) return false;
               const page = parseInt(asset.anchor.primary_anchor, 10);
               if (!Number.isFinite(page) || page < 1 || (pageCount > 0 && page > pageCount)) return false;
-              setViewMode("single");
               setPageNumber(page);
               return true;
             }}
@@ -694,7 +850,12 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           Could not jump to the exact location — opened the Book instead.
         </p>
       )}
-      {hasExtractableText === false && (
+      {pageJumpInvalid && (
+        <p role="alert" className="pdf-page-jump-invalid-notice">
+          Enter a whole page number{pageCount > 0 ? ` between 1 and ${pageCount}` : ""}.
+        </p>
+      )}
+      {documentClassification?.ocrEligible && (
         <div
           className={`pdf-ocr-notice ${noticeCollapsed ? "pdf-ocr-notice--collapsed" : ""}`}
           role="region"
@@ -739,7 +900,7 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           )}
         </div>
       )}
-      {viewMode === "single" && selection && (
+      {selection && (
         <div className="selection-toolbar" role="toolbar" aria-label="Selection actions">
           <div className="selection-toolbar-colors" aria-label="Highlight color preset palette">
             {HIGHLIGHT_COLORS.map((c) => (
@@ -771,28 +932,61 @@ export function PdfReader({ bookId, title, onBack, initialAnchor }: PdfReaderPro
           </button>
         </div>
       )}
-      {viewMode === "single" ? (
-        <div ref={singlePageSurfaceRef} className="reader-surface">
-          <div className="pdf-page">
-            <canvas ref={canvasRef} />
-            <div ref={textLayerRef} className="pdf-text-layer" />
+      <div ref={singlePageSurfaceRef} className="reader-surface">
+        <div
+          className="pdf-page"
+          data-appearance={pageAppearance}
+          data-scan-like={isScanLikeDoc ? "true" : "false"}
+        >
+          <canvas ref={canvasRef} />
+          <canvas ref={appearanceCanvasRef} className="pdf-appearance-overlay" aria-hidden="true" />
+          <div ref={textLayerRef} className="textLayer pdf-text-layer" />
+          <div className="pdf-link-layer" aria-label="PDF Links">
+            {pageLinks.map((link, idx) => {
+              const label =
+                link.target.kind === "internal"
+                  ? `Jump to page ${link.target.pageNumber}`
+                  : link.target.kind === "external"
+                  ? `Open external link: ${link.target.url}`
+                  : "Unsupported link";
+              return (
+                <a
+                  key={idx}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={label}
+                  className="pdf-link-item"
+                  style={{
+                    left: `${link.rect.left}px`,
+                    top: `${link.rect.top}px`,
+                    width: `${link.rect.width}px`,
+                    height: `${link.rect.height}px`,
+                  }}
+                  title={label}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePdfLinkClick(link.target);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePdfLinkClick(link.target);
+                    }
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
-      ) : (
-        <div
-          ref={continuousContainerRef}
-          className="reader-surface pdf-continuous"
-          onScroll={handleContinuousScroll}
-        >
-          {Array.from({ length: pageCount }, (_, i) => (
-            <canvas
-              key={i}
-              ref={(el) => {
-                canvasRefs.current[i] = el;
-              }}
-            />
-          ))}
-        </div>
+      </div>
+      {externalLinkPromptUrl && (
+        <PdfExternalLinkModal
+          url={externalLinkPromptUrl}
+          onConfirm={handleOpenExternalLink}
+          onCancel={() => setExternalLinkPromptUrl(null)}
+        />
       )}
     </ReaderShell>
   );

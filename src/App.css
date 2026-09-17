@@ -481,12 +481,125 @@ a:hover {
   font-size: 0.9em;
 }
 
+/* Stacked Reader Toolbar layout (e.g. PDF grouped rows) */
+.reader-toolbar--stacked {
+  row-gap: 0.5em;
+}
+
+.reader-toolbar--stacked .reader-title {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.reader-toolbar--stacked .reader-toolbar-controls {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.reader-toolbar-bottom {
+  flex-basis: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding-top: 0.4em;
+  border-top: 1px solid var(--border, rgba(127, 127, 127, 0.2));
+}
+
+.pdf-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  width: 100%;
+}
+
+.pdf-toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4em 1em;
+  width: 100%;
+}
+
+.pdf-toolbar-row--actions {
+  justify-content: space-between;
+}
+
+.pdf-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  flex-wrap: nowrap;
+}
+
+.pdf-toolbar-group--geometry {
+  gap: 0.35em;
+}
+
+.pdf-toolbar-zoom-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.pdf-zoom-value {
+  min-width: 3.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.88em;
+  user-select: none;
+}
+
+.pdf-toolbar-select-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: 0.85em;
+  color: var(--muted, #666);
+}
+
+.pdf-toolbar-field-label {
+  font-weight: 500;
+  user-select: none;
+}
+
+.pdf-toolbar-group--navigation {
+  flex-wrap: nowrap;
+  gap: 0.4em;
+}
+
+.pdf-toolbar-group--tools {
+  gap: 0.4em;
+  margin-left: auto;
+}
+
+.pdf-page-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.pdf-page-jump-input {
+  width: 3.6em;
+  text-align: center;
+  padding: 2px 4px;
+  font-size: 0.9em;
+  border-radius: 4px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.4));
+  background: var(--surface);
+  color: var(--text);
+}
+
 .reader-surface {
   flex: 1;
   min-height: 0;
   overflow: auto;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  padding: 16px;
 }
 
 .pdf-continuous {
@@ -1027,39 +1140,132 @@ a:hover {
   }
 }
 
-/* Single-page mode's canvas + selectable text overlay. .pdf-text-layer is
-   a minimal hand-ported subset of pdfjs-dist's own .textLayer rules
-   (node_modules/pdfjs-dist/web/pdf_viewer.css) -- just enough to make
-   pdfjs-dist's TextLayer output invisible-but-selectable and correctly
-   positioned; the full pdf_viewer.css ships ~6000 unrelated lines (its own
-   toolbar/dialog/XFA-form chrome) this app's minimal custom UI does not
-   want (DESIGN.md's own non-goal: don't grow developer-console-style
-   chrome). PRODUCT_SPEC.md SS11 "text selection exposes lightweight
-   Highlight / Excerpt / Note actions". */
+/* Single-page mode's canvas + selectable text overlay.
+   Applies the standard pdf.js v4+ TextLayer layout rules (supporting
+   --total-scale-factor, --text-scale-factor, --font-height, scaleX, etc.)
+   so DOM character geometry precisely matches the rendered canvas. */
 .pdf-page {
   position: relative;
+  display: inline-block;
+  line-height: 0;
+  margin: auto;
 }
 
-.pdf-text-layer {
+.pdf-page canvas {
+  display: block;
+}
+
+.pdf-appearance-overlay {
   position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  z-index: 1;
+}
+
+/* Night mode for text/mixed PDF pages:
+   Visually inverts the base PDF canvas (paper becomes dark, black text becomes light).
+   Scanned PDFs (data-scan-like="true") are explicitly excluded to preserve the original scan.
+   Embedded image/photo regions are drawn onto .pdf-appearance-overlay to preserve original color. */
+.pdf-page[data-appearance="night"]:not([data-scan-like="true"]) > canvas:first-child {
+  filter: invert(0.92) hue-rotate(180deg);
+  background-color: #1a1a1a;
+}
+
+.pdf-page[data-appearance="night"] .textLayer span.reader-highlight,
+.pdf-page[data-appearance="night"] .pdf-text-layer span.reader-highlight {
+  mix-blend-mode: screen;
+}
+
+.textLayer,
+.pdf-text-layer {
+  color-scheme: only light;
+  position: absolute;
+  text-align: initial;
   inset: 0;
   overflow: clip;
+  opacity: 1;
   line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  -moz-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
   transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 2;
+
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
-.pdf-text-layer span,
-.pdf-text-layer br {
+.textLayer.highlighting,
+.pdf-text-layer.highlighting {
+  touch-action: none;
+}
+
+.textLayer :is(span, br),
+.pdf-text-layer :is(span, br) {
   color: transparent;
   position: absolute;
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  -moz-user-select: text;
   user-select: text;
 }
 
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent),
+.pdf-text-layer > :not(.markedContent),
+.pdf-text-layer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent,
+.pdf-text-layer .markedContent {
+  display: contents;
+}
+
+.textLayer span[role="img"],
+.pdf-text-layer span[role="img"] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+.textLayer ::selection,
 .pdf-text-layer ::selection {
   background: rgba(0, 100, 255, 0.3);
+}
+
+.textLayer span.reader-highlight,
+.pdf-text-layer span.reader-highlight {
+  position: static !important;
+  display: inline !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  transform: none !important;
+  border-radius: 2px;
+  padding: 0 !important;
+  mix-blend-mode: multiply;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
 }
 
 /* Focus Reading (DESIGN.md SS6): minimal reader chrome, subtle surface
@@ -1208,6 +1414,28 @@ a:hover {
   gap: 1em;
   font-weight: 500;
   margin-bottom: 0.5em;
+}
+
+.toc-panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.toc-panel-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  padding: 0.2em;
+  border-radius: 4px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.toc-panel-header button:hover {
+  opacity: 1;
 }
 
 .toc-panel ul {
@@ -2624,6 +2852,7 @@ a:hover {
 }
 
 .resume {
+  position: relative;
   max-width: 900px;
   display: grid;
   grid-template-columns: 90px 1fr auto;
@@ -2823,6 +3052,23 @@ a:hover {
   overflow: hidden;
 }
 
+.resume .cover.has-cover,
+.book .cover.has-cover {
+  padding: 0;
+  background: var(--bg-card, rgba(0, 0, 0, 0.04));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+  display: block;
+}
+
 .book-card-body {
   display: flex;
   flex-direction: column;
@@ -2852,6 +3098,40 @@ a:hover {
 
 .book-open-link:hover {
   color: var(--accent);
+}
+
+.book-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.book-progress-percent {
+  font-size: 12px;
+  color: var(--muted, inherit);
+}
+
+/* V2-M3 final corrective: a small top-right corner badge/ribbon, fully
+   independent of the progress percent text -- not inline metadata, and
+   positioned via the card's own `position: relative` (`.book` / `.resume`)
+   so it doesn't add to card layout flow or grow the card. */
+.book-completed-read-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
 }
 
 .book-actions {
@@ -3330,6 +3610,32 @@ mark.reader-highlight[data-color="orange"],
     background-color: rgba(255, 152, 0, 0.45) !important;
     box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.5) !important;
   }
+}
+
+/* PDF TextLayer persistent highlights: translucent background over canvas glyphs.
+   Must NEVER render visible foreground text (must be transparent) or box-shadow
+   to avoid ghosting, wash-out, or white/reflective text artifacts across all themes. */
+.textLayer span.reader-highlight,
+.pdf-text-layer span.reader-highlight,
+[data-theme="dark"] .textLayer span.reader-highlight,
+[data-theme="dark"] .pdf-text-layer span.reader-highlight,
+:root:not([data-theme="light"]) .textLayer span.reader-highlight,
+:root:not([data-theme="light"]) .pdf-text-layer span.reader-highlight {
+  position: static !important;
+  display: inline !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer !important;
+  transform: none !important;
+  border-radius: 2px;
+  padding: 0 !important;
+  mix-blend-mode: multiply;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
 }
 
 /* B8 Dismissible Scanned-PDF Notice */
@@ -4473,3 +4779,67 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+
+/* PDF Hyperlink Layer (V2-M4-U4A) */
+.pdf-link-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 3;
+}
+
+.pdf-link-item {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.12s ease, outline 0.12s ease;
+}
+
+.pdf-link-item:hover,
+.pdf-link-item:focus-visible {
+  background-color: var(--accentSoft, rgba(62, 102, 144, 0.14));
+  outline: 1.5px solid var(--accent, #3e6690);
+}
+
+.pdf-external-link-modal {
+  max-width: 520px;
+  width: 90vw;
+}
+
+.pdf-external-link-desc {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.pdf-external-link-target {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  max-height: 120px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pdf-external-link-url {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--accent);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.pdf-external-link-warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+

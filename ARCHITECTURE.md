@@ -1,11 +1,10 @@
-# EbookReader V1 Architecture
+# EbookReader Architecture
 
-Status: **Accepted Architecture Baseline** — approved at the second Human Architecture Gate (2026-09-08, HEAD `5729bf4`)
+Status: **Accepted Baseline + V2 Architecture Amendments**
 
-See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the M0 evidence and per-item decisions (including the corrective pass: a first Architecture Lock submission was declined and specific gaps were closed with new evidence — see both files' "Corrective" sections; the second submission was approved). This file's content below reflects the Accepted Architecture Baseline for M1–M8. Amendments still require reconciliation under the Architecture Promotion Rule below; Product-Contract Conflicts still require a Human Gate.
+See `M0_TECHNICAL_SPIKE_REPORT.md` and `M0_ARCHITECTURE_DECISION.md` for the historical M0 evidence and decisions. The V1 baseline architecture remains authoritative for foundational boundaries, and Section 21 defines the durable V2 architecture amendments.
 
-
-This document defines architectural boundaries and M0 decision gates. It intentionally does not claim that the final stack is already locked.
+This document defines architectural boundaries and decision gates.
 
 ## Architecture Promotion Rule
 
@@ -771,3 +770,40 @@ M0 must produce evidence and an ADR-style decision covering:
 13. packaging implications.
 
 No feature milestone should begin until M0 exits with an architecture lock and unresolved risks are explicitly classified.
+
+---
+
+## 21. V2 Architecture Amendments
+
+The following amendments define the durable architectural contracts for EbookReader V2.
+
+### 21.1 PDF Runtime & Offline WASM Assets
+- **Local Runtime Asset Closure**: The local pdf.js runtime uses assets under `/wasm/`, including `jbig2.wasm`, `openjpeg.wasm`, `qcms_bg.wasm`, and `quickjs-eval.wasm`, together with their tracked fallback/license assets where applicable, alongside local character maps (`/cmaps/`).
+- **Zero Network Dependency**: PDF rendering, font parsing, color management, script evaluation, and image decompression operate with complete offline closure without external network requests.
+
+### 21.2 Text / Render Responsibility Boundary
+- **Separation of Concerns**: Visual glyph rendering fidelity and semantic text extraction are distinct subsystems.
+- **Source Unicode Boundary**: Downstream text layers, search indexes, text selection, and highlight persistence depend directly on the PDF's internal `ToUnicode` mapping. Where source PDFs contain corrupted or absent Unicode maps, visual rendering may succeed while extracted text remains corrupted. EbookReader enforces an explicit boundary and does not heuristically synthesize or reconstruct broken source Unicode.
+
+### 21.3 PDF Page Appearance Compositing & Image Protection
+- **Source Immutability**: All Page Appearance transformations (`Default`, `Day`, `Eye Care`, `Parchment`, `Night`) are non-destructive compositing overlays applied during render; source PDF files on disk are never altered.
+- **Raster Image Masking**: Raster image geometry is extracted directly from pdf.js operator execution streams (`paintImageXObject`, `paintInlineImageXObject`) to mask and protect embedded photographs and illustrations from background color tinting.
+- **Scanned Night Preservation**: Scanned/raster-dominant pages in Night mode preserve the original scanned document raster rather than applying destructive global color inversion.
+
+### 21.4 Document-Level OCR Classification
+- **Document-Level Heuristics**: PDF documents are classified across the entire document into `TEXT`, `SCAN`, or `HYBRID` categories using character density and page raster metrics.
+- **Robust Affordance**: Documents with predominant scan content retain access to the OCR Workspace even if isolated pages or headers contain extractable text.
+- **Non-Mutating Pipeline**: OCR results and user corrections persist in application SQLite tables; source files remain untouched.
+
+### 21.5 Lazy Bounded-Concurrency Cover Thumbnail Pipeline
+- **Unified Cover Surface**: `BookCover` serves as the shared cover rendering component across Library views and Continue Reading shelves.
+- **Format Adaption**: EPUB covers are extracted directly from container manifests; PDF covers are generated dynamically from Page 1 via offscreen rendering.
+- **Viewport Gating & Concurrency**: PDF cover generation is visibility-gated using `IntersectionObserver`, executed through a bounded concurrency queue (`MAX_CONCURRENT_PDF_COVERS = 2`), deduplicated across concurrent requests, and cached in session memory.
+- **Persistence Boundary**: Cover thumbnails are generated on demand and memory-cached during the session; no dedicated persistent SQLite thumbnail table is required in V2.
+
+### 21.6 Reflowable EPUB Typography Override Architecture
+- **Deterministic Override Rules**: Reader-controlled typography preferences enforce scoped CSS rules carrying explicit `!important` markers and root-relative `rem` font sizing, preventing publisher stylesheets from locking font size, margins, or line height in reflowable prose.
+
+### 21.7 V2 Reading Modes Architecture
+- **Validated Page-Based Delivery**: V2 standardizes EPUB and PDF reading on validated page-based reading modes (EPUB Single page, Double page; PDF Single page). Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience. Native TXT scrolling remains unaffected.
+

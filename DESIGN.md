@@ -1,13 +1,13 @@
-# EbookReader V1 Design Authority
+# EbookReader Design Authority
 
-Status: **Frozen V1 UI Baseline**
+Status: **V1 Frozen Baseline + V2 Frozen Design Amendments**
 
 Canonical visual prototype:
 
 `docs/design/EbookReader_UI_Prototype_v0_5.html`
 
 
-This document defines the accepted product-local design language, canonical surface compositions, derived-screen rules, interaction patterns, typography/font boundaries, and human acceptance requirements.
+This document defines the accepted product-local design language, canonical surface compositions, derived-screen rules, interaction patterns, typography/font boundaries, and human acceptance requirements. V1 historical rules remain baseline UI authority, and Section 24 defines the admitted and frozen V2 design amendments.
 
 ## Authority Boundary
 
@@ -740,3 +740,57 @@ Do not silently:
 - turn Alignment into an authoring tool;
 - replace subtle motion with decorative animation;
 - hide format limitations behind controls that do nothing.
+
+---
+
+## 24. V2 Frozen Design Amendments
+
+The following amendments constitute the admitted and frozen UI and interaction contracts for EbookReader V2.
+
+### 24.1 Library Management & Covers
+- **Compact Sort Control**: A restrained `Sort by:` dropdown is integrated beside the search and collection filter bar, providing seamless access to the six supported sort orders without cluttering the landing view.
+- **Book Cover Visuals**: Library book cards render cover artwork: EPUB embedded package covers and PDF Page 1 thumbnails. Loading is lazy and visibility-gated; errors fail safely to restrained format-specific icon placeholders.
+- **Completed Read Badge**: Completed read count (`Read Nx`) is presented as a subtle badge on book cards, independently toggleable in settings.
+- **Duplicate Import Clarity**: The duplicate import confirmation modal explicitly surfaces the current Library title of the matching book alongside file metadata.
+
+### 24.2 PDF Reader Chrome & 3-Row Grouped Toolbar Hierarchy
+The PDF Reader toolbar is structured into three clear semantic rows to avoid horizontal crowding and maintain hierarchy on desktop screens:
+
+- **Row 1 — Header & Global State**:
+  - Back to Library navigation;
+  - Book title with overflow truncation;
+  - Reading progress / status indicator;
+  - Focus reading mode trigger.
+
+- **Row 2 — Reading Configuration**:
+  - Contents (TOC) toggle (rendered only when outline/bookmarks exist);
+  - Page Appearance selector (`Default`, `Day`, `Eye Care`, `Parchment`, `Night`);
+  - Zoom level and page fit controls.
+
+- **Row 3 — Navigation & Tools**:
+  - Page navigation cluster: `Previous`, direct numeric editable page jump (`[ K ] / N`), and `Next`;
+  - Notebook panel toggle;
+  - Conditional OCR Workspace button (rendered only when document classification indicates `SCAN` or `HYBRID` profile);
+  - Ambient sound toggle.
+
+- **Responsive Wrapping & Gaps**: Toolbar rows wrap at semantic group boundaries on compact viewports. When optional controls (Contents, OCR Workspace) are omitted, adjacent groups adjust cleanly without empty gaps.
+
+### 24.3 PDF Page Appearance Modes & Image Protection
+- **Appearance Palettes**: Five non-destructive modes: `Default` (standard PDF rendering), `Day` (clean bright paper), `Eye Care` (warm green tint), `Parchment` (amber paper texture tone), and `Night` (dark low-light background).
+- **Embedded Raster Protection**: Embedded raster photos and figures are masked and preserved in true color during page tinting.
+- **Scanned Night Non-Inversion**: Scanned/image-only PDF pages in Night mode preserve the original scanned document raster rather than applying destructive global pixel inversion.
+
+### 24.4 Typography Inputs & Position Indicators
+- **Typography Number Fields**: The reader typography panel (`Aa`) features direct numeric input fields alongside increment/decrement controls for precise font size, line height, and page margins.
+- **Reflowed Position Indicator**: Reflowable EPUB and TXT readers offer an optional `K/N` position indicator in the reader footer, responsive to real-time reflowed pagination.
+
+### 24.5 V2 Reading Modes Contract
+- **Validated Page-Based Modes**: V2 standardizes EPUB and PDF reading on validated page-based reading modes. EPUB supports Single page and Double page; PDF supports Single page. Selectable Continuous Scroll is deferred to V3 as a separately scoped reading experience.
+
+### 24.6 Contents (TOC) Bulk Expand / Collapse
+- **Dynamic Bulk Toggle**: Hierarchical Contents/TOC panels feature a compact boxed icon button in the header alongside Close:
+  - Displays boxed plus (`⊞`, `Expand all`) when all collapsible parent nodes are collapsed;
+  - Displays boxed minus (`⊟`, `Collapse all`) when all or some parent nodes are expanded (mixed state);
+  - Hidden when the table of contents has no collapsible parent nodes;
+  - State updates dynamically as individual chapter nodes are toggled.
+

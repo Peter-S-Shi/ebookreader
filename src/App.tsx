@@ -10,7 +10,32 @@ import { DataRecovery } from "./DataRecovery";
 import { Settings } from "./Settings";
 import { BookDetails } from "./BookDetails";
 import { BookHoursPlanning } from "./BookHoursPlanning";
-import { loadAndApplyMotionPreference, loadDefaultImportMode, loadUpdateCheckOnStartupPreference } from "./appSettings";
+import { BookCover } from "./BookCover";
+import {
+  DEFAULT_COMPLETED_READ_MARK_MODE,
+  DEFAULT_LIBRARY_SORT_OPTION,
+  DEFAULT_PROGRESS_DISPLAY_MODE,
+  loadAndApplyAppearance,
+  loadAndApplyMotionPreference,
+  loadCompletedReadMarkMode,
+  loadDefaultImportMode,
+  loadLibraryProgressDisplayMode,
+  loadLibrarySortOption,
+  loadUpdateCheckOnStartupPreference,
+  saveLibrarySortOption,
+  type LibrarySortOption,
+} from "./appSettings";
+import {
+  LIBRARY_SORT_OPTIONS,
+  sortLibraryBooks,
+} from "./librarySort";
+import {
+  computeCompletedReadMarkText,
+  computeLibraryDisplayPercent,
+  type CompletedReadMarkMode,
+  type ProgressDisplayMode,
+} from "./libraryProgressDisplay";
+import type { ReadingProgressDTO } from "./useReadingProgress";
 import { checkForUpdate, CURRENT_VERSION, REPO_NAME, REPO_OWNER, type UpdateCheckResult } from "./updateAwareness";
 import { formatSearchSnippet } from "./searchUtils";
 import "./App.css";
@@ -24,6 +49,15 @@ interface BookSummary {
   available: boolean;
   last_opened_at: string | null;
 }
+
+// V2-M3 item 2: a Book with no `last_opened_at` has never been opened, so
+// its ReadingProgress is always exactly `ReadingProgress::new()`'s default
+// -- no IPC round trip needed to know that.
+const NEVER_OPENED_PROGRESS: ReadingProgressDTO = {
+  completed_read_count: 0,
+  active_read_in_progress: true,
+  active_pass_progress: 0,
+};
 
 // Mirrors `document_location::DocumentLocation` (see also each Reader's
 // own local copy of this same shape).
@@ -139,6 +173,15 @@ function App() {
   const [bulkTargetCollectionId, setBulkTargetCollectionId] = useState("");
   const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  // V2-M2: window.confirm() does not reliably show a native dialog in this
+  // Tauri/WebView2 setup (a human retest confirmed a single click removed a
+  // book instantly with no prompt), so single-book Remove uses the same
+  // in-app dialog pattern as bulk Remove instead.
+  const [removeConfirmBookId, setRemoveConfirmBookId] = useState<string | null>(null);
+  // Same defect class, same fix: single-book Delete Reading Data also used
+  // window.confirm(), which does not reliably show a native dialog here.
+  const [deleteReadingDataConfirmBookId, setDeleteReadingDataConfirmBookId] = useState<string | null>(null);
+  const [bulkDeleteReadingDataConfirmOpen, setBulkDeleteReadingDataConfirmOpen] = useState(false);
 
   // FC-A02 (`PRODUCT_SPEC.md` SS3.4 "user-corrected metadata wins"): which
   // Book's title is currently being edited inline, and the draft value.
@@ -157,27 +200,50 @@ function App() {
   // most recently opened Books that still have an active read in
   // progress, ranked by real recorded recency (`last_opened_at`), not
   // import order. Recomputed whenever the Library list changes.
-  const [continueReading, setContinueReading] = useState<{ book: BookSummary; percent: number }[]>([]);
+  const [continueReading, setContinueReading] = useState<{ book: BookSummary; progress: ReadingProgressDTO }[]>([]);
+  // V2-M3 item 2: every Book's ReadingProgress, for the main Library
+  // grid's per-card presentation (Progress Display / Completed Read Mark
+  // settings below). Shares this same fetch with Continue Reading above
+  // rather than fetching twice -- a never-opened Book (no `last_opened_at`)
+  // is never actually opened, so its progress is always exactly
+  // `ReadingProgress::new()`'s default and is filled in locally without an
+  // IPC round trip.
+  const [libraryProgress, setLibraryProgress] = useState<Record<string, ReadingProgressDTO>>({});
+  const [progressDisplayMode, setProgressDisplayMode] = useState<ProgressDisplayMode>(DEFAULT_PROGRESS_DISPLAY_MODE);
+  const [completedReadMarkMode, setCompletedReadMarkMode] = useState<CompletedReadMarkMode>(DEFAULT_COMPLETED_READ_MARK_MODE);
+  const [sortOption, setSortOption] = useState<LibrarySortOption>(DEFAULT_LIBRARY_SORT_OPTION);
+
+  // Orphan-settings correction: Settings owns its own copy of these two
+  // settings and saves them straight to the backend store; it has no way
+  // to tell App's copy changed, and App otherwise never re-reads them
+  // after its initial mount. Re-reading whenever the Library view becomes
+  // current (covers both "Settings -> Library" and "any other destination
+  // -> Library" navigation) picks up whatever was last saved.
+  useEffect(() => {
+    if (destination !== "library") return;
+    loadLibraryProgressDisplayMode().then(setProgressDisplayMode);
+    loadCompletedReadMarkMode().then(setCompletedReadMarkMode);
+    loadLibrarySortOption().then(setSortOption);
+  }, [destination]);
 
   const refreshLibrary = useCallback(async () => {
     const result = await invoke<BookSummary[]>("list_library_command");
-    setBooks(result);
+    setBooks(result ?? []);
   }, []);
 
   useEffect(() => {
-    if (!books) return;
+    if (!books || !Array.isArray(books)) return;
     let cancelled = false;
-    const candidates = [...books]
+    const openedBooks = [...books]
       .filter((b) => b.last_opened_at)
-      .sort((a, b) => (a.last_opened_at! < b.last_opened_at! ? 1 : a.last_opened_at! > b.last_opened_at! ? -1 : 0))
-      .slice(0, 10);
+      .sort((a, b) => (a.last_opened_at! < b.last_opened_at! ? 1 : a.last_opened_at! > b.last_opened_at! ? -1 : 0));
 
     Promise.all(
-      candidates.map((book) =>
-        invoke<{ completed_read_count: number; active_read_in_progress: boolean; active_pass_progress: number }>(
-          "get_reading_progress_command",
-          { bookId: book.book_id },
-        ).then((progress) => ({ book, progress })),
+      openedBooks.map((book) =>
+        invoke<ReadingProgressDTO>("get_reading_progress_command", { bookId: book.book_id }).then((progress) => ({
+          book,
+          progress,
+        })),
       ),
     ).then((results) => {
       if (cancelled) return;
@@ -185,11 +251,12 @@ function App() {
         results
           .filter((r) => r.progress.active_read_in_progress)
           .slice(0, 3)
-          .map((r) => ({
-            book: r.book,
-            percent: r.progress.completed_read_count * 100 + r.progress.active_pass_progress,
-          })),
+          .map((r) => ({ book: r.book, progress: r.progress })),
       );
+      const progressMap: Record<string, ReadingProgressDTO> = {};
+      for (const book of books) progressMap[book.book_id] = NEVER_OPENED_PROGRESS;
+      for (const r of results) progressMap[r.book.book_id] = r.progress;
+      setLibraryProgress(progressMap);
     });
     return () => {
       cancelled = true;
@@ -211,6 +278,16 @@ function App() {
   // is actually reachable/effective from the moment the app opens.
   useEffect(() => {
     loadAndApplyMotionPreference();
+  }, []);
+
+  // V2-M2: applied here for the same reason as Reduced Motion above --
+  // previously only Settings.tsx's own mount effect ever called this, so
+  // an explicit Light/Dark choice was not honored until the user visited
+  // Settings that session (in the interim, no `data-theme` attribute is
+  // set at all, so the CSS's `prefers-color-scheme` media query decided
+  // instead -- the "exits in Light, reopens in Dark" symptom).
+  useEffect(() => {
+    loadAndApplyAppearance();
   }, []);
 
   useEffect(() => {
@@ -391,22 +468,36 @@ function App() {
     await refreshLibrary();
   }
 
-  async function removeBook(bookId: string) {
-    const confirmed = window.confirm(
-      "Remove this Book from the Library? Reading data is kept, and no source file will be deleted.",
-    );
-    if (!confirmed) return;
+  async function confirmRemoveBook() {
+    const bookId = removeConfirmBookId;
+    if (!bookId) return;
+    setRemoveConfirmBookId(null);
     await invoke("remove_book_command", { bookId });
     await refreshLibrary();
   }
 
-  async function deleteReadingData(bookId: string) {
-    const confirmed = window.confirm(
-      "Delete this Book's reading data? Notes, progress, OCR corrections, Book Hours, and alignment data for this Book will be removed. The Book file stays in place.",
-    );
-    if (!confirmed) return;
+  async function confirmDeleteReadingData() {
+    const bookId = deleteReadingDataConfirmBookId;
+    if (!bookId) return;
+    setDeleteReadingDataConfirmBookId(null);
     await invoke("delete_reading_data_command", { bookId });
     await refreshLibrary();
+  }
+
+  async function handleBulkDeleteReadingData() {
+    if (selectedBookIds.size === 0) return;
+    setBulkError(null);
+    try {
+      for (const bookId of selectedBookIds) {
+        await invoke("delete_reading_data_command", { bookId });
+      }
+      setBulkDeleteReadingDataConfirmOpen(false);
+      setSelectedBookIds(new Set());
+      setSelectMode(false);
+      await refreshLibrary();
+    } catch (e) {
+      setBulkError(String(e));
+    }
   }
 
   async function deleteManagedCopyFile(bookId: string) {
@@ -515,7 +606,7 @@ function App() {
     const assets = await invoke<ReadingAssetDTO[]>("list_all_reading_assets_command", {
       kind: kind || null,
     });
-    setGlobalNotes(assets);
+    setGlobalNotes(assets ?? []);
   }
 
   function goToNotes() {
@@ -562,6 +653,14 @@ function App() {
     const onBack = () => {
       setOpenBook(null);
       setPendingAnchor(null);
+      // V2-M3 human-acceptance correction: the Library grid's progress
+      // display (and Continue Reading) only refetch when `books` itself
+      // changes reference, which a reading session alone never triggers --
+      // so backtracking within a session and then leaving the Reader used
+      // to show the stale value fetched before the session started.
+      // `refreshLibrary()` always installs a fresh `books` array from the
+      // backend, which re-arms that fetch effect.
+      refreshLibrary();
     };
     const props = {
       bookId: openBook.book_id,
@@ -747,7 +846,7 @@ function App() {
                 </label>
               </div>
               <ul className="global-notes-list">
-                {globalNotes.length === 0 ? (
+                {!globalNotes || globalNotes.length === 0 ? (
                   <li className="empty-notes-item">No Notebook assets yet.</li>
                 ) : (
                   globalNotes.map((asset) => {
@@ -823,11 +922,26 @@ function App() {
 
           {duplicateImport && (
             <div className="duplicate-import-dialog overlay open" role="dialog" aria-label="Duplicate Book">
-              <div className="modal">
+              <div className="modal" style={{ maxWidth: "480px" }}>
                 <div className="modalHead">
-                  <h2>This book already exists.</h2>
+                  <h2>Duplicate Book</h2>
                 </div>
-                <p>{duplicateImport.title}</p>
+                <p>This book already exists in your Library as:</p>
+                <p
+                  className="duplicate-book-title"
+                  style={{
+                    fontWeight: 600,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                    margin: "8px 0 16px 0",
+                    padding: "10px 12px",
+                    background: "var(--surface2)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {duplicateImport.title}
+                </p>
                 <div className="modalActions">
                   <button type="button" className="btn primary" onClick={openExistingDuplicate}>
                     Open Existing
@@ -850,45 +964,79 @@ function App() {
                 <span className="hint">Pick up where you left off.</span>
               </div>
               <ul className="continue-reading-list resume-grid">
-                {continueReading.map(({ book, percent }) => (
-                  <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
-                    <div className="cover" aria-hidden="true">
-                      <span className="cover-format">{book.format.toUpperCase()}</span>
-                    </div>
-                    <div className="resume-body">
-                      <h3>
-                        <button
-                          type="button"
-                          className="resume-title-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenBook(book);
-                          }}
-                        >
-                          {book.title}
-                        </button>
-                      </h3>
-                      <div className="meta">
-                        {book.format.toUpperCase()} · {book.ownership_mode}
+                {continueReading.map(({ book, progress }) => {
+                  const percent = computeLibraryDisplayPercent(progress, progressDisplayMode);
+                  const markText = computeCompletedReadMarkText(progress, completedReadMarkMode);
+                  return (
+                    <li key={book.book_id} className="resume" onClick={() => setOpenBook(book)}>
+                      {markText && <span className="book-completed-read-badge">{markText}</span>}
+                      <BookCover bookId={book.book_id} format={book.format} title={book.title} />
+                      <div className="resume-body">
+                        <h3>
+                          <button
+                            type="button"
+                            className="resume-title-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenBook(book);
+                            }}
+                          >
+                            {book.title}
+                          </button>
+                        </h3>
+                        <div className="meta">
+                          {book.format.toUpperCase()} · {book.ownership_mode}
+                        </div>
+                        <div className="bar">
+                          <i style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                        </div>
+                        <div className="meta">{percent.toFixed(0)}%</div>
                       </div>
-                      <div className="bar">
-                        <i style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
+                      <div className="resume-action" style={{ color: "var(--accent)", fontWeight: 650 }}>
+                        Continue →
                       </div>
-                      <div className="meta">{percent.toFixed(0)}%</div>
-                    </div>
-                    <div className="resume-action" style={{ color: "var(--accent)", fontWeight: 650 }}>
-                      Continue →
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}
 
           <section aria-label="Collections" className="collections-section">
-            <div className="section" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div className="section" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
               <h2 style={{ margin: 0 }}>Collections</h2>
               <div className="grow" />
+              <div className="library-sort-control" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <label htmlFor="library-sort-select" style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 500 }}>
+                  Sort by:
+                </label>
+                <select
+                  id="library-sort-select"
+                  aria-label="Sort library by"
+                  className="library-sort-select"
+                  value={sortOption}
+                  onChange={(e) => {
+                    const next = e.target.value as LibrarySortOption;
+                    setSortOption(next);
+                    saveLibrarySortOption(next).catch(() => {});
+                  }}
+                  style={{
+                    fontSize: "13px",
+                    padding: "4px 8px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {LIBRARY_SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 className="btn-sm"
@@ -920,13 +1068,15 @@ function App() {
             </div>
           </section>
 
-          {books === null ? null : books.length === 0 ? (
+          {books === null || !Array.isArray(books) ? null : books.length === 0 ? (
             <p className="empty-state">Library is empty. Import a book to get started.</p>
           ) : (() => {
-            const visibleBooks =
+            const indexedBooks = books.map((book, idx) => ({ ...book, importIndex: idx }));
+            const filteredBooks =
               collectionFilterBookIds === null
-                ? books
-                : books.filter((book) => collectionFilterBookIds.has(book.book_id));
+                ? indexedBooks
+                : indexedBooks.filter((book) => collectionFilterBookIds.has(book.book_id));
+            const visibleBooks = sortLibraryBooks(filteredBooks, sortOption);
             return visibleBooks.length === 0 ? (
               <p className="empty-state">No Books in this Collection.</p>
             ) : (
@@ -955,17 +1105,22 @@ function App() {
                             aria-label={`Select ${book.title}`}
                           />
                         )}
-                        <div
-                          className="cover"
-                          aria-hidden="true"
+                        {libraryProgress[book.book_id] &&
+                          computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode) && (
+                            <span className="book-completed-read-badge">
+                              {computeCompletedReadMarkText(libraryProgress[book.book_id], completedReadMarkMode)}
+                            </span>
+                          )}
+                        <BookCover
+                          bookId={book.book_id}
+                          format={book.format}
+                          title={book.title}
                           onClick={() => {
                             if (!selectMode && canOpen) {
                               setOpenBook(book);
                             }
                           }}
-                        >
-                          <span className="cover-format">{book.format.toUpperCase()}</span>
-                        </div>
+                        />
                         <div className="book-card-body">
                           {renamingBookId === book.book_id ? (
                             <span className="rename-book-form" onClick={(e) => e.stopPropagation()}>
@@ -999,6 +1154,13 @@ function App() {
                                 {book.format.toUpperCase()} · {book.ownership_mode}
                                 {!book.available && <span className="needs-relink"> — Needs Relink</span>}
                               </div>
+                              {libraryProgress[book.book_id] && (
+                                <div className="book-progress">
+                                  <span className="book-progress-percent">
+                                    {Math.round(computeLibraryDisplayPercent(libraryProgress[book.book_id], progressDisplayMode))}%
+                                  </span>
+                                </div>
+                              )}
                               {!selectMode && (
                                 <div className="book-actions">
                                   {canOpen && (
@@ -1029,10 +1191,18 @@ function App() {
                                   >
                                     Organize
                                   </button>
-                                  <button type="button" className="btn-sm danger" onClick={() => removeBook(book.book_id)}>
+                                  <button
+                                    type="button"
+                                    className="btn-sm danger"
+                                    onClick={() => setRemoveConfirmBookId(book.book_id)}
+                                  >
                                     Remove from Library
                                   </button>
-                                  <button type="button" className="btn-sm danger" onClick={() => deleteReadingData(book.book_id)}>
+                                  <button
+                                    type="button"
+                                    className="btn-sm danger"
+                                    onClick={() => setDeleteReadingDataConfirmBookId(book.book_id)}
+                                  >
                                     Delete Reading Data
                                   </button>
                                   {book.ownership_mode === "managed_copy" && (
@@ -1079,6 +1249,14 @@ function App() {
                       disabled={selectedBookIds.size === 0}
                     >
                       Remove from Library
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-sm danger"
+                      onClick={() => setBulkDeleteReadingDataConfirmOpen(true)}
+                      disabled={selectedBookIds.size === 0}
+                    >
+                      Delete Reading Data
                     </button>
                     <button type="button" className="btn-sm" onClick={toggleSelectMode}>
                       Exit Selection
@@ -1248,6 +1426,47 @@ function App() {
         </div>
       )}
 
+      {removeConfirmBookId && (
+        <div className="overlay open" role="dialog" aria-label="Remove Book from Library">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Remove from Library</h2>
+            </div>
+            <p>Remove this Book from the Library? Reading data is kept, and no source file will be deleted.</p>
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={confirmRemoveBook}>
+                Remove from Library
+              </button>
+              <button type="button" className="btn" onClick={() => setRemoveConfirmBookId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteReadingDataConfirmBookId && (
+        <div className="overlay open" role="dialog" aria-label="Delete Reading Data">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Delete Reading Data</h2>
+            </div>
+            <p>
+              Delete this Book's reading data? Notes, progress, OCR corrections, Book Hours, and alignment data for
+              this Book will be removed. The Book file stays in place.
+            </p>
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={confirmDeleteReadingData}>
+                Delete Reading Data
+              </button>
+              <button type="button" className="btn" onClick={() => setDeleteReadingDataConfirmBookId(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {bulkRemoveConfirmOpen && (
         <div className="overlay open" role="dialog" aria-label="Remove Selected Books from Library">
           <div className="modal" style={{ maxWidth: "460px" }}>
@@ -1270,6 +1489,36 @@ function App() {
                 className="btn"
                 onClick={() => {
                   setBulkRemoveConfirmOpen(false);
+                  setBulkError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteReadingDataConfirmOpen && (
+        <div className="overlay open" role="dialog" aria-label="Delete Reading Data for Selected Books">
+          <div className="modal" style={{ maxWidth: "460px" }}>
+            <div className="modalHead">
+              <h2>Delete Reading Data</h2>
+            </div>
+            <p>
+              Delete reading data for <strong>{selectedBookIds.size}</strong> selected Book(s)? Notes, progress, OCR
+              corrections, Book Hours, and alignment data will be removed. Book files stay in place.
+            </p>
+            {bulkError && <p role="alert" className="notice warn">{bulkError}</p>}
+            <div className="modalActions">
+              <button type="button" className="btn danger" onClick={handleBulkDeleteReadingData}>
+                Delete Reading Data
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setBulkDeleteReadingDataConfirmOpen(false);
                   setBulkError(null);
                 }}
               >
